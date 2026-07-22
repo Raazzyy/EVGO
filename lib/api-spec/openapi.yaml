@@ -1,36 +1,1146 @@
-openapi: 3.1.0
+openapi: "3.1.0"
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
-  version: 0.1.0
-  description: API specification
+  version: "1.0.0"
 servers:
   - url: /api
-    description: Base API path
-tags:
-  - name: health
-    description: Health operations
+
 paths:
   /healthz:
     get:
-      operationId: healthCheck
-      tags: [health]
+      operationId: getHealth
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
-          description: Healthy
+          description: OK
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ── Operators ───────────────────────────────────────────────
+  /operators:
+    get:
+      operationId: getOperators
+      summary: List all operators
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Operator"
+    post:
+      operationId: createOperator
+      summary: Create operator (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OperatorInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Operator"
+
+  /operators/{id}:
+    get:
+      operationId: getOperator
+      summary: Get operator by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Operator"
+    put:
+      operationId: updateOperator
+      summary: Update operator (admin)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OperatorInput"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Operator"
+    delete:
+      operationId: deleteOperator
+      summary: Delete operator (admin)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Stations ─────────────────────────────────────────────────
+  /stations:
+    get:
+      operationId: getStations
+      summary: List stations with optional filters
+      parameters:
+        - in: query
+          name: connector_type
+          schema:
+            type: string
+        - in: query
+          name: min_power
+          schema:
+            type: number
+        - in: query
+          name: max_power
+          schema:
+            type: number
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [free, occupied, offline]
+        - in: query
+          name: operator_id
+          schema:
+            type: integer
+        - in: query
+          name: lat
+          schema:
+            type: number
+        - in: query
+          name: lng
+          schema:
+            type: number
+        - in: query
+          name: radius_km
+          schema:
+            type: number
+        - in: query
+          name: amenities
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Station"
+    post:
+      operationId: createStation
+      summary: Create station (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StationInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Station"
+
+  /stations/{id}:
+    get:
+      operationId: getStation
+      summary: Get station by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Station"
+    put:
+      operationId: updateStation
+      summary: Update station (admin)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StationInput"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Station"
+    delete:
+      operationId: deleteStation
+      summary: Delete station (admin)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /stations/{id}/status:
+    patch:
+      operationId: updateStationStatus
+      summary: Toggle station status (admin)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StationStatusUpdate"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Station"
+
+  # ── Vehicles ─────────────────────────────────────────────────
+  /vehicles:
+    get:
+      operationId: getVehicles
+      summary: List vehicles
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Vehicle"
+    post:
+      operationId: createVehicle
+      summary: Create a vehicle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VehicleInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vehicle"
+
+  /vehicles/{id}:
+    get:
+      operationId: getVehicle
+      summary: Get vehicle by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vehicle"
+    put:
+      operationId: updateVehicle
+      summary: Update vehicle
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VehicleInput"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vehicle"
+    delete:
+      operationId: deleteVehicle
+      summary: Delete vehicle
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Routes ───────────────────────────────────────────────────
+  /routes:
+    get:
+      operationId: getRoutes
+      summary: List routes
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Route"
+    post:
+      operationId: createRoute
+      summary: Create a smart route
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RouteInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Route"
+
+  /routes/{id}:
+    get:
+      operationId: getRoute
+      summary: Get route by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Route"
+    delete:
+      operationId: deleteRoute
+      summary: Delete route
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Charging Sessions ────────────────────────────────────────
+  /sessions:
+    get:
+      operationId: getSessions
+      summary: List charging sessions
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [active, completed, cancelled]
+        - in: query
+          name: station_id
+          schema:
+            type: integer
+        - in: query
+          name: user_id
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Session"
+    post:
+      operationId: startSession
+      summary: Start a charging session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SessionInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+
+  /sessions/{id}:
+    get:
+      operationId: getSession
+      summary: Get session by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+
+  /sessions/{id}/stop:
+    patch:
+      operationId: stopSession
+      summary: Stop a charging session
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+
+  # ── Users ────────────────────────────────────────────────────
+  /users:
+    get:
+      operationId: getUsers
+      summary: List all users (admin)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+    post:
+      operationId: createUser
+      summary: Create or register a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/{id}:
+    get:
+      operationId: getUser
+      summary: Get user by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+    put:
+      operationId: updateUser
+      summary: Update user profile
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserUpdate"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  # ── Payment Methods ───────────────────────────────────────────
+  /payment-methods:
+    get:
+      operationId: getPaymentMethods
+      summary: List payment methods for user
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PaymentMethod"
+    post:
+      operationId: addPaymentMethod
+      summary: Add payment method
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentMethodInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentMethod"
+
+  /payment-methods/{id}:
+    delete:
+      operationId: deletePaymentMethod
+      summary: Remove payment method
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ── Admin Auth ───────────────────────────────────────────────
+  /admin/login:
+    post:
+      operationId: adminLogin
+      summary: Admin login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminLoginInput"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminToken"
+        "401":
+          description: Unauthorized
+
+  # ── Admin Dashboard ──────────────────────────────────────────
+  /admin/dashboard:
+    get:
+      operationId: getDashboard
+      summary: Admin dashboard stats
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
+  # ── Support Tickets ──────────────────────────────────────────
+  /support-tickets:
+    get:
+      operationId: getSupportTickets
+      summary: List support tickets
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SupportTicket"
+    post:
+      operationId: createSupportTicket
+      summary: Create a support ticket
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SupportTicketInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupportTicket"
+
+  /support-tickets/{id}:
+    patch:
+      operationId: updateSupportTicket
+      summary: Update ticket status
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SupportTicketUpdate"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupportTicket"
+
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
 
+    # ── Operator ──────────────────────────────────────────────
+    Operator:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        logo_url:
+          type: ["string", "null"]
+        station_count:
+          type: integer
+
+    OperatorInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        logo_url:
+          type: ["string", "null"]
+
+    # ── Connector ─────────────────────────────────────────────
+    Connector:
+      type: object
+      required: [type, power_kw, total, available]
+      properties:
+        type:
+          type: string
+          enum: [CCS2, CHAdeMO, Type2, GB-T]
+        power_kw:
+          type: number
+        total:
+          type: integer
+        available:
+          type: integer
+
+    # ── Station ───────────────────────────────────────────────
+    Station:
+      type: object
+      required: [id, name, address, lat, lng, power_kw, price_per_kwh, status, source]
+      properties:
+        id:
+          type: integer
+        operator_id:
+          type: ["integer", "null"]
+        operator:
+          $ref: "#/components/schemas/Operator"
+        name:
+          type: string
+        address:
+          type: string
+        lat:
+          type: number
+        lng:
+          type: number
+        connectors:
+          type: array
+          items:
+            $ref: "#/components/schemas/Connector"
+        power_kw:
+          type: number
+        price_per_kwh:
+          type: number
+        status:
+          type: string
+          enum: [free, occupied, offline]
+        source:
+          type: string
+          enum: [manual, api, mock]
+        amenities:
+          type: array
+          items:
+            type: string
+        updated_at:
+          type: string
+          format: date-time
+        distance_km:
+          type: ["number", "null"]
+
+    StationInput:
+      type: object
+      required: [name, address, lat, lng, power_kw, price_per_kwh, status]
+      properties:
+        operator_id:
+          type: ["integer", "null"]
+        name:
+          type: string
+        address:
+          type: string
+        lat:
+          type: number
+        lng:
+          type: number
+        connectors:
+          type: array
+          items:
+            $ref: "#/components/schemas/Connector"
+        power_kw:
+          type: number
+        price_per_kwh:
+          type: number
+        status:
+          type: string
+          enum: [free, occupied, offline]
+        source:
+          type: string
+          enum: [manual, api, mock]
+        amenities:
+          type: array
+          items:
+            type: string
+
+    StationStatusUpdate:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [free, occupied, offline]
+
+    # ── Vehicle ───────────────────────────────────────────────
+    Vehicle:
+      type: object
+      required: [id, name, battery_kwh, range_km, connector_type]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        battery_kwh:
+          type: number
+        range_km:
+          type: number
+        connector_type:
+          type: string
+          enum: [CCS2, CHAdeMO, Type2, GB-T]
+        current_battery_pct:
+          type: ["number", "null"]
+
+    VehicleInput:
+      type: object
+      required: [name, battery_kwh, range_km, connector_type]
+      properties:
+        name:
+          type: string
+        battery_kwh:
+          type: number
+        range_km:
+          type: number
+        connector_type:
+          type: string
+          enum: [CCS2, CHAdeMO, Type2, GB-T]
+        current_battery_pct:
+          type: ["number", "null"]
+
+    # ── Route Stop ────────────────────────────────────────────
+    RouteStop:
+      type: object
+      required: [station_id, station_name, arrival_battery_pct, departure_battery_pct, charge_time_min, distance_from_prev_km]
+      properties:
+        station_id:
+          type: integer
+        station_name:
+          type: string
+        address:
+          type: string
+        lat:
+          type: number
+        lng:
+          type: number
+        arrival_battery_pct:
+          type: number
+        departure_battery_pct:
+          type: number
+        charge_time_min:
+          type: integer
+        distance_from_prev_km:
+          type: number
+        eta:
+          type: string
+
+    # ── Route ─────────────────────────────────────────────────
+    Route:
+      type: object
+      required: [id, origin, destination, total_distance_km, total_time_min, status, created_at]
+      properties:
+        id:
+          type: integer
+        vehicle_id:
+          type: ["integer", "null"]
+        vehicle:
+          $ref: "#/components/schemas/Vehicle"
+        origin:
+          type: string
+        destination:
+          type: string
+        origin_lat:
+          type: ["number", "null"]
+        origin_lng:
+          type: ["number", "null"]
+        dest_lat:
+          type: ["number", "null"]
+        dest_lng:
+          type: ["number", "null"]
+        initial_battery_pct:
+          type: number
+        stops:
+          type: array
+          items:
+            $ref: "#/components/schemas/RouteStop"
+        total_distance_km:
+          type: number
+        total_time_min:
+          type: integer
+        status:
+          type: string
+          enum: [active, completed, cancelled]
+        created_at:
+          type: string
+          format: date-time
+
+    RouteInput:
+      type: object
+      required: [origin, destination, initial_battery_pct]
+      properties:
+        origin:
+          type: string
+        destination:
+          type: string
+        origin_lat:
+          type: ["number", "null"]
+        origin_lng:
+          type: ["number", "null"]
+        dest_lat:
+          type: ["number", "null"]
+        dest_lng:
+          type: ["number", "null"]
+        vehicle_id:
+          type: ["integer", "null"]
+        initial_battery_pct:
+          type: number
+
+    # ── Session ───────────────────────────────────────────────
+    Session:
+      type: object
+      required: [id, station_id, status, started_at]
+      properties:
+        id:
+          type: integer
+        station_id:
+          type: integer
+        station:
+          $ref: "#/components/schemas/Station"
+        user_id:
+          type: ["string", "null"]
+        energy_kwh:
+          type: ["number", "null"]
+        cost:
+          type: ["number", "null"]
+        status:
+          type: string
+          enum: [active, completed, cancelled]
+        started_at:
+          type: string
+          format: date-time
+        ended_at:
+          type: ["string", "null"]
+          format: date-time
+        connector_type:
+          type: ["string", "null"]
+        payment_method_id:
+          type: ["integer", "null"]
+
+    SessionInput:
+      type: object
+      required: [station_id]
+      properties:
+        station_id:
+          type: integer
+        user_id:
+          type: ["string", "null"]
+        connector_type:
+          type: ["string", "null"]
+        payment_method_id:
+          type: ["integer", "null"]
+
+    # ── User ──────────────────────────────────────────────────
+    User:
+      type: object
+      required: [id, email]
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        name:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        membership_tier:
+          type: string
+          enum: [free, premium]
+        total_sessions:
+          type: integer
+        total_spent:
+          type: number
+        total_energy_kwh:
+          type: number
+        co2_saved_kg:
+          type: number
+        created_at:
+          type: string
+          format: date-time
+
+    UserInput:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+        name:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+
+    UserUpdate:
+      type: object
+      properties:
+        name:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        membership_tier:
+          type: string
+          enum: [free, premium]
+
+    # ── Payment Method ────────────────────────────────────────
+    PaymentMethod:
+      type: object
+      required: [id, type, last_four, is_default]
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: string
+        type:
+          type: string
+        last_four:
+          type: string
+        is_default:
+          type: boolean
+
+    PaymentMethodInput:
+      type: object
+      required: [type, last_four]
+      properties:
+        user_id:
+          type: ["string", "null"]
+        type:
+          type: string
+        last_four:
+          type: string
+        is_default:
+          type: boolean
+
+    # ── Admin ─────────────────────────────────────────────────
+    AdminLoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+
+    AdminToken:
+      type: object
+      required: [token, email]
+      properties:
+        token:
+          type: string
+        email:
+          type: string
+
+    DashboardStats:
+      type: object
+      required: [total_stations, free_stations, occupied_stations, offline_stations, active_sessions, total_sessions, total_users, total_revenue, revenue_today, sessions_today]
+      properties:
+        total_stations:
+          type: integer
+        free_stations:
+          type: integer
+        occupied_stations:
+          type: integer
+        offline_stations:
+          type: integer
+        active_sessions:
+          type: integer
+        total_sessions:
+          type: integer
+        total_users:
+          type: integer
+        total_revenue:
+          type: number
+        revenue_today:
+          type: number
+        sessions_today:
+          type: integer
+        top_operators:
+          type: array
+          items:
+            $ref: "#/components/schemas/Operator"
+
+    # ── Support ───────────────────────────────────────────────
+    SupportTicket:
+      type: object
+      required: [id, subject, message, status, created_at]
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: ["string", "null"]
+        user_email:
+          type: ["string", "null"]
+        subject:
+          type: string
+        message:
+          type: string
+        status:
+          type: string
+          enum: [open, in_progress, resolved, closed]
+        created_at:
+          type: string
+          format: date-time
+        resolved_at:
+          type: ["string", "null"]
+          format: date-time
+
+    SupportTicketInput:
+      type: object
+      required: [subject, message]
+      properties:
+        user_id:
+          type: ["string", "null"]
+        user_email:
+          type: ["string", "null"]
+        subject:
+          type: string
+        message:
+          type: string
+
+    SupportTicketUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [open, in_progress, resolved, closed]

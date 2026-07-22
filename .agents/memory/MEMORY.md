@@ -1,0 +1,1 @@
+- [EV Platform Architecture](ev-platform-architecture.md) — stack decisions, react-native-maps web fix, seed data, auth, route naming quirks
