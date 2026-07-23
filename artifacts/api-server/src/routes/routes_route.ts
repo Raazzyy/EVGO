@@ -9,7 +9,7 @@ import {
 
 const router: IRouter = Router();
 
-// ── Google Directions API: get real road polyline ────────────────────────
+// ── Google Directions API: real road polyline + turn-by-turn steps ────────
 function decodePolyline(encoded: string): Array<[number, number]> {
   const coords: Array<[number, number]> = [];
   let index = 0, lat = 0, lng = 0;
@@ -25,11 +25,32 @@ function decodePolyline(encoded: string): Array<[number, number]> {
   return coords;
 }
 
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+interface GoogleStep {
+  instruction: string;
+  distance_m: number;
+  duration_s: number;
+  start_lat: number;
+  start_lng: number;
+  end_lat: number;
+  end_lng: number;
+  maneuver: string;
+}
+
+interface DirectionsResult {
+  polyline: Array<[number, number]>;
+  google_steps: GoogleStep[];
+}
+
 async function fetchRoadPolyline(
   waypoints: Array<{ lat: number; lng: number }>
-): Promise<Array<[number, number]>> {
+): Promise<DirectionsResult> {
+  const fallback: DirectionsResult = { polyline: buildStraightPolyline(waypoints), google_steps: [] };
   const apikey = process.env.GOOGLE_DIRECTIONS_KEY;
-  if (!apikey || waypoints.length < 2) return buildStraightPolyline(waypoints);
+  if (!apikey || waypoints.length < 2) return fallback;
   try {
     const origin = `${waypoints[0].lat},${waypoints[0].lng}`;
     const destination = `${waypoints[waypoints.length - 1].lat},${waypoints[waypoints.length - 1].lng}`;
@@ -43,25 +64,39 @@ async function fetchRoadPolyline(
     if (!res.ok) {
       const body = await res.text();
       console.error(`[google-directions] HTTP error ${res.status}:`, body.slice(0, 400));
-      return buildStraightPolyline(waypoints);
+      return fallback;
     }
     const data: any = await res.json();
     if (data.status !== "OK") {
       console.error(`[google-directions] API status: ${data.status} — ${data.error_message ?? ""}`);
-      return buildStraightPolyline(waypoints);
+      return fallback;
     }
     const coords: Array<[number, number]> = [];
+    const google_steps: GoogleStep[] = [];
     for (const leg of data.routes?.[0]?.legs ?? []) {
       for (const step of leg.steps ?? []) {
         const pts = decodePolyline(step.polyline?.points ?? "");
         for (const p of pts) coords.push(p);
+        google_steps.push({
+          instruction: stripHtml(step.html_instructions ?? ""),
+          distance_m: step.distance?.value ?? 0,
+          duration_s: step.duration?.value ?? 0,
+          start_lat: step.start_location?.lat ?? 0,
+          start_lng: step.start_location?.lng ?? 0,
+          end_lat: step.end_location?.lat ?? 0,
+          end_lng: step.end_location?.lng ?? 0,
+          maneuver: step.maneuver ?? "straight",
+        });
       }
     }
-    console.log(`[google-directions] OK — ${coords.length} points`);
-    return coords.length >= 2 ? coords : buildStraightPolyline(waypoints);
+    console.log(`[google-directions] OK — ${coords.length} points, ${google_steps.length} steps`);
+    return {
+      polyline: coords.length >= 2 ? coords : buildStraightPolyline(waypoints),
+      google_steps,
+    };
   } catch (err: any) {
     console.error(`[google-directions] fetch exception:`, err?.message ?? err);
-    return buildStraightPolyline(waypoints);
+    return fallback;
   }
 }
 
@@ -164,8 +199,10 @@ router.get("/routes", async (_req, res): Promise<void> => {
         { lat: route.dest_lat, lng: route.dest_lng },
       ].filter((w) => w.lat && w.lng);
 
-      const polyline = route.status === "active" ? await fetchRoadPolyline(waypoints) : [];
-      return { ...route, vehicle: r.vehicle ?? undefined, polyline };
+      const { polyline, google_steps } = route.status === "active"
+        ? await fetchRoadPolyline(waypoints)
+        : { polyline: [] as Array<[number,number]>, google_steps: [] };
+      return { ...route, vehicle: r.vehicle ?? undefined, polyline, google_steps };
     })
   );
 
@@ -208,20 +245,19 @@ router.post("/routes", async (req, res): Promise<void> => {
     status: "active",
   }).returning();
 
-  // Build polyline via Yandex Router
   const stops: any[] = plan.stops;
   const waypoints = [
     { lat: originLat, lng: originLng },
     ...stops.filter((s) => s.lat && s.lng).map((s) => ({ lat: s.lat, lng: s.lng })),
     { lat: destLat, lng: destLng },
   ];
-  const polyline = await fetchRoadPolyline(waypoints);
+  const { polyline, google_steps } = await fetchRoadPolyline(waypoints);
 
   const [v] = vehicle_id
     ? await db.select().from(vehiclesTable).where(eq(vehiclesTable.id, vehicle_id))
     : [undefined];
 
-  res.status(201).json({ ...route, vehicle: v ?? undefined, polyline });
+  res.status(201).json({ ...route, vehicle: v ?? undefined, polyline, google_steps });
 });
 
 // ── GET /routes/:id ───────────────────────────────────────────────────────
@@ -241,8 +277,8 @@ router.get("/routes/:id", async (req, res): Promise<void> => {
     ...stops.filter((s: any) => s.lat && s.lng).map((s: any) => ({ lat: s.lat, lng: s.lng })),
     { lat: route.dest_lat, lng: route.dest_lng },
   ].filter((w) => w.lat && w.lng);
-  const polyline = await fetchRoadPolyline(waypoints);
-  res.json({ ...route, vehicle: row.vehicle ?? undefined, polyline });
+  const { polyline, google_steps } = await fetchRoadPolyline(waypoints);
+  res.json({ ...route, vehicle: row.vehicle ?? undefined, polyline, google_steps });
 });
 
 // ── DELETE /routes/:id ────────────────────────────────────────────────────

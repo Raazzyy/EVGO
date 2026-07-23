@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -50,26 +50,47 @@ export default function NavigateScreen() {
     return Array.isArray(p) && p.length >= 2 ? (p as Array<[number, number]>) : undefined;
   }, [route]);
 
-  // Derive navigation steps from stops
+  // Map Google maneuver string → Feather icon name
+  function maneuverIcon(maneuver: string): string {
+    if (!maneuver || maneuver === 'straight' || maneuver === 'merge' || maneuver === 'keep-right' || maneuver === 'keep-left') return 'arrow-up';
+    if (maneuver.includes('left')) return 'corner-down-left';
+    if (maneuver.includes('right')) return 'corner-down-right';
+    if (maneuver.startsWith('uturn')) return 'rotate-cw';
+    if (maneuver === 'ferry' || maneuver === 'ferry-train') return 'anchor';
+    return 'arrow-up';
+  }
+
+  // Real turn-by-turn steps from Google Directions; fallback to stop-list if not available
   const steps = useMemo(() => {
     if (!route) return [];
+    const googleSteps: any[] = (route as any).google_steps ?? [];
+    if (googleSteps.length > 0) {
+      return googleSteps.map((s: any) => ({
+        instruction: s.instruction,
+        street: s.distance_m >= 1000
+          ? `${(s.distance_m / 1000).toFixed(1)} км`
+          : `${s.distance_m} м`,
+        icon: maneuverIcon(s.maneuver),
+      }));
+    }
+    // Fallback: derive from charging stops
     const stops: any[] = (route as any).stops ?? [];
     const dest = (route as any).destination ?? 'пункт назначения';
     if (stops.length === 0) {
-      return [{ instruction: 'Следуйте до пункта назначения', street: dest, icon: 'arrow-up' as const }];
+      return [{ instruction: 'Следуйте до пункта назначения', street: dest, icon: 'arrow-up' }];
     }
     return [
-      { instruction: 'Следуйте до зарядной станции', street: stops[0].station_name, icon: 'arrow-up' as const },
+      { instruction: 'Следуйте до зарядной станции', street: stops[0].station_name, icon: 'arrow-up' },
       ...stops.slice(0, -1).map((s: any, i: number) => ({
         instruction: 'После зарядки следуйте далее',
         street: stops[i + 1].station_name,
-        icon: 'arrow-up' as const,
+        icon: 'arrow-up',
       })),
-      { instruction: 'Следуйте до пункта назначения', street: dest, icon: 'navigation' as const },
+      { instruction: 'Следуйте до пункта назначения', street: dest, icon: 'navigation' },
     ];
   }, [route]);
 
-  const currentStepIdx = 0; // In a real nav app this would track GPS progress
+  const [currentStepIdx, setCurrentStepIdx] = useState(0); // Stage B: advance via GPS
   const step = steps[currentStepIdx] ?? steps[0];
 
   function handleEnd() {
