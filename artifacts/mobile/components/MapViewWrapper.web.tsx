@@ -19,6 +19,8 @@ export interface MapApi {
   zoomIn: () => void;
   zoomOut: () => void;
   locate: () => void;
+  /** Returns pixel coords of lat/lng relative to the map container's top-left corner. */
+  projectPoint: (lat: number, lng: number) => Promise<{ x: number; y: number } | null>;
 }
 
 export interface StationMarker {
@@ -31,23 +33,26 @@ interface Props {
   stations: StationMarker[];
   onStationPress: (id: number) => void;
   onMapPress?: () => void;
+  onRegionChange?: () => void;
   userLocation?: { lat: number; lng: number } | null;
   routePoints?: Array<{ lat: number; lng: number; label?: string; type?: 'origin' | 'stop' | 'dest' }>;
   polylineCoords?: Array<[number, number]>;
 }
 
 export const MapViewWrapper = forwardRef<MapApi, Props>(
-  ({ stations, onStationPress, onMapPress, userLocation, routePoints, polylineCoords }, ref) => {
+  ({ stations, onStationPress, onMapPress, onRegionChange, userLocation, routePoints, polylineCoords }, ref) => {
     const divRef = useRef<HTMLDivElement | null>(null);
     const mapRef = useRef<any>(null);
     const leafletRef = useRef<any>(null);
     const markersRef = useRef<any[]>([]);
     const userMarkerRef = useRef<any>(null);
     const routeLayerRef = useRef<any>(null);
-    const onPressRef    = useRef(onStationPress);
-    const onMapPressRef = useRef(onMapPress);
-    onPressRef.current    = onStationPress;
-    onMapPressRef.current = onMapPress;
+    const onPressRef       = useRef(onStationPress);
+    const onMapPressRef    = useRef(onMapPress);
+    const onRegionChangeRef = useRef(onRegionChange);
+    onPressRef.current        = onStationPress;
+    onMapPressRef.current     = onMapPress;
+    onRegionChangeRef.current = onRegionChange;
     const [mapReady, setMapReady] = useState(false);
 
     useImperativeHandle(ref, () => ({
@@ -63,6 +68,16 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
           );
         }
       },
+      projectPoint: async (lat, lng) => {
+        const map = mapRef.current;
+        if (!map) return null;
+        try {
+          const pt = map.latLngToContainerPoint([lat, lng]);
+          return { x: pt.x, y: pt.y };
+        } catch {
+          return null;
+        }
+      },
     }), [userLocation]);
 
     // Init map
@@ -70,6 +85,8 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
       if (typeof window === 'undefined') return;
       injectLeafletCSS();
       let cancelled = false;
+      let rafId: number | null = null;
+
       (async () => {
         const L = (await import('leaflet')).default;
         leafletRef.current = L;
@@ -81,13 +98,25 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
         mapRef.current = map;
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
-        // Map-level click → close quick view (markers stop propagation, so this only fires on empty map)
+        // Map-level click → close quick view
         map.on('click', () => onMapPressRef.current?.());
+
+        // Region change → throttled via rAF so we don't fire >1× per frame
+        const fireRegionChange = () => {
+          if (rafId) return;
+          rafId = requestAnimationFrame(() => {
+            onRegionChangeRef.current?.();
+            rafId = null;
+          });
+        };
+        map.on('move', fireRegionChange);
+        map.on('zoom', fireRegionChange);
 
         if (!cancelled) setMapReady(true);
       })();
       return () => {
         cancelled = true;
+        if (rafId) cancelAnimationFrame(rafId);
         markersRef.current.forEach((m) => m.remove());
         markersRef.current = [];
         mapRef.current?.remove();
@@ -117,13 +146,10 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
           className: '', iconSize: [36, 36], iconAnchor: [18, 18],
         });
         const marker = L.marker([s.lat, s.lng], { icon }).addTo(map);
-
-        // Stop propagation so the map 'click' handler (onMapPress) doesn't fire on pin taps
         marker.on('click', (e: any) => {
           L.DomEvent.stopPropagation(e);
           onPressRef.current(s.id);
         });
-
         markersRef.current.push(marker);
       });
     }, [stations, mapReady]);

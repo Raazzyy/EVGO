@@ -47,6 +47,7 @@ export default function MapScreen() {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isExpanded, setIsExpanded] = useState(false); // state not ref → triggers re-renders
   const [selectedStationId, setSelectedStationId] = useState<number | null>(null);
+  const [markerPos, setMarkerPos] = useState<{ x: number; y: number } | null>(null);
 
   // Sheet animation — smooth iOS timing
   const sheetHeight = useSharedValue(SHEET_MIN);
@@ -149,10 +150,11 @@ export default function MapScreen() {
     power_kw: s.power_kw, price_per_kwh: s.price_per_kwh,
   })), [filteredStations]);
 
-  // Quick view: first tap → open modal, second tap on same pin → full page
+  // Quick view: first tap → open popup, second tap on same pin → full page
   const handleStationPress = useCallback((id: number) => {
     if (selectedStationId === id) {
       setSelectedStationId(null);
+      setMarkerPos(null);
       router.push(`/station/${id}`);
     } else {
       setSelectedStationId(id);
@@ -164,6 +166,31 @@ export default function MapScreen() {
     if (selectedStationId == null) return null;
     return [...allStations, ...promotedFromApi].find(s => s.id === selectedStationId) as QuickViewStation ?? null;
   }, [selectedStationId, allStations, promotedFromApi]);
+
+  // Keep a ref so handleRegionChange doesn't capture a stale selectedStation
+  const selectedStationRef = useRef(selectedStation);
+  selectedStationRef.current = selectedStation;
+
+  // Compute pixel coords of the selected marker (called on select + every map move)
+  const computeMarkerPos = useCallback(async (lat: number, lng: number) => {
+    const pos = await mapRef.current?.projectPoint(lat, lng);
+    if (pos) setMarkerPos(pos);
+  }, []);
+
+  // Recompute when the selected station changes
+  useEffect(() => {
+    if (!selectedStation) { setMarkerPos(null); return; }
+    computeMarkerPos(selectedStation.lat, selectedStation.lng);
+  }, [selectedStation?.id]);
+
+  // Recompute every time the map moves / zooms (throttled inside MapViewWrapper)
+  const handleRegionChange = useCallback(() => {
+    const s = selectedStationRef.current;
+    if (!s) return;
+    mapRef.current?.projectPoint(s.lat, s.lng).then(pos => {
+      if (pos) setMarkerPos(pos);
+    });
+  }, []);
 
   const topOffset = Platform.OS === 'web' ? 0 : insets.top;
   const bottomPad = Platform.OS === 'web' ? 34 + 84 : insets.bottom + 100;
@@ -274,7 +301,8 @@ export default function MapScreen() {
       <MapViewWrapper
         ref={mapRef} stations={markers} userLocation={userLocation}
         onStationPress={handleStationPress}
-        onMapPress={() => setSelectedStationId(null)}
+        onMapPress={() => { setSelectedStationId(null); setMarkerPos(null); }}
+        onRegionChange={handleRegionChange}
       />
       {TopBar}
       {FilterChips}
@@ -380,18 +408,22 @@ export default function MapScreen() {
       {selectedStation && (
         <StationQuickView
           station={selectedStation}
+          position={markerPos}
           userLocation={userLocation}
-          onClose={() => setSelectedStationId(null)}
+          onClose={() => { setSelectedStationId(null); setMarkerPos(null); }}
           onOpenFull={() => {
             setSelectedStationId(null);
+            setMarkerPos(null);
             router.push(`/station/${selectedStation.id}`);
           }}
           onNavigate={() => {
             setSelectedStationId(null);
+            setMarkerPos(null);
             router.push(routeFor(selectedStation) as any);
           }}
           onCharge={() => {
             setSelectedStationId(null);
+            setMarkerPos(null);
             router.push(`/station/${selectedStation.id}`);
           }}
         />

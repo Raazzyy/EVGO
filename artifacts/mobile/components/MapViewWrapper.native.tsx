@@ -1,13 +1,15 @@
 import React, { forwardRef, useImperativeHandle, useRef } from 'react';
 import { StyleSheet } from 'react-native';
 import MapView, { Marker, Callout, Region } from 'react-native-maps';
-import { View, Text } from 'react-native';
+import { View } from 'react-native';
 import { useColors } from '@/hooks/useColors';
 
 export interface MapApi {
   zoomIn: () => void;
   zoomOut: () => void;
   locate: () => void;
+  /** Returns pixel coords of lat/lng relative to the MapView's top-left corner. */
+  projectPoint: (lat: number, lng: number) => Promise<{ x: number; y: number } | null>;
 }
 
 export interface StationMarker {
@@ -24,6 +26,7 @@ interface MapViewWrapperProps {
   stations: StationMarker[];
   onStationPress: (id: number) => void;
   onMapPress?: () => void;
+  onRegionChange?: () => void;
   userLocation?: { lat: number; lng: number } | null;
   routePoints?: Array<{ lat: number; lng: number; label?: string; type?: 'origin' | 'stop' | 'dest' }>;
   polylineCoords?: Array<[number, number]>;
@@ -39,9 +42,9 @@ const TASHKENT: Region = {
 const ZOOM_FACTOR = 0.5;
 
 export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
-  ({ stations, onStationPress, onMapPress, userLocation }, ref) => {
+  ({ stations, onStationPress, onMapPress, onRegionChange, userLocation }, ref) => {
     const colors = useColors();
-    const mapRef   = useRef<MapView>(null);
+    const mapRef    = useRef<MapView>(null);
     const regionRef = useRef<Region>(TASHKENT);
 
     useImperativeHandle(ref, () => ({
@@ -76,6 +79,16 @@ export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
         mapRef.current?.animateToRegion(next, 400);
         regionRef.current = next;
       },
+      async projectPoint(lat, lng) {
+        const map = mapRef.current;
+        if (!map) return null;
+        try {
+          const pt = await map.pointForCoordinate({ latitude: lat, longitude: lng });
+          return { x: pt.x, y: pt.y };
+        } catch {
+          return null;
+        }
+      },
     }), [userLocation]);
 
     return (
@@ -83,6 +96,10 @@ export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
         ref={mapRef}
         style={StyleSheet.absoluteFillObject}
         initialRegion={TASHKENT}
+        onRegionChange={(r) => {
+          regionRef.current = r;
+          onRegionChange?.();
+        }}
         onRegionChangeComplete={(r) => { regionRef.current = r; }}
         onPress={() => onMapPress?.()}
         showsUserLocation
@@ -99,10 +116,7 @@ export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
               pinColor={pinColor}
               onPress={() => onStationPress(s.id)}
             >
-              <Callout tooltip>
-                {/* Empty callout — quick view shown via Modal instead */}
-                <View />
-              </Callout>
+              <Callout tooltip><View /></Callout>
             </Marker>
           );
         })}
@@ -115,6 +129,4 @@ MapViewWrapper.displayName = 'MapViewWrapper';
 
 const styles = StyleSheet.create({
   callout: { padding: 8, minWidth: 160 },
-  calloutTitle: { fontSize: 14, fontWeight: '700', marginBottom: 2 },
-  calloutSub: { fontSize: 12, color: '#64748B' },
 });
