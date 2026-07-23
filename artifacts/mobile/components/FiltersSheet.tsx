@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   ScrollView,
   Modal,
   ActivityIndicator,
@@ -138,9 +139,13 @@ export function FiltersSheet({ visible, onClose, onApply }: FiltersSheetProps) {
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.overlay}>
+      {/* Tap on dim area → close */}
+      <TouchableWithoutFeedback onPress={onClose}>
+        <View style={styles.overlay}>
+          {/* Tap inside sheet → don't propagate to overlay */}
+          <TouchableWithoutFeedback onPress={() => {}}>
         <View style={[styles.sheet, { backgroundColor: colors.card }]}>
-          <View style={[styles.safeArea, { paddingBottom: insets.bottom }]}>
+          <View style={styles.safeArea}>
             {/* Header */}
             <View style={[styles.header, { borderBottomColor: colors.border }]}>
               <Text style={[styles.headerTitle, { color: colors.text }]}>Фильтры</Text>
@@ -160,6 +165,7 @@ export function FiltersSheet({ visible, onClose, onApply }: FiltersSheetProps) {
             <ScrollView
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.scrollContent}
+              style={styles.scrollView}
             >
               {/* Мои автомобили */}
               <View style={styles.section}>
@@ -376,7 +382,7 @@ export function FiltersSheet({ visible, onClose, onApply }: FiltersSheetProps) {
             </ScrollView>
 
             {/* Sticky CTA */}
-            <View style={[styles.bottomSticky, { borderTopColor: colors.border }]}>
+            <View style={[styles.bottomSticky, { borderTopColor: colors.border, paddingBottom: insets.bottom || 20 }]}>
               <TouchableOpacity
                 onPress={() => {
                   onApply(filters);
@@ -401,7 +407,9 @@ export function FiltersSheet({ visible, onClose, onApply }: FiltersSheetProps) {
             </View>
           </View>
         </View>
-      </View>
+          </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
     </Modal>
   );
 }
@@ -415,9 +423,12 @@ const styles = StyleSheet.create({
   sheet: {
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: '90%',
+    maxHeight: '85%',
+    minHeight: 400,
+    overflow: 'hidden',
   },
-  safeArea: { flex: 1 },
+  safeArea: {},
+  scrollView: { flexShrink: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
