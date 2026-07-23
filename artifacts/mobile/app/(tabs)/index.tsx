@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import Animated, {
   useSharedValue, useAnimatedStyle, withTiming, Easing,
-  FadeInDown, FadeInRight, Layout,
+  FadeInDown, FadeInRight, Layout, interpolate, Extrapolation,
 } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -23,17 +23,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-// ── 3-snap system ──────────────────────────────────────────────────────────
-const SHEET_MIN  = 190;                        // collapsed
-const SHEET_MID  = SCREEN_HEIGHT * 0.42;       // half-open
-const SHEET_MAX  = SCREEN_HEIGHT * 0.68;       // fully open
-const SNAPS      = [SHEET_MIN, SHEET_MID, SHEET_MAX];
-
-function snapNearest(value: number): number {
-  return SNAPS.reduce((prev, cur) =>
-    Math.abs(cur - value) < Math.abs(prev - value) ? cur : prev
-  );
-}
+// ── Snap system ────────────────────────────────────────────────────────────
+// SHEET_MIN is fixed; SHEET_MID / SHEET_MAX depend on insets.top (computed inside component)
+const SHEET_MIN = 190;
 
 const IOS_EASE = Easing.bezier(0.25, 0.46, 0.45, 0.94);
 const STATUS_ORDER: Record<string, number> = { free: 0, occupied: 1, offline: 2 };
@@ -61,12 +53,25 @@ export default function MapScreen() {
   const router = useRouter();
   const mapRef = useRef<MapApi>(null);
 
+  // ── Dynamic snap points (depend on safe-area insets) ──────────────────────
+  // Leave a ~8% strip of map visible above the fully-open sheet
+  const SHEET_MAX = Math.round(SCREEN_HEIGHT * 0.92 - Math.max(insets.top, 20));
+  const SHEET_MID = Math.round(SCREEN_HEIGHT * 0.55);
+  // Stable ref so PanResponder closures (created once) always see latest values
+  const snapsRef  = useRef<[number, number, number]>([SHEET_MIN, SHEET_MID, SHEET_MAX]);
+  snapsRef.current = [SHEET_MIN, SHEET_MID, SHEET_MAX]; // refresh every render
+  // Stable ref to the latest snapTo callback (updated after functions defined)
+  const snapToRef = useRef<(level: 0 | 1 | 2) => void>(() => {});
+
+  // ── State ────────────────────────────────────────────────────────────────
   const [viewMode, setViewMode] = useState<'map' | 'list'>('map');
   const [activeChip, setActiveChip] = useState<FilterStatus>('all');
   const [search, setSearch] = useState('');
   const [filtersVisible, setFiltersVisible] = useState(false);
   const [activeFilters, setActiveFilters] = useState<FiltersState>(DEFAULT_FILTERS);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  // Drives pointerEvents on map controls (re-render needed when sheet is raised)
+  const [sheetAtTop, setSheetAtTop] = useState(false);
 
   // Track current snap level as a ref (no re-render needed)
   const snapLevel = useRef<0 | 1 | 2>(0); // 0=min, 1=mid, 2=max
@@ -74,53 +79,57 @@ export default function MapScreen() {
   const [selectedStationId, setSelectedStationId] = useState<number | null>(null);
   const [markerPos, setMarkerPos] = useState<{ x: number; y: number } | null>(null);
 
-  // Sheet animation
+  // ── Sheet animation ──────────────────────────────────────────────────────
   const sheetHeight = useSharedValue(SHEET_MIN);
   const sheetStyle = useAnimatedStyle(() => ({ height: sheetHeight.value }));
 
+  // Map controls: bottom tracks sheet height; fade out when sheet ≥ mid
+  const mapControlsStyle = useAnimatedStyle(() => {
+    const h   = sheetHeight.value;
+    const mid = SCREEN_HEIGHT * 0.55; // inline constant safe for worklet
+    const opacity = interpolate(h, [mid - 40, mid + 40], [1, 0], Extrapolation.CLAMP);
+    return { bottom: h + 16, opacity };
+  });
+
+  // ── Snap helpers ─────────────────────────────────────────────────────────
   function animateTo(target: number, dur = 350) {
     sheetHeight.value = withTiming(target, { duration: dur, easing: IOS_EASE });
   }
-
-  function openSheet() {
-    snapLevel.current = 2;
-    animateTo(SHEET_MAX);
-  }
-  function closeSheet() {
-    snapLevel.current = 0;
-    animateTo(SHEET_MIN, 300);
-  }
   function snapTo(level: 0 | 1 | 2) {
     snapLevel.current = level;
-    animateTo(SNAPS[level]);
+    setSheetAtTop(level >= 1);
+    animateTo(snapsRef.current[level]);
   }
+  // Keep ref in sync so panResponder closure always calls the latest snapTo
+  snapToRef.current = snapTo;
 
-  // ── Pan gesture on handle area only ─────────────────────────────────────
-  // ScrollView handles its own scroll — PanResponder only activates on clearly
-  // vertical gestures and only from the handle zone (passed via panHandlers).
+  // ── Pan gesture (handle zone only) ──────────────────────────────────────
   const gestureStart = useRef(SHEET_MIN);
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      // Only claim gesture if clearly more vertical than horizontal
+      // Claim only clearly vertical gestures
       onMoveShouldSetPanResponder: (_, gs) =>
         Math.abs(gs.dy) > 6 && Math.abs(gs.dy) > Math.abs(gs.dx) * 1.5,
       onPanResponderGrant: () => {
         gestureStart.current = sheetHeight.value as number;
       },
       onPanResponderMove: (_, gs) => {
-        const next = Math.max(SHEET_MIN, Math.min(SHEET_MAX, gestureStart.current - gs.dy));
+        const [minH,, maxH] = snapsRef.current;
+        const next = Math.max(minH, Math.min(maxH, gestureStart.current - gs.dy));
         sheetHeight.value = next;
       },
       onPanResponderRelease: (_, gs) => {
         const current = sheetHeight.value as number;
-        // Velocity-based snap: fast flick up/down → jump to max/min
-        if (gs.vy < -0.5) { snapTo(2); return; }
-        if (gs.vy >  0.5) { snapTo(0); return; }
-        // Otherwise snap to nearest
-        const nearest = snapNearest(current);
-        const level = SNAPS.indexOf(nearest) as 0 | 1 | 2;
-        snapTo(level);
+        // Fast flick → jump to extreme snap
+        if (gs.vy < -0.5) { snapToRef.current(2); return; }
+        if (gs.vy >  0.5) { snapToRef.current(0); return; }
+        // Otherwise snap to nearest point
+        const snaps = snapsRef.current;
+        const nearest = snaps.reduce((p, c) =>
+          Math.abs(c - current) < Math.abs(p - current) ? c : p
+        );
+        snapToRef.current(snaps.indexOf(nearest) as 0 | 1 | 2);
       },
     })
   ).current;
@@ -488,8 +497,11 @@ export default function MapScreen() {
         </ScrollView>
       </Animated.View>
 
-      {/* Map controls */}
-      <View style={[styles.mapControls, { pointerEvents: 'box-none' }]}>
+      {/* Map controls — follow sheet height, fade out when sheet is mid or higher */}
+      <Animated.View
+        style={[styles.mapControls, mapControlsStyle]}
+        pointerEvents={sheetAtTop ? 'none' : 'box-none'}
+      >
         <TouchableOpacity style={styles.mapBtn} onPress={() => mapRef.current?.locate()} activeOpacity={0.8}>
           <Feather name="navigation" size={18} color="#1E293B" />
         </TouchableOpacity>
@@ -502,7 +514,7 @@ export default function MapScreen() {
             <Feather name="minus" size={20} color="#1E293B" />
           </TouchableOpacity>
         </View>
-      </View>
+      </Animated.View>
 
       <FiltersSheet visible={filtersVisible} onClose={() => setFiltersVisible(false)} onApply={(f) => setActiveFilters(f)} />
 
@@ -571,7 +583,7 @@ const styles = StyleSheet.create({
   promoCard: { width: 280, marginRight: 12 },
   showMoreBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12 },
   showMoreText: { fontSize: 14, fontFamily: 'Inter_500Medium' },
-  mapControls: { position: 'absolute', right: 12, bottom: SHEET_MIN + 16, alignItems: 'center', gap: 10, zIndex: 30 },
+  mapControls: { position: 'absolute', right: 12, alignItems: 'center', gap: 10, zIndex: 30 },
   mapBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 6, elevation: 4 },
   zoomGroup: { borderRadius: 12, overflow: 'hidden', backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 6, elevation: 4 },
   zoomBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
