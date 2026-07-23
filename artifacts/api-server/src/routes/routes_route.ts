@@ -9,39 +9,58 @@ import {
 
 const router: IRouter = Router();
 
-// ── Yandex Router API: get real road polyline ─────────────────────────────
-async function fetchYandexPolyline(
+// ── Google Directions API: get real road polyline ────────────────────────
+function decodePolyline(encoded: string): Array<[number, number]> {
+  const coords: Array<[number, number]> = [];
+  let index = 0, lat = 0, lng = 0;
+  while (index < encoded.length) {
+    let b: number, shift = 0, result = 0;
+    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lat += result & 1 ? ~(result >> 1) : result >> 1;
+    shift = 0; result = 0;
+    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lng += result & 1 ? ~(result >> 1) : result >> 1;
+    coords.push([lat / 1e5, lng / 1e5]);
+  }
+  return coords;
+}
+
+async function fetchRoadPolyline(
   waypoints: Array<{ lat: number; lng: number }>
 ): Promise<Array<[number, number]>> {
-  const apikey = process.env.YANDEX_ROUTER_KEY;
+  const apikey = process.env.GOOGLE_DIRECTIONS_KEY;
   if (!apikey || waypoints.length < 2) return buildStraightPolyline(waypoints);
   try {
-    const pts = waypoints.map((w) => `${w.lat},${w.lng}`).join("|");
-    const url = `https://api.routing.yandex.net/v2/route?apikey=${apikey}&waypoints=${pts}&mode=driving`;
-    console.log(`[yandex-router] GET ${url.replace(apikey, "***")}`);
-    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    const origin = `${waypoints[0].lat},${waypoints[0].lng}`;
+    const destination = `${waypoints[waypoints.length - 1].lat},${waypoints[waypoints.length - 1].lng}`;
+    const middle = waypoints.slice(1, -1);
+    const waypointsParam = middle.length
+      ? `&waypoints=${middle.map((w) => `${w.lat},${w.lng}`).join("|")}`
+      : "";
+    const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${origin}&destination=${destination}${waypointsParam}&mode=driving&key=${apikey}`;
+    console.log(`[google-directions] GET origin=${origin} dest=${destination} stops=${middle.length}`);
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
     if (!res.ok) {
       const body = await res.text();
-      console.error(`[yandex-router] error ${res.status} ${res.statusText}:`, body.slice(0, 500));
+      console.error(`[google-directions] HTTP error ${res.status}:`, body.slice(0, 400));
       return buildStraightPolyline(waypoints);
     }
     const data: any = await res.json();
-    console.log(`[yandex-router] OK — legs: ${data.route?.legs?.length ?? 0}`);
+    if (data.status !== "OK") {
+      console.error(`[google-directions] API status: ${data.status} — ${data.error_message ?? ""}`);
+      return buildStraightPolyline(waypoints);
+    }
     const coords: Array<[number, number]> = [];
-    for (const leg of data.route?.legs ?? []) {
+    for (const leg of data.routes?.[0]?.legs ?? []) {
       for (const step of leg.steps ?? []) {
-        const pts: any[] = step.polyline?.points ?? step.geometry?.coordinates ?? [];
-        for (const p of pts) {
-          if (Array.isArray(p) && p.length >= 2) coords.push([p[0], p[1]]);
-        }
+        const pts = decodePolyline(step.polyline?.points ?? "");
+        for (const p of pts) coords.push(p);
       }
     }
-    if (coords.length < 2) {
-      console.warn(`[yandex-router] response parsed but no coords extracted — raw:`, JSON.stringify(data).slice(0, 300));
-    }
+    console.log(`[google-directions] OK — ${coords.length} points`);
     return coords.length >= 2 ? coords : buildStraightPolyline(waypoints);
   } catch (err: any) {
-    console.error(`[yandex-router] fetch exception:`, err?.message ?? err);
+    console.error(`[google-directions] fetch exception:`, err?.message ?? err);
     return buildStraightPolyline(waypoints);
   }
 }
@@ -145,7 +164,7 @@ router.get("/routes", async (_req, res): Promise<void> => {
         { lat: route.dest_lat, lng: route.dest_lng },
       ].filter((w) => w.lat && w.lng);
 
-      const polyline = route.status === "active" ? await fetchYandexPolyline(waypoints) : [];
+      const polyline = route.status === "active" ? await fetchRoadPolyline(waypoints) : [];
       return { ...route, vehicle: r.vehicle ?? undefined, polyline };
     })
   );
@@ -196,7 +215,7 @@ router.post("/routes", async (req, res): Promise<void> => {
     ...stops.filter((s) => s.lat && s.lng).map((s) => ({ lat: s.lat, lng: s.lng })),
     { lat: destLat, lng: destLng },
   ];
-  const polyline = await fetchYandexPolyline(waypoints);
+  const polyline = await fetchRoadPolyline(waypoints);
 
   const [v] = vehicle_id
     ? await db.select().from(vehiclesTable).where(eq(vehiclesTable.id, vehicle_id))
@@ -222,7 +241,7 @@ router.get("/routes/:id", async (req, res): Promise<void> => {
     ...stops.filter((s: any) => s.lat && s.lng).map((s: any) => ({ lat: s.lat, lng: s.lng })),
     { lat: route.dest_lat, lng: route.dest_lng },
   ].filter((w) => w.lat && w.lng);
-  const polyline = await fetchYandexPolyline(waypoints);
+  const polyline = await fetchRoadPolyline(waypoints);
   res.json({ ...route, vehicle: row.vehicle ?? undefined, polyline });
 });
 
