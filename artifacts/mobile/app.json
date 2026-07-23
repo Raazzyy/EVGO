@@ -16,7 +16,13 @@
     "ios": {
       "supportsTablet": false
     },
-    "android": {},
+    "android": {
+      "config": {
+        "googleMaps": {
+          "apiKey": "GOOGLE_MAPS_ANDROID_KEY"
+        }
+      }
+    },
     "web": {
       "favicon": "./assets/images/icon.png"
     },
