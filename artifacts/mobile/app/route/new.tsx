@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput,
   TouchableOpacity, Alert, ActivityIndicator, Platform,
@@ -21,6 +21,17 @@ import { useApp } from '@/contexts/AppContext';
 import { GradientButton } from '@/components/GradientButton';
 import { MapViewWrapper, MapApi } from '@/components/MapViewWrapper';
 import { PromoCountdown } from '@/components/PromoCountdown';
+
+const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
+  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
+  : '';
+
+interface Suggestion {
+  title: string;
+  subtitle: string;
+  lat: number;
+  lng: number;
+}
 
 function showAlert(title: string, message: string) {
   if (Platform.OS === 'web') window.alert(`${title}: ${message}`);
@@ -108,6 +119,16 @@ export default function NewRouteScreen() {
   const [showMap, setShowMap]         = useState(false);
   const [routeMode, setRouteMode]     = useState<'fast' | 'eco'>('fast');
 
+  // Autocomplete state
+  const [focusedField, setFocusedField] = useState<'origin' | 'dest' | null>(null);
+  const [suggestions, setSuggestions]   = useState<Suggestion[]>([]);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+  // Geocoded destination coords — null if user typed manually without picking a suggestion
+  const [destCoords, setDestCoords] = useState<{ lat: number; lng: number } | null>(
+    prefilledLat != null && prefilledLng != null ? { lat: prefilledLat, lng: prefilledLng } : null,
+  );
+  const suggestTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const { data: vehicles = [] }        = useGetVehicles();
   const { data: existingRoutes = [] }  = useGetRoutes();
   const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId) || vehicles[0];
@@ -153,18 +174,91 @@ export default function NewRouteScreen() {
     })();
   }, []);
 
+  // ── Autocomplete helpers ─────────────────────────────────────────────────
+  const fetchSuggestions = useCallback(async (q: string) => {
+    if (q.trim().length < 2) { setSuggestions([]); return; }
+    setSuggestLoading(true);
+    try {
+      const params = new URLSearchParams({ q: q.trim() });
+      params.set('lat', String(originCoords.lat));
+      params.set('lng', String(originCoords.lng));
+      const res = await fetch(`${API_BASE}/api/geocode/suggest?${params}`);
+      const json = await res.json();
+      setSuggestions(Array.isArray(json) ? json : []);
+    } catch { setSuggestions([]); }
+    finally { setSuggestLoading(false); }
+  }, [originCoords]);
+
+  const scheduleSearch = useCallback((text: string) => {
+    if (suggestTimer.current) clearTimeout(suggestTimer.current);
+    suggestTimer.current = setTimeout(() => fetchSuggestions(text), 350);
+  }, [fetchSuggestions]);
+
+  const handleOriginChange = (text: string) => {
+    setOrigin(text);
+    scheduleSearch(text);
+  };
+
+  const handleDestChange = (text: string) => {
+    setDestination(text);
+    setDestCoords(null); // invalidate geocoded coords when user edits manually
+    scheduleSearch(text);
+  };
+
+  const handleSelectSuggestion = (s: Suggestion) => {
+    if (focusedField === 'origin') {
+      setOrigin(s.title);
+      setOriginCoords({ lat: s.lat, lng: s.lng });
+    } else {
+      setDestination(s.title);
+      setDestCoords({ lat: s.lat, lng: s.lng });
+    }
+    setSuggestions([]);
+    setFocusedField(null);
+    if (suggestTimer.current) clearTimeout(suggestTimer.current);
+  };
+
+  const clearSuggestions = () => {
+    setSuggestions([]);
+    setFocusedField(null);
+  };
+
+  // ── Route planning ───────────────────────────────────────────────────────
   async function handlePlanRoute() {
     if (!destination.trim()) { showAlert('Пункт назначения', 'Введите конечную точку.'); return; }
     const pct = parseFloat(batteryPct);
     if (isNaN(pct) || pct < 0 || pct > 100) { showAlert('Неверный заряд', 'Введите заряд от 0 до 100%.'); return; }
+
+    // Resolve destination coords: use geocoded coords if available,
+    // otherwise try to geocode the typed text on the spot
+    let resolvedDest = destCoords;
+    if (!resolvedDest) {
+      try {
+        const params = new URLSearchParams({ q: destination.trim() });
+        params.set('lat', String(originCoords.lat));
+        params.set('lng', String(originCoords.lng));
+        const res  = await fetch(`${API_BASE}/api/geocode/suggest?${params}`);
+        const json = await res.json();
+        if (Array.isArray(json) && json.length > 0) {
+          resolvedDest = { lat: json[0].lat, lng: json[0].lng };
+          setDestCoords(resolvedDest);
+          setDestination(json[0].title);
+        }
+      } catch { /* fall through to Tashkent default */ }
+    }
+    if (!resolvedDest) {
+      showAlert('Адрес не найден', 'Выберите адрес из списка подсказок или введите более точный запрос.');
+      return;
+    }
+
     const active = (existingRoutes as any[]).filter((r) => r.status === 'active');
     await Promise.all(active.map((r) => deleteRoute.mutateAsync({ id: r.id })));
     createRoute.mutate({
       data: {
         origin, destination,
         origin_lat: originCoords.lat, origin_lng: originCoords.lng,
-        dest_lat: prefilledLat ?? 39.6542,
-        dest_lng: prefilledLng ?? 66.9597,
+        dest_lat: resolvedDest.lat,
+        dest_lng: resolvedDest.lng,
         vehicle_id: selectedVehicleId ?? null,
         initial_battery_pct: pct,
       },
@@ -228,16 +322,24 @@ export default function NewRouteScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* ── Origin / Destination ────────────────────────────────────── */}
-        <Animated.View entering={FadeInDown.delay(0).springify()}>
+        <Animated.View entering={FadeInDown.delay(0).springify()} style={{ zIndex: 30 }}>
           <View style={[styles.card, { backgroundColor: colors.card }]}>
+            {/* Origin row */}
             <View style={styles.inputRow}>
               <View style={[styles.dot, { backgroundColor: colors.primary }]} />
               <TextInput
                 style={[styles.inputText, { color: colors.text }]}
-                value={origin} onChangeText={setOrigin}
+                value={origin}
+                onChangeText={handleOriginChange}
+                onFocus={() => setFocusedField('origin')}
+                onBlur={() => setTimeout(clearSuggestions, 150)}
                 placeholder={locating ? 'Определяю местоположение…' : 'Начальная точка'}
                 placeholderTextColor={colors.mutedForeground}
+                returnKeyType="next"
               />
+              {focusedField === 'origin' && suggestLoading && (
+                <ActivityIndicator size="small" color={colors.primary} style={{ marginRight: 4 }} />
+              )}
             </View>
             <View style={[styles.connector, { borderColor: colors.border }]} />
             <TouchableOpacity
@@ -246,16 +348,59 @@ export default function NewRouteScreen() {
             >
               <Feather name="code" size={14} color={colors.mutedForeground} style={{ transform: [{ rotate: '90deg' }] }} />
             </TouchableOpacity>
+            {/* Destination row */}
             <View style={styles.inputRow}>
               <View style={[styles.dot, { backgroundColor: '#7C3AED' }]} />
               <TextInput
                 style={[styles.inputText, { color: colors.text }]}
-                value={destination} onChangeText={setDestination}
+                value={destination}
+                onChangeText={handleDestChange}
+                onFocus={() => setFocusedField('dest')}
+                onBlur={() => setTimeout(clearSuggestions, 150)}
                 placeholder="Конечная точка"
                 placeholderTextColor={colors.mutedForeground}
+                returnKeyType="done"
               />
+              {focusedField === 'dest' && suggestLoading && (
+                <ActivityIndicator size="small" color={colors.primary} style={{ marginRight: 4 }} />
+              )}
+              {/* Green tick when destination has geocoded coords */}
+              {!!destCoords && !suggestLoading && (
+                <Feather name="check-circle" size={16} color="#10B981" style={{ marginRight: 4 }} />
+              )}
             </View>
           </View>
+
+          {/* ── Autocomplete dropdown ──────────────────────────────────── */}
+          {suggestions.length > 0 && focusedField !== null && (
+            <View style={[styles.suggestBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              {suggestions.map((s, i) => (
+                <TouchableOpacity
+                  key={i}
+                  activeOpacity={0.75}
+                  onPress={() => handleSelectSuggestion(s)}
+                  style={[
+                    styles.suggestRow,
+                    i < suggestions.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border },
+                  ]}
+                >
+                  <View style={[styles.suggestIcon, { backgroundColor: colors.muted }]}>
+                    <Feather name="map-pin" size={13} color={colors.primary} />
+                  </View>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={[styles.suggestTitle, { color: colors.text }]} numberOfLines={1}>
+                      {s.title}
+                    </Text>
+                    {!!s.subtitle && (
+                      <Text style={[styles.suggestSub, { color: colors.mutedForeground }]} numberOfLines={1}>
+                        {s.subtitle}
+                      </Text>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
         </Animated.View>
 
         {/* ── Car card ────────────────────────────────────────────────── */}
@@ -921,4 +1066,40 @@ const styles = StyleSheet.create({
     gap: 10, paddingVertical: 16,
   },
   pickerConfirmText: { color: '#fff', fontSize: 16, fontFamily: 'Inter_700Bold' },
+
+  // Autocomplete dropdown
+  suggestBox: {
+    marginTop: 4,
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  suggestRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 11,
+    paddingHorizontal: 14,
+  },
+  suggestIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  suggestTitle: {
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
+  },
+  suggestSub: {
+    fontSize: 11,
+    fontFamily: 'Inter_400Regular',
+  },
 });
