@@ -31,13 +31,38 @@ async function loadYandexMaps(apiKey: string): Promise<boolean> {
   if (typeof document === 'undefined' || !apiKey) return false;
   if ((window as any).ymaps) return true;
   return new Promise((resolve) => {
+    let settled = false;
+    const finish = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      // Restore console.warn before settling
+      // eslint-disable-next-line no-console
+      console.warn = origWarn;
+      resolve(ok);
+    };
+
+    // Intercept Yandex's "Invalid API key" console.warn so we can fall back
+    // eslint-disable-next-line no-console
+    const origWarn = console.warn;
+    // eslint-disable-next-line no-console
+    console.warn = (...args: unknown[]) => {
+      origWarn.apply(console, args);
+      const msg = String(args[0] ?? '');
+      if (msg.includes('Invalid API key') || msg.includes('invalid api key')) {
+        finish(false);
+      }
+    };
+
     const script = document.createElement('script');
     script.src = `https://api-maps.yandex.ru/2.1/?apikey=${apiKey}&lang=ru_RU`;
     script.onload = () => {
-      (window as any).ymaps.ready(() => resolve(true));
+      (window as any).ymaps.ready(() => finish(true));
     };
-    script.onerror = () => resolve(false);
+    script.onerror = () => finish(false);
     document.head.appendChild(script);
+
+    // Safety timeout — if Yandex hangs for 6 s, fall back to OSM
+    setTimeout(() => finish(false), 6000);
   });
 }
 
