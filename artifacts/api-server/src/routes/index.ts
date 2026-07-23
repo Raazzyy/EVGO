@@ -10,6 +10,7 @@ import paymentMethodsRouter from "./payment_methods";
 import adminRouter from "./admin";
 import supportRouter from "./support";
 import notificationsRouter from "./notifications";
+import favoritesRouter from "./favorites";
 
 const router = Router();
 
@@ -65,5 +66,6 @@ router.use(paymentMethodsRouter);
 router.use(adminRouter);
 router.use(supportRouter);
 router.use(notificationsRouter);
+router.use(favoritesRouter);
 
 export default router;

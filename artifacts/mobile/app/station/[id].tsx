@@ -14,7 +14,7 @@ import Animated, { FadeIn, FadeInDown, Easing } from 'react-native-reanimated';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   useGetStation,
@@ -27,6 +27,10 @@ import { useApp } from '@/contexts/AppContext';
 import { ConnectorBadge, ConnectorIcon } from '@/components/ConnectorBadge';
 import { GradientButton } from '@/components/GradientButton';
 import { PromoCountdown } from '@/components/PromoCountdown';
+
+const API = process.env.EXPO_PUBLIC_DOMAIN
+  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
+  : '/api';
 
 interface Connector {
   type: string;
@@ -43,9 +47,46 @@ export default function StationDetailScreen() {
   const qc = useQueryClient();
   const { userId, setActiveSessionId } = useApp();
   const [selectedConnector, setSelectedConnector] = useState<string | null>(null);
-  const [isFavorite, setIsFavorite] = useState(false);
   const [cardModalVisible, setCardModalVisible] = useState(false);
   const [selectedCard, setSelectedCard] = useState('Uzcard');
+
+  const stationIdNum = id ? Number(id) : NaN;
+
+  // ── Favorites (backend-backed) ────────────────────────────────────────
+  const { data: favData } = useQuery({
+    queryKey: ['favorites', userId],
+    queryFn: async () => {
+      const r = await fetch(`${API}/favorites?user_id=${encodeURIComponent(userId ?? '')}`);
+      if (!r.ok) return [] as any[];
+      return r.json() as Promise<any[]>;
+    },
+    enabled: !!userId,
+    staleTime: 30_000,
+  });
+
+  const isFavorite = Array.isArray(favData) && favData.some((f: any) => f.id === stationIdNum);
+
+  const favMutation = useMutation({
+    mutationFn: async (add: boolean) => {
+      if (add) {
+        await fetch(`${API}/favorites`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: userId, station_id: stationIdNum }),
+        });
+      } else {
+        await fetch(`${API}/favorites/${stationIdNum}?user_id=${encodeURIComponent(userId ?? '')}`, {
+          method: 'DELETE',
+        });
+      }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['favorites', userId] }),
+  });
+
+  function toggleFavorite() {
+    if (!userId) return;
+    favMutation.mutate(!isFavorite);
+  }
 
   const stationId = id ? Number(id) : NaN;
   const { data: station, isLoading } = useGetStation(stationId, {
@@ -126,8 +167,8 @@ export default function StationDetailScreen() {
             <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
               <Feather name="arrow-left" size={24} color="#fff" />
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => setIsFavorite(!isFavorite)} style={styles.iconBtn}>
-              <Feather name="heart" size={24} color={isFavorite ? '#EF4444' : '#fff'} fill={isFavorite ? '#EF4444' : 'transparent'} />
+            <TouchableOpacity onPress={toggleFavorite} style={styles.iconBtn}>
+              <Feather name="heart" size={24} color={isFavorite ? '#EF4444' : '#fff'} />
             </TouchableOpacity>
           </View>
           

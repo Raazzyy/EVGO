@@ -49,6 +49,10 @@ function RootLayoutNav() {
       <Stack.Screen name="navigate" options={{ headerShown: false }} />
       <Stack.Screen name="payment/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="payment/receipt" options={{ headerShown: false }} />
+      <Stack.Screen name="favorites" options={{ headerShown: false }} />
+      <Stack.Screen name="settings" options={{ headerShown: false }} />
+      <Stack.Screen name="support" options={{ headerShown: false }} />
+      <Stack.Screen name="about" options={{ headerShown: false }} />
     </Stack>
   );
 }

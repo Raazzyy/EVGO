@@ -23,6 +23,8 @@ interface MenuItem {
   onPress?: () => void;
 }
 
+const VERSION = '1.0.0';
+
 export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -42,12 +44,12 @@ export default function ProfileScreen() {
   const bottomPad = Platform.OS === 'web' ? 34 : insets.bottom;
 
   const menuItems: MenuItem[] = [
-    { icon: 'activity', label: 'История сессий', desc: `${completedSessions.length} сессий`, onPress: () => router.push('/sessions') },
-    { icon: 'map-pin', label: 'Избранные станции', desc: 'Сохраненные локации', onPress: () => router.push('/notifications') },
-    { icon: 'cpu', label: 'Мои автомобили', desc: 'Управление электромобилями', onPress: () => router.push('/cars') },
-    { icon: 'settings', label: 'Настройки', desc: 'Предпочтения приложения', onPress: () => router.push('/cars') },
-    { icon: 'headphones', label: 'Поддержка', desc: 'Служба заботы', onPress: () => router.push('/notifications') },
-    { icon: 'info', label: 'О приложении', desc: 'iON v1.0.0' },
+    { icon: 'activity',    label: 'История сессий',    desc: `${completedSessions.length} сессий`,       onPress: () => router.push('/sessions') },
+    { icon: 'heart',       label: 'Избранные станции', desc: 'Сохраненные локации',                       onPress: () => router.push('/favorites') },
+    { icon: 'cpu',         label: 'Мои автомобили',    desc: 'Управление электромобилями',                onPress: () => router.push('/cars') },
+    { icon: 'settings',    label: 'Настройки',         desc: 'Предпочтения приложения',                   onPress: () => router.push('/settings') },
+    { icon: 'headphones',  label: 'Поддержка',         desc: 'Служба заботы о клиентах',                  onPress: () => router.push('/support') },
+    { icon: 'info',        label: 'О приложении',      desc: `iON Charge v${VERSION}`,                    onPress: () => router.push('/about') },
   ];
 
   if (isLoading) {

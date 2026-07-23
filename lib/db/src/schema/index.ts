@@ -9,3 +9,4 @@ export * from "./admin_users";
 export * from "./support_tickets";
 export * from "./notifications";
 export * from "./push_tokens";
+export * from "./favorites";
