@@ -72,6 +72,8 @@ export default function MapScreen() {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   // Drives pointerEvents on map controls (re-render needed when sheet is raised)
   const [sheetAtTop, setSheetAtTop] = useState(false);
+  // Active tab inside the bottom sheet
+  const [activeTab, setActiveTab] = useState<string>('nearby');
 
   // Track current snap level as a ref (no re-render needed)
   const snapLevel = useRef<0 | 1 | 2>(0); // 0=min, 1=mid, 2=max
@@ -209,6 +211,76 @@ export default function MapScreen() {
     const q = search.toLowerCase();
     return promotedFromApi.filter(s => s.name.toLowerCase().includes(q) || s.address.toLowerCase().includes(q));
   }, [promotedFromApi, search]);
+
+  // ── Sheet tabs — built dynamically from filtered dataset ──────────────────
+  const DC_TYPES = ['CCS2', 'CHAdeMO', 'GB/T', 'DC'];
+  const AC_TYPES = ['Type2', 'Type 2', 'AC'];
+
+  const sheetTabs = useMemo(() => {
+    const tabs: Array<{ id: string; label: string }> = [
+      { id: 'nearby',      label: 'Рядом' },
+      { id: 'recommended', label: 'Рекомендуем' },
+      { id: 'cheap',       label: 'Дешёвые' },
+      { id: 'free',        label: 'Свободные' },
+    ];
+
+    const typeCounts = new Map<string, number>();
+    let hybridCount = 0;
+
+    for (const s of filteredStations) {
+      const connectors = (s.connectors ?? []) as any[];
+      const types = new Set(connectors.map((c: any) => c.type as string));
+      const hasAC = [...types].some(t => AC_TYPES.includes(t));
+      const hasDC = [...types].some(t => DC_TYPES.includes(t));
+      if (hasAC && hasDC) hybridCount++;
+      for (const t of types) typeCounts.set(t, (typeCounts.get(t) ?? 0) + 1);
+    }
+
+    // Connector tabs sorted by popularity
+    for (const [type, count] of [...typeCounts.entries()].sort((a, b) => b[1] - a[1])) {
+      tabs.push({ id: `connector:${type}`, label: `${type} · ${count}` });
+    }
+
+    // Hybrid tab only when matching stations exist
+    if (hybridCount > 0) {
+      tabs.push({ id: 'hybrid', label: `Гибрид · ${hybridCount}` });
+    }
+
+    return tabs;
+  }, [filteredStations]);
+
+  // ── Tab-level sort/filter ON TOP of the chip-filtered set ─────────────────
+  const tabStations = useMemo(() => {
+    const base = filteredStations;
+    switch (activeTab) {
+      case 'recommended':
+        return [...base]
+          .filter(s => !!(s as any).is_promoted)
+          .sort((a, b) => (Number((b as any).discount_pct) || 0) - (Number((a as any).discount_pct) || 0));
+      case 'cheap': {
+        const eff = (s: any) => {
+          const d = Number(s.discount_pct) || 0;
+          return d > 0 ? s.price_per_kwh * (1 - d / 100) : s.price_per_kwh;
+        };
+        return [...base].sort((a, b) => eff(a) - eff(b));
+      }
+      case 'nearby':
+        return base; // already sorted by distance
+      case 'free':
+        return base.filter(s => s.status === 'free');
+      case 'hybrid':
+        return base.filter(s => {
+          const types = ((s.connectors ?? []) as any[]).map((c: any) => c.type as string);
+          return types.some(t => AC_TYPES.includes(t)) && types.some(t => DC_TYPES.includes(t));
+        });
+      default:
+        if (activeTab.startsWith('connector:')) {
+          const type = activeTab.replace('connector:', '');
+          return base.filter(s => ((s.connectors ?? []) as any[]).some((c: any) => c.type === type));
+        }
+        return base;
+    }
+  }, [filteredStations, activeTab]);
 
   const markers = useMemo(() => filteredStations.map(s => ({
     id: s.id, lat: s.lat, lng: s.lng, name: s.name, status: s.status,
@@ -400,7 +472,6 @@ export default function MapScreen() {
         <TouchableOpacity
           activeOpacity={1}
           onPress={() => {
-            // Cycle through snap points on tap
             const next = ((snapLevel.current + 1) % 3) as 0 | 1 | 2;
             snapTo(next);
           }}
@@ -410,29 +481,61 @@ export default function MapScreen() {
           <View style={[styles.handle, { backgroundColor: colors.mutedForeground, opacity: 0.3 }]} />
         </TouchableOpacity>
 
-        {/* Content — scroll always enabled, PanResponder only on handle */}
+        {/* ── TAB STRIP ──────────────────────────────────────────────────── */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.tabScroll}
+          contentContainerStyle={styles.tabRow}
+          keyboardShouldPersistTaps="always"
+        >
+          {sheetTabs.map(tab => {
+            const isActive = activeTab === tab.id;
+            return (
+              <TouchableOpacity
+                key={tab.id}
+                onPress={() => setActiveTab(tab.id)}
+                style={[
+                  styles.tab,
+                  { borderColor: isActive ? 'transparent' : colors.border, backgroundColor: isActive ? 'transparent' : colors.card },
+                ]}
+              >
+                {isActive && (
+                  <LinearGradient
+                    colors={[colors.gradientStart, colors.gradientEnd]}
+                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                    style={StyleSheet.absoluteFill}
+                    borderRadius={100}
+                  />
+                )}
+                <Text style={[styles.tabText, { color: isActive ? '#fff' : colors.text }]}>
+                  {tab.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
+        {/* ── CONTENT ────────────────────────────────────────────────────── */}
         <ScrollView
           style={styles.sheetScroll}
           contentContainerStyle={[styles.sheetContent, { paddingBottom: bottomPad }]}
           showsVerticalScrollIndicator={false}
           nestedScrollEnabled
-          // Always scrollable — no longer locked behind isExpanded
         >
-          {/* HOT DEAL banner */}
-          {(() => {
-            const hot = (promotedStations as any[]).find(s => s.discount_pct > 0 && s.promo_ends_at);
-            if (!hot) return null;
-            return (
+          {/* Recommended tab only: HotDeal banner + promo slider */}
+          {activeTab === 'recommended' && (() => {
+            const hot = (promotedStations as any[]).find(s => Number(s.discount_pct) > 0 && s.promo_ends_at);
+            return hot ? (
               <HotDealBanner
                 station={hot}
                 onPress={() => router.push(`/station/${hot.id}`)}
                 onRoute={() => router.push(routeFor(hot))}
               />
-            );
+            ) : null;
           })()}
 
-          {/* Promo slider — pagingEnabled so cards snap one-by-one */}
-          {promotedStations.length > 0 && (
+          {activeTab === 'recommended' && promotedStations.length > 0 && (
             <>
               <View style={styles.sectionHeader}>
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>Рекомендуем</Text>
@@ -444,7 +547,6 @@ export default function MapScreen() {
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.promoScroll}
-                // Snap cards one at a time; card width 280 + 12 gap = 292
                 snapToInterval={292}
                 decelerationRate="fast"
                 disableIntervalMomentum
@@ -466,30 +568,46 @@ export default function MapScreen() {
             </>
           )}
 
-          <Text style={[styles.sectionTitle, { color: colors.text, marginTop: 16, marginBottom: 12 }]}>
-            {activeChip === 'free' ? 'Свободные станции' : activeChip === 'ac' ? 'AC станции' : activeChip === 'dc' ? 'DC станции' : 'Рядом с вами'}
-          </Text>
-
-          {/* Show first COLLAPSED_LIMIT stations; "show more" if there are extras */}
-          {filteredStations.slice(0, COLLAPSED_LIMIT).map((s, i) => (
-            <Animated.View key={s.id} entering={FadeInDown.delay(i * 25).duration(280).easing(IOS_EASE)} layout={Layout.duration(220).easing(IOS_EASE)}>
-              <StationCard
-                station={s}
-                onPress={() => router.push(`/station/${s.id}`)}
-                onRoute={() => router.push(routeFor(s))}
-                discount_pct={(s as any).discount_pct}
-                is_promoted={(s as any).is_promoted}
-                amenities={(s as any).amenities}
-              />
-            </Animated.View>
-          ))}
-          {filteredStations.length > COLLAPSED_LIMIT && (
-            <TouchableOpacity onPress={() => snapTo(2)} style={styles.showMoreBtn}>
-              <Text style={[styles.showMoreText, { color: colors.primary }]}>
-                + ещё {filteredStations.length - COLLAPSED_LIMIT} станций
+          {/* Empty state */}
+          {tabStations.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Feather name="map-pin" size={36} color={colors.mutedForeground} />
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>Станций нет</Text>
+              <Text style={[styles.emptySubtitle, { color: colors.mutedForeground }]}>
+                Нет станций с такими фильтрами
               </Text>
-              <Feather name="chevron-up" size={14} color={colors.primary} />
-            </TouchableOpacity>
+              {hasActiveFilters && (
+                <TouchableOpacity
+                  onPress={() => setActiveFilters(DEFAULT_FILTERS)}
+                  style={[styles.resetBtn, { borderColor: colors.primary }]}
+                >
+                  <Text style={[styles.resetBtnText, { color: colors.primary }]}>Сбросить фильтры</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          ) : (
+            <>
+              {tabStations.slice(0, COLLAPSED_LIMIT).map((s, i) => (
+                <Animated.View key={s.id} entering={FadeInDown.delay(i * 25).duration(280).easing(IOS_EASE)} layout={Layout.duration(220).easing(IOS_EASE)}>
+                  <StationCard
+                    station={s}
+                    onPress={() => router.push(`/station/${s.id}`)}
+                    onRoute={() => router.push(routeFor(s))}
+                    discount_pct={(s as any).discount_pct}
+                    is_promoted={(s as any).is_promoted}
+                    amenities={(s as any).amenities}
+                  />
+                </Animated.View>
+              ))}
+              {tabStations.length > COLLAPSED_LIMIT && (
+                <TouchableOpacity onPress={() => snapTo(2)} style={styles.showMoreBtn}>
+                  <Text style={[styles.showMoreText, { color: colors.primary }]}>
+                    + ещё {tabStations.length - COLLAPSED_LIMIT} станций
+                  </Text>
+                  <Feather name="chevron-up" size={14} color={colors.primary} />
+                </TouchableOpacity>
+              )}
+            </>
           )}
         </ScrollView>
       </Animated.View>
@@ -561,15 +679,27 @@ const styles = StyleSheet.create({
   sheet: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    overflow: 'hidden', // clips content to rounded corners; prevents promo cards bleeding outside
     shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.12, shadowRadius: 20, elevation: 20,
   },
   handleArea: {
     alignItems: 'center',
-    paddingTop: 12, paddingBottom: 12,
+    paddingTop: 12, paddingBottom: 8,
     width: '100%',
-    minHeight: 44,  // accessible tap target
+    minHeight: 44,
   },
   handle: { width: 40, height: 4, borderRadius: 2 },
+  // ── Tabs ──────────────────────────────────────────────────────────────────
+  tabScroll: { flexGrow: 0 },
+  tabRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 10 },
+  tab: {
+    height: 34, paddingHorizontal: 14,
+    borderRadius: 100, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center',
+    overflow: 'hidden', position: 'relative',
+  },
+  tabText: { fontSize: 13, fontFamily: 'Inter_600SemiBold', position: 'relative', zIndex: 1 },
+  // ── Content ───────────────────────────────────────────────────────────────
   sheetScroll: { flex: 1 },
   sheetContent: { paddingHorizontal: 16, paddingTop: 4 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
@@ -580,6 +710,13 @@ const styles = StyleSheet.create({
   promoCard: { width: 280, marginRight: 12 },
   showMoreBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12 },
   showMoreText: { fontSize: 14, fontFamily: 'Inter_500Medium' },
+  // ── Empty state ───────────────────────────────────────────────────────────
+  emptyState: { alignItems: 'center', paddingVertical: 40, gap: 8 },
+  emptyTitle: { fontSize: 16, fontFamily: 'Inter_700Bold', marginTop: 4 },
+  emptySubtitle: { fontSize: 13, fontFamily: 'Inter_400Regular', textAlign: 'center' },
+  resetBtn: { marginTop: 8, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12, borderWidth: 1.5 },
+  resetBtnText: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
+  // ── Map controls ──────────────────────────────────────────────────────────
   mapControls: { position: 'absolute', right: 12, alignItems: 'center', gap: 10, zIndex: 30 },
   mapBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 6, elevation: 4 },
   zoomGroup: { borderRadius: 12, overflow: 'hidden', backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 6, elevation: 4 },
