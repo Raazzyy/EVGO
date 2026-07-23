@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
+import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 
 interface CircularProgressProps {
@@ -9,6 +10,7 @@ interface CircularProgressProps {
   strokeWidth?: number;
   label?: string;
   subLabel?: string;
+  icon?: React.ReactNode;
 }
 
 export function CircularProgress({
@@ -17,6 +19,7 @@ export function CircularProgress({
   strokeWidth = 12,
   label,
   subLabel,
+  icon,
 }: CircularProgressProps) {
   const colors = useColors();
   const radius = (size - strokeWidth) / 2;
@@ -61,6 +64,7 @@ export function CircularProgress({
         <Text style={[styles.value, { color: colors.text }]}>
           {label ?? `${Math.round(progress)}%`}
         </Text>
+        {icon && <View style={styles.iconContainer}>{icon}</View>}
         {subLabel ? (
           <Text style={[styles.subLabel, { color: colors.mutedForeground }]}>{subLabel}</Text>
         ) : null}
@@ -74,13 +78,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  iconContainer: {
+    marginVertical: 4,
+  },
   value: {
-    fontSize: 36,
+    fontSize: 40,
     fontFamily: 'Inter_700Bold',
     letterSpacing: -1,
   },
   subLabel: {
-    fontSize: 13,
+    fontSize: 14,
     fontFamily: 'Inter_400Regular',
     marginTop: 2,
   },

@@ -46,10 +46,10 @@ export default function SessionsScreen() {
   });
 
   function handleStop(id: number) {
-    Alert.alert('Stop Session', 'Stop the charging session now?', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert('Остановить сессию', 'Завершить зарядку сейчас?', [
+      { text: 'Отмена', style: 'cancel' },
       {
-        text: 'Stop',
+        text: 'Остановить',
         style: 'destructive',
         onPress: () => stopMutation.mutate({ id }),
       },
@@ -63,7 +63,7 @@ export default function SessionsScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: topPad + 16, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <Text style={[styles.title, { color: colors.text }]}>Sessions</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Сессии</Text>
 
         {/* Segment */}
         <View style={[styles.segment, { backgroundColor: colors.muted }]}>
@@ -79,7 +79,7 @@ export default function SessionsScreen() {
                   { color: tab === t ? colors.text : colors.mutedForeground },
                 ]}
               >
-                {t.charAt(0).toUpperCase() + t.slice(1)}
+                {t === 'active' ? 'Активные' : 'История'}
               </Text>
             </TouchableOpacity>
           ))}
@@ -106,12 +106,12 @@ export default function SessionsScreen() {
             <View style={styles.emptyState}>
               <Text style={[styles.emptyIcon]}>⚡</Text>
               <Text style={[styles.emptyTitle, { color: colors.text }]}>
-                {tab === 'active' ? 'No active sessions' : 'No session history'}
+                {tab === 'active' ? 'Нет активных сессий' : 'История пуста'}
               </Text>
               <Text style={[styles.emptyDesc, { color: colors.mutedForeground }]}>
                 {tab === 'active'
-                  ? 'Start a charging session at any station.'
-                  : 'Your completed sessions will appear here.'}
+                  ? 'Начните сессию на любой станции.'
+                  : 'Здесь будут отображаться ваши завершенные сессии.'}
               </Text>
             </View>
           }
@@ -127,9 +127,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    gap: 12,
+    gap: 16,
   },
-  title: { fontSize: 26, fontFamily: 'Inter_700Bold' },
+  title: { fontSize: 24, fontFamily: 'Inter_700Bold' },
   segment: {
     flexDirection: 'row',
     borderRadius: 10,

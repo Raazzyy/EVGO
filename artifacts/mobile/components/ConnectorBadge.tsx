@@ -20,7 +20,7 @@ export function ConnectorBadge({ type, powerKw }: ConnectorBadgeProps) {
   return (
     <View style={[styles.badge, { backgroundColor: c.bg }]}>
       <Text style={[styles.text, { color: c.text }]}>
-        {type}{powerKw ? ` · ${powerKw}kW` : ''}
+        {type}{powerKw ? ` · ${powerKw} кВт` : ''}
       </Text>
     </View>
   );

@@ -46,12 +46,12 @@ function RootLayoutNav() {
       />
       <Stack.Screen
         name="route/new"
-        options={{
-          title: 'Plan a Route',
-          presentation: 'modal',
-          headerShown: true,
-        }}
+        options={{ headerShown: false }}
       />
+      <Stack.Screen name="notifications" options={{ headerShown: false }} />
+      <Stack.Screen name="cars" options={{ headerShown: false }} />
+      <Stack.Screen name="navigate" options={{ headerShown: false }} />
+      <Stack.Screen name="payment/[id]" options={{ headerShown: false }} />
     </Stack>
   );
 }

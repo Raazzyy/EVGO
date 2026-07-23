@@ -17,33 +17,56 @@ import { useGetStations } from '@workspace/api-client-react';
 import { useColors } from '@/hooks/useColors';
 import { StationCard } from '@/components/StationCard';
 import { MapViewWrapper } from '@/components/MapViewWrapper';
+import { FiltersSheet } from '@/components/FiltersSheet';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
-const SHEET_MIN = 130;
-const SHEET_MAX = SCREEN_HEIGHT * 0.55;
+const SHEET_MIN = 180;
+const SHEET_MAX = SCREEN_HEIGHT * 0.6;
 
-type FilterStatus = 'all' | 'free' | 'occupied' | 'offline';
+type FilterStatus = 'all' | 'my-cars' | 'ac' | 'dc' | 'free';
 
 export default function MapScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  
+  const [viewMode, setViewMode] = useState<'map' | 'list'>('map');
+  const [activeChip, setActiveChip] = useState<FilterStatus>('all');
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<FilterStatus>('all');
+  const [filtersVisible, setFiltersVisible] = useState(false);
   const [sheetExpanded, setSheetExpanded] = useState(false);
   const sheetAnim = useRef(new Animated.Value(SHEET_MIN)).current;
 
-  const { data: stations = [], isLoading } = useGetStations(
-    filter !== 'all' ? { status: filter } : {}
-  );
+  const { data: stations = [], isLoading } = useGetStations();
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return stations;
-    const q = search.toLowerCase();
-    return stations.filter(
-      (s) => s.name.toLowerCase().includes(q) || s.address.toLowerCase().includes(q)
-    );
-  }, [stations, search]);
+    let result = stations;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter(
+        (s) => s.name.toLowerCase().includes(q) || s.address.toLowerCase().includes(q)
+      );
+    }
+    if (activeChip === 'free') result = result.filter(s => s.status === 'free');
+    // Mocks for other chips could go here, AC/DC depends on connector data
+    return result;
+  }, [stations, search, activeChip]);
+
+  const promotedStations = useMemo(() => {
+    // Mock promoted stations for showcase by applying fake attributes
+    // Real implementation would use (s as any).is_promoted
+    return filtered.slice(0, 3).map((s, i) => ({
+      ...s,
+      is_promoted: true,
+      discount_pct: i === 0 ? 10 : 0,
+      amenities: ['cafe', 'wifi', '24h']
+    }));
+  }, [filtered]);
+
+  const nearbyStations = useMemo(() => {
+    return [...filtered].sort((a, b) => ((a as any).distance_km || 0) - ((b as any).distance_km || 0));
+  }, [filtered]);
 
   const markers = filtered.map((s) => ({
     id: s.id,
@@ -67,130 +90,255 @@ export default function MapScreen() {
   }
 
   const topOffset = Platform.OS === 'web' ? 67 : insets.top;
-  const bottomPad = Platform.OS === 'web' ? 34 + 84 : insets.bottom + 60;
+  const bottomPad = Platform.OS === 'web' ? 34 + 84 : insets.bottom + 100;
+
+  const renderTopBar = () => (
+    <View style={[styles.topBar, { top: topOffset + 8 }]}>
+      <Text style={[styles.logo, { color: colors.primary }]}>iON</Text>
+      
+      <View style={[styles.segmentControl, { backgroundColor: colors.card, shadowColor: '#000' }]}>
+        <TouchableOpacity
+          onPress={() => setViewMode('map')}
+          style={[styles.segmentBtn, viewMode === 'map' && styles.segmentBtnActive]}
+        >
+          {viewMode === 'map' ? (
+            <LinearGradient
+              colors={[colors.gradientStart, colors.gradientEnd]}
+              style={StyleSheet.absoluteFill}
+              borderRadius={100}
+            />
+          ) : null}
+          <Text style={[styles.segmentText, { color: viewMode === 'map' ? '#fff' : colors.mutedForeground }]}>Карта</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => setViewMode('list')}
+          style={[styles.segmentBtn, viewMode === 'list' && styles.segmentBtnActive]}
+        >
+          {viewMode === 'list' ? (
+            <LinearGradient
+              colors={[colors.gradientStart, colors.gradientEnd]}
+              style={StyleSheet.absoluteFill}
+              borderRadius={100}
+            />
+          ) : null}
+          <Text style={[styles.segmentText, { color: viewMode === 'list' ? '#fff' : colors.mutedForeground }]}>Список</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.topRightIcons}>
+        <TouchableOpacity style={[styles.iconBtn, { backgroundColor: colors.muted }]} onPress={() => router.push('/notifications')}>
+          <Feather name="bell" size={18} color={colors.text} />
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.iconBtn, { backgroundColor: colors.muted }]} onPress={() => setFiltersVisible(true)}>
+          <Feather name="sliders" size={18} color={colors.text} />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const renderFilterChips = () => (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={[styles.filterScroll, { top: topOffset + 60 }]}
+      contentContainerStyle={styles.filterRow}
+    >
+      {[
+        { id: 'all', label: 'Все' },
+        { id: 'my-cars', label: 'Мои машины' },
+        { id: 'ac', label: 'AC' },
+        { id: 'dc', label: 'DC' },
+        { id: 'free', label: 'Свободные сейчас' }
+      ].map((f) => {
+        const isActive = activeChip === f.id;
+        return (
+          <TouchableOpacity
+            key={f.id}
+            onPress={() => setActiveChip(f.id as FilterStatus)}
+            style={[
+              styles.filterPill,
+              { backgroundColor: isActive ? 'transparent' : colors.card, borderColor: isActive ? 'transparent' : colors.border }
+            ]}
+          >
+            {isActive && (
+              <LinearGradient
+                colors={[colors.gradientStart, colors.gradientEnd]}
+                style={StyleSheet.absoluteFill}
+                borderRadius={20}
+              />
+            )}
+            <Text style={[styles.filterText, { color: isActive ? '#fff' : colors.text }]}>
+              {f.label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </ScrollView>
+  );
+
+  if (viewMode === 'list') {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: topOffset }]}>
+        {renderTopBar()}
+        
+        <View style={[styles.searchWrap, { marginTop: 60 }]}>
+          <View style={[styles.searchInput, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Feather name="search" size={16} color={colors.mutedForeground} />
+            <TextInput
+              style={[styles.searchText, { color: colors.text }]}
+              placeholder="Поиск станций…"
+              placeholderTextColor={colors.mutedForeground}
+              value={search}
+              onChangeText={setSearch}
+            />
+            {search ? (
+              <TouchableOpacity onPress={() => setSearch('')}>
+                <Feather name="x" size={16} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        </View>
+
+        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: bottomPad }}>
+          {nearbyStations.map((s) => (
+             <StationCard
+               key={s.id}
+               station={s}
+               onPress={() => router.push(`/station/${s.id}`)}
+               onRoute={() => router.push(`/route/new?dest=${s.id}`)}
+             />
+          ))}
+        </ScrollView>
+        <FiltersSheet visible={filtersVisible} onClose={() => setFiltersVisible(false)} onApply={() => {}} stationCount={filtered.length} />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      {/* Map (platform-split: native = MapView, web = placeholder) */}
       <MapViewWrapper
         stations={markers}
         onStationPress={(id) => router.push(`/station/${id}`)}
       />
 
-      {/* Search bar */}
-      <View style={[styles.searchBar, { top: topOffset + 12 }]}>
-        <View style={[styles.searchInput, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Feather name="search" size={16} color={colors.mutedForeground} />
-          <TextInput
-            style={[styles.searchText, { color: colors.text }]}
-            placeholder="Search stations…"
-            placeholderTextColor={colors.mutedForeground}
-            value={search}
-            onChangeText={setSearch}
-          />
-          {search ? (
-            <TouchableOpacity onPress={() => setSearch('')}>
-              <Feather name="x" size={16} color={colors.mutedForeground} />
-            </TouchableOpacity>
-          ) : null}
-        </View>
-      </View>
+      {renderTopBar()}
+      {renderFilterChips()}
 
-      {/* Filter pills */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={[styles.filterScroll, { top: topOffset + 68 }]}
-        contentContainerStyle={styles.filterRow}
-      >
-        {(['all', 'free', 'occupied', 'offline'] as FilterStatus[]).map((f) => (
-          <TouchableOpacity
-            key={f}
-            onPress={() => setFilter(f)}
-            style={[
-              styles.filterPill,
-              {
-                backgroundColor: filter === f ? colors.primary : colors.card,
-                borderColor: filter === f ? colors.primary : colors.border,
-              },
-            ]}
-          >
-            <Text style={[styles.filterText, { color: filter === f ? '#fff' : colors.mutedForeground }]}>
-              {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      {/* Bottom sheet */}
-      <Animated.View
-        style={[styles.sheet, { backgroundColor: colors.card, height: sheetAnim }]}
-      >
-        <TouchableOpacity onPress={toggleSheet} style={styles.sheetHandle}>
-          <View style={[styles.handle, { backgroundColor: colors.border }]} />
-          <Text style={[styles.sheetTitle, { color: colors.text }]}>
-            {isLoading ? 'Loading…' : `${filtered.length} station${filtered.length !== 1 ? 's' : ''}`}
-            {filter !== 'all' ? ` · ${filter}` : ''}
-          </Text>
-          <Feather
-            name={sheetExpanded ? 'chevron-down' : 'chevron-up'}
-            size={18}
-            color={colors.mutedForeground}
-          />
+      <Animated.View style={[styles.sheet, { backgroundColor: colors.card, height: sheetAnim }]}>
+        <TouchableOpacity onPress={toggleSheet} style={styles.sheetHandle} activeOpacity={1}>
+          <View style={[styles.handle, { backgroundColor: colors.mutedForeground, opacity: 0.3 }]} />
         </TouchableOpacity>
 
         <ScrollView
           style={styles.sheetScroll}
           contentContainerStyle={[styles.sheetContent, { paddingBottom: bottomPad }]}
           showsVerticalScrollIndicator={false}
+          scrollEnabled={sheetExpanded}
         >
-          {filtered.map((s) => (
-            <StationCard
-              key={s.id}
-              station={s}
-              onPress={() => router.push(`/station/${s.id}`)}
-            />
-          ))}
-          {filtered.length === 0 && !isLoading && (
-            <View style={styles.emptyState}>
-              <Feather name="map-pin" size={32} color={colors.mutedForeground} />
-              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-                No stations found
-              </Text>
-            </View>
+          {sheetExpanded ? (
+            <>
+              <View style={styles.sectionHeader}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Рекомендуем</Text>
+                <View style={[styles.adBadge, { backgroundColor: colors.muted }]}>
+                  <Text style={[styles.adBadgeText, { color: colors.mutedForeground }]}>Реклама</Text>
+                </View>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.promoScroll}>
+                {promotedStations.map((s) => (
+                  <View key={s.id} style={{ width: 280, marginRight: 12 }}>
+                    <StationCard
+                      station={s}
+                      onPress={() => router.push(`/station/${s.id}`)}
+                      onRoute={() => router.push(`/route/new?dest=${s.id}`)}
+                      compact={true}
+                      discount_pct={s.discount_pct}
+                      is_promoted={s.is_promoted}
+                      amenities={s.amenities}
+                    />
+                  </View>
+                ))}
+              </ScrollView>
+
+              <Text style={[styles.sectionTitle, { color: colors.text, marginTop: 16, marginBottom: 12 }]}>Рядом с вами</Text>
+              {nearbyStations.map((s) => (
+                <StationCard
+                  key={s.id}
+                  station={s}
+                  onPress={() => router.push(`/station/${s.id}`)}
+                  onRoute={() => router.push(`/route/new?dest=${s.id}`)}
+                />
+              ))}
+            </>
+          ) : (
+            // Collapsed state: just show the nearest station
+            nearbyStations[0] && (
+              <StationCard
+                station={nearbyStations[0]}
+                onPress={() => router.push(`/station/${nearbyStations[0].id}`)}
+                onRoute={() => router.push(`/route/new?dest=${nearbyStations[0].id}`)}
+              />
+            )
           )}
         </ScrollView>
       </Animated.View>
+
+      <FiltersSheet visible={filtersVisible} onClose={() => setFiltersVisible(false)} onApply={() => {}} stationCount={filtered.length} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  searchBar: {
+  topBar: {
     position: 'absolute',
     left: 16,
     right: 16,
     zIndex: 10,
-  },
-  searchInput: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 4,
+    justifyContent: 'space-between',
   },
-  searchText: {
-    flex: 1,
-    fontSize: 15,
-    fontFamily: 'Inter_400Regular',
+  logo: {
+    fontSize: 22,
+    fontFamily: 'Inter_700Bold',
+  },
+  segmentControl: {
+    flexDirection: 'row',
+    borderRadius: 100,
+    padding: 4,
+    elevation: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+  },
+  segmentBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 100,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  segmentBtnActive: {
+    // background handled by absolute gradient
+  },
+  segmentText: {
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
+    position: 'relative',
+    zIndex: 1,
+  },
+  topRightIcons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  iconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   filterScroll: {
     position: 'absolute',
@@ -203,19 +351,41 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   filterPill: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+    position: 'relative',
+    overflow: 'hidden',
   },
   filterText: {
     fontSize: 13,
     fontFamily: 'Inter_500Medium',
+    position: 'relative',
+    zIndex: 1,
+  },
+  searchWrap: {
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  searchInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  searchText: {
+    flex: 1,
+    fontSize: 15,
+    fontFamily: 'Inter_400Regular',
   },
   sheet: {
     position: 'absolute',
@@ -231,29 +401,37 @@ const styles = StyleSheet.create({
     elevation: 20,
   },
   sheetHandle: {
-    flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 10,
-    gap: 10,
+    paddingVertical: 12,
+    width: '100%',
   },
   handle: {
     width: 36,
     height: 4,
     borderRadius: 2,
-    position: 'absolute',
-    top: 8,
-    left: '50%',
-    marginLeft: -18,
-  },
-  sheetTitle: {
-    fontSize: 15,
-    fontFamily: 'Inter_600SemiBold',
-    flex: 1,
   },
   sheetScroll: { flex: 1 },
-  sheetContent: { padding: 16, gap: 10 },
-  emptyState: { alignItems: 'center', paddingVertical: 40, gap: 12 },
-  emptyText: { fontSize: 15, fontFamily: 'Inter_400Regular' },
+  sheetContent: { paddingHorizontal: 16, paddingTop: 4 },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontFamily: 'Inter_700Bold',
+  },
+  adBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  adBadgeText: {
+    fontSize: 10,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  promoScroll: {
+    paddingBottom: 4,
+  },
 });

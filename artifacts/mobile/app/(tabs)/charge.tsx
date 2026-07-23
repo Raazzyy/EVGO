@@ -28,8 +28,8 @@ function formatDuration(startedAt: string) {
   const h = Math.floor(totalSec / 3600);
   const m = Math.floor((totalSec % 3600) / 60);
   const s = totalSec % 60;
-  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  if (h > 0) return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  return `00:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
 export default function ChargeScreen() {
@@ -61,10 +61,10 @@ export default function ChargeScreen() {
 
   function handleStop() {
     if (!activeSession) return;
-    Alert.alert('Stop Charging', 'Are you sure you want to stop the session?', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert('Остановить сессию', 'Вы уверены, что хотите завершить зарядку?', [
+      { text: 'Отмена', style: 'cancel' },
       {
-        text: 'Stop',
+        text: 'Остановить',
         style: 'destructive',
         onPress: () => stopMutation.mutate({ id: activeSession.id }),
       },
@@ -81,48 +81,37 @@ export default function ChargeScreen() {
       )
     : 0;
 
-  const liveCost = activeSession
-    ? Math.round(
-        liveEnergyKwh * ((activeSession.station as { price_per_kwh?: number } | null)?.price_per_kwh ?? 2000)
-      )
-    : 0;
+  const stationPrice = (activeSession?.station as { price_per_kwh?: number } | null)?.price_per_kwh ?? 2450;
+  const stationPower = (activeSession?.station as { power_kw?: number } | null)?.power_kw ?? 50;
 
-  // Battery estimate: assume 60kWh battery, 20% start
+  const liveCost = activeSession ? Math.round(liveEnergyKwh * stationPrice) : 0;
   const batteryPct = activeSession ? Math.min(95, 20 + (liveEnergyKwh / 60) * 100) : 0;
+  const timeToEighty = activeSession ? Math.max(0, ((0.8 * 60 - liveEnergyKwh) / stationPower) * 60) : 0;
 
   if (!activeSession) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, paddingTop: topPad }]}>
-        <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Charge</Text>
+        <View style={[styles.headerEmpty, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Зарядка</Text>
         </View>
         <ScrollView contentContainerStyle={[styles.emptyContent, { paddingBottom: bottomPad + 100 }]}>
           <View style={[styles.emptyIcon, { backgroundColor: colors.muted }]}>
             <Feather name="zap" size={40} color={colors.mutedForeground} />
           </View>
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>No Active Session</Text>
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>Нет активной сессии</Text>
           <Text style={[styles.emptyDesc, { color: colors.mutedForeground }]}>
-            Find a nearby station and tap "Start Charging" to begin.
+            Найдите ближайшую станцию и нажмите «Зарядиться», чтобы начать.
           </Text>
           <GradientButton
-            label="Find a Station"
+            label="Найти станцию"
             onPress={() => router.push('/')}
             style={{ marginTop: 8 }}
             icon={<Feather name="map-pin" size={16} color="#fff" />}
           />
-          <TouchableOpacity
-            onPress={() => router.push('/sessions')}
-            style={[styles.secondaryBtn, { borderColor: colors.border }]}
-          >
-            <Feather name="clock" size={16} color={colors.mutedForeground} />
-            <Text style={[styles.secondaryText, { color: colors.mutedForeground }]}>View Session History</Text>
-          </TouchableOpacity>
         </ScrollView>
       </View>
     );
   }
-
-  const station = activeSession.station as { name: string; address: string; power_kw: number; price_per_kwh: number } | null;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -132,68 +121,71 @@ export default function ChargeScreen() {
           { paddingTop: topPad + 16, backgroundColor: colors.card, borderBottomColor: colors.border },
         ]}
       >
-        <View style={[styles.activeDot, { backgroundColor: colors.free }]} />
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Charging</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Зарядка</Text>
+        <View style={[styles.activePill, { backgroundColor: '#10B9811A' }]}>
+          <Text style={[styles.activePillText, { color: '#10B981' }]}>Сессия активна</Text>
+        </View>
       </View>
 
-      <ScrollView contentContainerStyle={[styles.activeContent, { paddingBottom: bottomPad + 100 }]}>
+      <ScrollView contentContainerStyle={[styles.activeContent, { paddingBottom: bottomPad + 100 }]} showsVerticalScrollIndicator={false}>
         {/* Progress ring */}
-        <View style={[styles.progressCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={[styles.progressCard, { backgroundColor: colors.card, shadowColor: '#000' }]}>
           <CircularProgress
             progress={batteryPct}
             size={180}
             strokeWidth={14}
-            subLabel="battery"
+            subLabel="Заряжено"
+            icon={<Feather name="zap" size={24} color={colors.primary} />}
           />
-
-          {/* Live timer */}
-          <Text style={[styles.timer, { color: colors.text }]}>
-            {formatDuration(activeSession.started_at)}
-          </Text>
-          <Text style={[styles.timerLabel, { color: colors.mutedForeground }]}>elapsed</Text>
         </View>
 
-        {/* Station info */}
-        {station && (
-          <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>CHARGING AT</Text>
-            <Text style={[styles.stationName, { color: colors.text }]}>{station.name}</Text>
-            <Text style={[styles.stationAddr, { color: colors.mutedForeground }]}>{station.address}</Text>
+        {/* Stats row */}
+        <View style={[styles.statsGrid, { backgroundColor: colors.card, shadowColor: '#000' }]}>
+          <View style={styles.statBlock}>
+            <Text style={[styles.statValue, { color: colors.text }]}>{stationPower} кВт</Text>
+            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Мощность</Text>
           </View>
-        )}
+          <View style={styles.statBlock}>
+            <Text style={[styles.statValue, { color: colors.text }]}>{liveEnergyKwh.toFixed(1)} кВт·ч</Text>
+            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Энергия</Text>
+          </View>
+          <View style={styles.statBlock}>
+            <Text style={[styles.statValue, { color: colors.text }]}>{formatDuration(activeSession.started_at)}</Text>
+            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Время</Text>
+          </View>
+          <View style={styles.statBlock}>
+            <Text style={[styles.statValue, { color: colors.text }]}>~{Math.round(timeToEighty)} мин</Text>
+            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>До 80%</Text>
+          </View>
+        </View>
 
-        {/* Live stats */}
-        <View style={[styles.statsGrid, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={styles.statBlock}>
-            <Text style={[styles.statValue, { color: colors.text }]}>{liveEnergyKwh.toFixed(2)}</Text>
-            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>kWh charged</Text>
-          </View>
-          <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
-          <View style={styles.statBlock}>
-            <Text style={[styles.statValue, { color: colors.text }]}>{liveCost.toLocaleString()}</Text>
-            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>sum (est.)</Text>
-          </View>
-          <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
-          <View style={styles.statBlock}>
-            <Text style={[styles.statValue, { color: colors.text }]}>
-              {station?.power_kw ?? 50}
+        {/* Cost card */}
+        <View style={[styles.costCard, { backgroundColor: colors.card, shadowColor: '#000' }]}>
+          <Text style={[styles.costValue, { color: colors.text }]}>
+            {liveCost.toLocaleString('ru-RU')} сум
+          </Text>
+          <Text style={[styles.costRate, { color: colors.mutedForeground }]}>
+            {stationPrice.toLocaleString('ru-RU')} сум/кВт·ч
+          </Text>
+        </View>
+
+        {/* Actions */}
+        <View style={styles.actions}>
+          <TouchableOpacity
+            onPress={handleStop}
+            disabled={stopMutation.isPending}
+            style={[styles.stopBtn, { borderColor: '#EF4444', backgroundColor: '#EF44440D' }]}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.stopText, { color: '#EF4444' }]}>
+              {stopMutation.isPending ? 'Остановка...' : 'Остановить сессию'}
             </Text>
-            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>kW power</Text>
-          </View>
-        </View>
+          </TouchableOpacity>
 
-        {/* Stop button */}
-        <TouchableOpacity
-          onPress={handleStop}
-          disabled={stopMutation.isPending}
-          style={[styles.stopBtn, { borderColor: colors.destructive, backgroundColor: colors.destructive + '0D' }]}
-          activeOpacity={0.8}
-        >
-          <Feather name="square" size={18} color={colors.destructive} />
-          <Text style={[styles.stopText, { color: colors.destructive }]}>
-            {stopMutation.isPending ? 'Stopping…' : 'Stop Charging'}
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity style={styles.detailsLink} onPress={() => router.push('/sessions')}>
+            <Text style={[styles.detailsText, { color: colors.primary }]}>Детали сессии</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </View>
   );
@@ -201,20 +193,28 @@ export default function ChargeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
+  headerEmpty: {
     paddingHorizontal: 20,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    paddingTop: 16,
   },
-  headerTitle: { fontSize: 26, fontFamily: 'Inter_700Bold' },
-  activeDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+  },
+  headerTitle: { fontSize: 24, fontFamily: 'Inter_700Bold' },
+  activePill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  activePillText: {
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
   },
   emptyContent: {
     flexGrow: 1,
@@ -238,70 +238,67 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
   },
-  secondaryBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  secondaryText: {
-    fontSize: 15,
-    fontFamily: 'Inter_500Medium',
-  },
-  activeContent: { padding: 20, gap: 14 },
+  activeContent: { padding: 16, gap: 16 },
   progressCard: {
     borderRadius: 20,
-    padding: 28,
+    padding: 32,
     alignItems: 'center',
-    gap: 8,
-    borderWidth: 1,
+    justifyContent: 'center',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
   },
-  timer: {
-    fontSize: 42,
-    fontFamily: 'Inter_700Bold',
-    letterSpacing: -1,
-    marginTop: 8,
-  },
-  timerLabel: {
-    fontSize: 13,
-    fontFamily: 'Inter_400Regular',
-  },
-  infoCard: {
-    borderRadius: 16,
-    padding: 16,
-    gap: 4,
-    borderWidth: 1,
-  },
-  sectionLabel: {
-    fontSize: 11,
-    fontFamily: 'Inter_600SemiBold',
-    letterSpacing: 0.8,
-    marginBottom: 4,
-  },
-  stationName: { fontSize: 17, fontFamily: 'Inter_600SemiBold' },
-  stationAddr: { fontSize: 13, fontFamily: 'Inter_400Regular' },
   statsGrid: {
     borderRadius: 16,
     padding: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
   },
   statBlock: { flex: 1, alignItems: 'center', gap: 4 },
-  statValue: { fontSize: 22, fontFamily: 'Inter_700Bold' },
-  statLabel: { fontSize: 12, fontFamily: 'Inter_400Regular' },
-  statDivider: { width: 1, height: 40, marginHorizontal: 8 },
-  stopBtn: {
+  statValue: { fontSize: 17, fontFamily: 'Inter_700Bold' },
+  statLabel: { fontSize: 11, fontFamily: 'Inter_400Regular' },
+  costCard: {
+    borderRadius: 16,
+    padding: 20,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  costValue: {
+    fontSize: 22,
+    fontFamily: 'Inter_700Bold',
+  },
+  costRate: {
+    fontSize: 13,
+    fontFamily: 'Inter_400Regular',
+  },
+  actions: {
+    marginTop: 8,
+    gap: 16,
+  },
+  stopBtn: {
+    alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
     paddingVertical: 16,
     borderRadius: 14,
     borderWidth: 1.5,
   },
   stopText: { fontSize: 16, fontFamily: 'Inter_600SemiBold' },
+  detailsLink: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  detailsText: {
+    fontSize: 14,
+    fontFamily: 'Inter_400Regular',
+  },
 });

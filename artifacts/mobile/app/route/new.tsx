@@ -23,36 +23,6 @@ import { useColors } from '@/hooks/useColors';
 import { useApp } from '@/contexts/AppContext';
 import { GradientButton } from '@/components/GradientButton';
 
-const PRESET_ROUTES = [
-  {
-    label: 'Tashkent → Samarkand',
-    origin: 'Tashkent, Uzbekistan',
-    dest: 'Samarkand, Uzbekistan',
-    originLat: 41.2995,
-    originLng: 69.2401,
-    destLat: 39.6542,
-    destLng: 66.9597,
-  },
-  {
-    label: 'Tashkent → Namangan',
-    origin: 'Tashkent, Uzbekistan',
-    dest: 'Namangan, Uzbekistan',
-    originLat: 41.2995,
-    originLng: 69.2401,
-    destLat: 41.0011,
-    destLng: 71.6725,
-  },
-  {
-    label: 'Tashkent → Bukhara',
-    origin: 'Tashkent, Uzbekistan',
-    dest: 'Bukhara, Uzbekistan',
-    originLat: 41.2995,
-    originLng: 69.2401,
-    destLat: 39.7747,
-    destLng: 64.4286,
-  },
-];
-
 export default function NewRouteScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -60,39 +30,42 @@ export default function NewRouteScreen() {
   const qc = useQueryClient();
   const { selectedVehicleId, setSelectedVehicleId } = useApp();
 
-  const [origin, setOrigin] = useState('Tashkent, Uzbekistan');
+  const [origin, setOrigin] = useState('Ташкент, Узбекистан');
   const [destination, setDestination] = useState('');
-  const [batteryPct, setBatteryPct] = useState('80');
+  const [batteryPct, setBatteryPct] = useState('85');
   const [originCoords, setOriginCoords] = useState({ lat: 41.2995, lng: 69.2401 });
   const [destCoords, setDestCoords] = useState<{ lat: number; lng: number } | null>(null);
 
+  const [routeResult, setRouteResult] = useState<any>(null);
+
   const { data: vehicles = [] } = useGetVehicles();
+
+  const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId) || vehicles[0];
 
   const createRoute = useCreateRoute({
     mutation: {
-      onSuccess: () => {
+      onSuccess: (res) => {
         qc.invalidateQueries({ queryKey: getGetRoutesQueryKey() });
-        router.back();
+        setRouteResult(res);
       },
-      onError: () => Alert.alert('Error', 'Failed to plan route. Try again.'),
+      onError: () => Alert.alert('Ошибка', 'Не удалось построить маршрут. Попробуйте еще раз.'),
     },
   });
 
-  function applyPreset(preset: (typeof PRESET_ROUTES)[0]) {
-    setOrigin(preset.origin);
-    setDestination(preset.dest);
-    setOriginCoords({ lat: preset.originLat, lng: preset.originLng });
-    setDestCoords({ lat: preset.destLat, lng: preset.destLng });
+  function handleSwap() {
+    const temp = origin;
+    setOrigin(destination);
+    setDestination(temp);
   }
 
-  function handleSubmit() {
+  function handlePlanRoute() {
     if (!destination.trim()) {
-      Alert.alert('Missing Destination', 'Please enter a destination.');
+      Alert.alert('Пункт назначения', 'Пожалуйста, введите конечную точку.');
       return;
     }
     const pct = parseFloat(batteryPct);
     if (isNaN(pct) || pct < 0 || pct > 100) {
-      Alert.alert('Invalid Battery', 'Enter a battery % between 0 and 100.');
+      Alert.alert('Неверный заряд', 'Введите заряд от 0 до 100%.');
       return;
     }
 
@@ -102,152 +75,159 @@ export default function NewRouteScreen() {
         destination,
         origin_lat: originCoords.lat,
         origin_lng: originCoords.lng,
-        dest_lat: destCoords?.lat ?? null,
-        dest_lng: destCoords?.lng ?? null,
+        dest_lat: 39.6542, // Mock destination lat for Samarkand etc.
+        dest_lng: 66.9597,
         vehicle_id: selectedVehicleId ?? null,
         initial_battery_pct: pct,
       },
     });
   }
 
+  function formatTime(totalMin: number) {
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    return h > 0 ? `${h} ч ${m} мин` : `${m} мин`;
+  }
+
   const bottomPad = Platform.OS === 'web' ? 34 : insets.bottom;
+  const topPad = Platform.OS === 'web' ? 67 : insets.top;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: topPad + 10, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+          <Feather name="arrow-left" size={24} color={colors.text} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Маршрут</Text>
+        <TouchableOpacity style={styles.iconBtn}>
+          <Feather name="more-vertical" size={24} color={colors.text} />
+        </TouchableOpacity>
+      </View>
+
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: bottomPad + 100 }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Presets */}
-        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Quick Routes</Text>
-          {PRESET_ROUTES.map((p) => (
-            <TouchableOpacity
-              key={p.label}
-              onPress={() => applyPreset(p)}
-              style={[
-                styles.presetBtn,
-                {
-                  borderColor:
-                    destination === p.dest ? colors.primary : colors.border,
-                  backgroundColor:
-                    destination === p.dest ? colors.primary + '08' : 'transparent',
-                },
-              ]}
-            >
-              <Feather name="navigation" size={16} color={destination === p.dest ? colors.primary : colors.mutedForeground} />
-              <Text
-                style={[
-                  styles.presetText,
-                  { color: destination === p.dest ? colors.primary : colors.text },
-                ]}
-              >
-                {p.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Route inputs */}
-        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Route Details</Text>
-
+        {/* Points card */}
+        <View style={[styles.card, { backgroundColor: colors.card, shadowColor: '#000' }]}>
           <View style={styles.inputRow}>
             <View style={[styles.inputDot, { backgroundColor: colors.primary }]} />
-            <View style={[styles.inputBox, { borderColor: colors.border, backgroundColor: colors.muted }]}>
-              <TextInput
-                style={[styles.inputText, { color: colors.text }]}
-                value={origin}
-                onChangeText={setOrigin}
-                placeholder="From"
-                placeholderTextColor={colors.mutedForeground}
-              />
-            </View>
+            <TextInput
+              style={[styles.inputText, { color: colors.text }]}
+              value={origin}
+              onChangeText={setOrigin}
+              placeholder="Введите начальную точку"
+              placeholderTextColor={colors.mutedForeground}
+            />
           </View>
-
+          
           <View style={[styles.routeConnector, { borderColor: colors.border }]} />
+          
+          <TouchableOpacity onPress={handleSwap} style={[styles.swapBtn, { backgroundColor: colors.background, borderColor: colors.border }]}>
+            <Feather name="code" size={14} color={colors.mutedForeground} style={{ transform: [{ rotate: '90deg' }] }} />
+          </TouchableOpacity>
 
           <View style={styles.inputRow}>
             <View style={[styles.inputDot, { backgroundColor: colors.accent }]} />
-            <View style={[styles.inputBox, { borderColor: colors.border, backgroundColor: colors.muted }]}>
-              <TextInput
-                style={[styles.inputText, { color: colors.text }]}
-                value={destination}
-                onChangeText={setDestination}
-                placeholder="To (e.g. Samarkand)"
-                placeholderTextColor={colors.mutedForeground}
-              />
-            </View>
+            <TextInput
+              style={[styles.inputText, { color: colors.text }]}
+              value={destination}
+              onChangeText={setDestination}
+              placeholder="Введите конечную точку"
+              placeholderTextColor={colors.mutedForeground}
+            />
           </View>
         </View>
 
-        {/* Vehicle */}
-        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>My Vehicle</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-            {vehicles.map((v) => {
-              const selected = selectedVehicleId === v.id;
-              return (
-                <TouchableOpacity
-                  key={v.id}
-                  onPress={() => setSelectedVehicleId(v.id)}
-                  style={[
-                    styles.vehicleChip,
-                    {
-                      backgroundColor: selected ? colors.primary : colors.muted,
-                      borderColor: selected ? colors.primary : colors.border,
-                    },
-                  ]}
-                >
-                  <Feather name="zap" size={14} color={selected ? '#fff' : colors.mutedForeground} />
-                  <Text style={[styles.vehicleText, { color: selected ? '#fff' : colors.text }]}>
-                    {v.name}
-                  </Text>
-                  <Text style={[styles.vehicleSub, { color: selected ? 'rgba(255,255,255,0.8)' : colors.mutedForeground }]}>
-                    {v.range_km}km
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+        {/* Car params card */}
+        <View style={[styles.card, { backgroundColor: colors.card, shadowColor: '#000' }]}>
+          <View style={styles.carHeaderRow}>
+            <View style={styles.carIconCircle}>
+              <Feather name="truck" size={18} color={colors.primary} />
+            </View>
+            <View style={styles.carInfo}>
+              <Text style={[styles.carName, { color: colors.text }]}>
+                {selectedVehicle?.name ?? 'Hyundai IONIQ 5'}
+              </Text>
+              <Text style={[styles.carSpecs, { color: colors.mutedForeground }]}>
+                {batteryPct}% · {selectedVehicle?.range_km ?? 410} км
+              </Text>
+            </View>
+            <TouchableOpacity>
+              <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
+            </TouchableOpacity>
+          </View>
+          
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          
+          <View style={styles.paramRow}>
+            <Text style={[styles.paramLabel, { color: colors.text }]}>Предпочтения:</Text>
+            <Text style={[styles.paramValue, { color: colors.primary }]}>Быстрая зарядка</Text>
+          </View>
+
+          {routeResult && (
+            <View style={styles.paramRow}>
+              <Text style={[styles.paramLabel, { color: colors.text }]}>Поездка:</Text>
+              <Text style={[styles.paramValue, { color: colors.text }]}>
+                {Math.round(routeResult.total_distance_km)} км · ~{formatTime(routeResult.total_time_min)}
+              </Text>
+            </View>
+          )}
         </View>
 
-        {/* Battery */}
-        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Current Battery</Text>
-          <View style={styles.batteryRow}>
-            <Feather name="battery-charging" size={20} color={colors.primary} />
-            <View style={[styles.inputBox, { flex: 1, borderColor: colors.border, backgroundColor: colors.muted }]}>
-              <TextInput
-                style={[styles.inputText, { color: colors.text }]}
-                value={batteryPct}
-                onChangeText={setBatteryPct}
-                keyboardType="numeric"
-                placeholder="80"
-                placeholderTextColor={colors.mutedForeground}
-              />
+        {/* Route summary */}
+        {routeResult && (
+          <View style={[styles.summarySection]}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Маршрут</Text>
+            
+            {/* Mini map view */}
+            <View style={[styles.mapPlaceholder, { backgroundColor: colors.muted }]}>
+              <View style={styles.mapLine} />
+              <View style={[styles.mapDot, { left: '10%', backgroundColor: colors.primary }]} />
+              <View style={[styles.mapDot, { left: '50%', backgroundColor: '#10B981' }]} />
+              <View style={[styles.mapDot, { left: '90%', backgroundColor: colors.accent }]} />
+              <Text style={[styles.mapText, { color: colors.mutedForeground }]}>Карта маршрута</Text>
             </View>
-            <Text style={[styles.pctLabel, { color: colors.mutedForeground }]}>%</Text>
+
+            {/* Stop cards */}
+            <View style={styles.stopsContainer}>
+              {(routeResult.stops || []).map((stop: any, i: number) => (
+                <View key={i} style={[styles.stopCard, { backgroundColor: colors.card, shadowColor: '#000' }]}>
+                  <View style={[styles.stopNumber, { backgroundColor: colors.primary + '1A' }]}>
+                    <Text style={[styles.stopNumberText, { color: colors.primary }]}>{i + 1}</Text>
+                  </View>
+                  <View style={styles.stopInfo}>
+                    <Text style={[styles.stopName, { color: colors.text }]}>{stop.station_name}</Text>
+                    <Text style={[styles.stopDetails, { color: colors.mutedForeground }]}>
+                      {stop.eta || '10:15'} · {stop.arrival_battery_pct}% → {stop.departure_battery_pct}% · {stop.charge_time_min} мин
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </View>
           </View>
-          <Text style={[styles.batteryHint, { color: colors.mutedForeground }]}>
-            We'll plan your stops to keep you above 20% at all times.
-          </Text>
-        </View>
+        )}
       </ScrollView>
 
-      {/* Submit */}
+      {/* Footer */}
       <View style={[styles.footer, { backgroundColor: colors.card, borderTopColor: colors.border, paddingBottom: bottomPad + 12 }]}>
         {createRoute.isPending ? (
           <View style={styles.loadingRow}>
             <ActivityIndicator color={colors.primary} />
-            <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>Planning route…</Text>
+            <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>Построение маршрута...</Text>
           </View>
+        ) : routeResult ? (
+          <GradientButton
+            label="Поехали"
+            onPress={() => router.push('/navigate' as any)}
+            icon={<Feather name="navigation" size={18} color="#fff" />}
+          />
         ) : (
           <GradientButton
-            label="Plan Route"
-            onPress={handleSubmit}
-            icon={<Feather name="navigation" size={18} color="#fff" />}
+            label="Построить маршрут"
+            onPress={handlePlanRoute}
           />
         )}
       </View>
@@ -257,66 +237,189 @@ export default function NewRouteScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: 16, gap: 12 },
-  section: {
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    gap: 10,
-  },
-  sectionTitle: { fontSize: 16, fontFamily: 'Inter_600SemiBold' },
-  presetBtn: {
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 10,
-    borderWidth: 1.5,
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
   },
-  presetText: { fontSize: 15, fontFamily: 'Inter_500Medium' },
+  headerTitle: { fontSize: 20, fontFamily: 'Inter_700Bold' },
+  iconBtn: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  content: { padding: 16, gap: 16 },
+  card: {
+    borderRadius: 16,
+    padding: 16,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
+  },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
   },
   inputDot: {
     width: 12,
     height: 12,
     borderRadius: 6,
   },
-  inputBox: {
+  inputText: { 
     flex: 1,
-    borderRadius: 10,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    fontSize: 16, 
+    fontFamily: 'Inter_500Medium',
+    paddingVertical: 8,
   },
-  inputText: { fontSize: 15, fontFamily: 'Inter_400Regular' },
   routeConnector: {
-    height: 20,
+    height: 24,
     borderLeftWidth: 2,
     borderStyle: 'dashed',
     marginLeft: 5,
+    marginVertical: 4,
   },
-  vehicleChip: {
+  swapBtn: {
+    position: 'absolute',
+    right: 20,
+    top: '50%',
+    marginTop: -16,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    zIndex: 10,
+  },
+  carHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 1.5,
+    gap: 12,
   },
-  vehicleText: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
-  vehicleSub: { fontSize: 12, fontFamily: 'Inter_400Regular' },
-  batteryRow: {
+  carIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  carInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  carName: {
+    fontSize: 16,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  carSpecs: {
+    fontSize: 13,
+    fontFamily: 'Inter_400Regular',
+  },
+  divider: {
+    height: 1,
+    width: '100%',
+    marginVertical: 16,
+  },
+  paramRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  paramLabel: {
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
+  },
+  paramValue: {
+    fontSize: 14,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  summarySection: {
+    gap: 12,
+    marginTop: 8,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  mapPlaceholder: {
+    height: 140,
+    borderRadius: 16,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  mapLine: {
+    position: 'absolute',
+    top: '50%',
+    left: '10%',
+    right: '10%',
+    height: 4,
+    backgroundColor: '#fff',
+    borderRadius: 2,
+    opacity: 0.5,
+  },
+  mapDot: {
+    position: 'absolute',
+    top: '50%',
+    marginTop: -8,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  mapText: {
+    position: 'absolute',
+    bottom: 12,
+    fontSize: 13,
+    fontFamily: 'Inter_500Medium',
+  },
+  stopsContainer: {
     gap: 10,
   },
-  pctLabel: { fontSize: 18, fontFamily: 'Inter_600SemiBold' },
-  batteryHint: { fontSize: 13, fontFamily: 'Inter_400Regular', lineHeight: 18 },
+  stopCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 16,
+    borderRadius: 16,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  stopNumber: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stopNumberText: {
+    fontSize: 14,
+    fontFamily: 'Inter_700Bold',
+  },
+  stopInfo: {
+    flex: 1,
+    gap: 4,
+  },
+  stopName: {
+    fontSize: 15,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  stopDetails: {
+    fontSize: 13,
+    fontFamily: 'Inter_400Regular',
+  },
   footer: {
     padding: 16,
     borderTopWidth: 1,

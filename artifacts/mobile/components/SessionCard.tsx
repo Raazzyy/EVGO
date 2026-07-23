@@ -25,12 +25,12 @@ function formatDuration(startedAt: string, endedAt?: string | null) {
   const start = new Date(startedAt);
   const end = endedAt ? new Date(endedAt) : new Date();
   const mins = Math.round((end.getTime() - start.getTime()) / 60000);
-  if (mins < 60) return `${mins} min`;
-  return `${Math.floor(mins / 60)}h ${mins % 60}m`;
+  if (mins < 60) return `${mins} мин`;
+  return `${Math.floor(mins / 60)} ч ${mins % 60} мин`;
 }
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-US', {
+  return new Date(iso).toLocaleDateString('ru-RU', {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
@@ -59,7 +59,7 @@ export function SessionCard({ session, onPress, onStop }: SessionCardProps) {
         <View style={[styles.activeBanner, { backgroundColor: colors.primary + '0D' }]}>
           <View style={[styles.pulse, { backgroundColor: colors.primary }]} />
           <Text style={[styles.activeBannerText, { color: colors.primary }]}>
-            Charging in progress
+            Зарядка в процессе
           </Text>
         </View>
       )}
@@ -67,9 +67,12 @@ export function SessionCard({ session, onPress, onStop }: SessionCardProps) {
       <View style={styles.header}>
         <View style={styles.titleBlock}>
           <Text style={[styles.stationName, { color: colors.text }]} numberOfLines={1}>
-            {session.station?.name ?? 'Unknown Station'}
+            {session.station?.name ?? 'Неизвестная станция'}
           </Text>
           <Text style={[styles.date, { color: colors.mutedForeground }]}>
+            {session.station?.address}
+          </Text>
+          <Text style={[styles.date, { color: colors.mutedForeground, marginTop: 2 }]}>
             {formatDate(session.started_at)}
           </Text>
         </View>
@@ -87,7 +90,7 @@ export function SessionCard({ session, onPress, onStop }: SessionCardProps) {
           <View style={styles.stat}>
             <Feather name="zap" size={13} color={colors.primary} />
             <Text style={[styles.statText, { color: colors.text }]}>
-              {session.energy_kwh.toFixed(1)} kWh
+              {session.energy_kwh.toFixed(1)} кВт·ч
             </Text>
           </View>
         )}
@@ -95,7 +98,7 @@ export function SessionCard({ session, onPress, onStop }: SessionCardProps) {
           <View style={styles.stat}>
             <Feather name="credit-card" size={13} color={colors.primary} />
             <Text style={[styles.statText, { color: colors.text }]}>
-              {Math.round(session.cost).toLocaleString()} sum
+              {Math.round(session.cost).toLocaleString('ru-RU')} сум
             </Text>
           </View>
         )}
@@ -116,7 +119,7 @@ export function SessionCard({ session, onPress, onStop }: SessionCardProps) {
           activeOpacity={0.8}
         >
           <Feather name="square" size={14} color={colors.destructive} />
-          <Text style={[styles.stopText, { color: colors.destructive }]}>Stop Session</Text>
+          <Text style={[styles.stopText, { color: colors.destructive }]}>Остановить сессию</Text>
         </TouchableOpacity>
       )}
     </TouchableOpacity>
@@ -151,6 +154,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 8,
     paddingHorizontal: 16,
+    paddingTop: 16,
   },
   titleBlock: { flex: 1, gap: 2 },
   stationName: {
@@ -166,7 +170,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 12,
     paddingHorizontal: 16,
-    paddingBottom: 4,
+    paddingBottom: 16,
   },
   stat: {
     flexDirection: 'row',

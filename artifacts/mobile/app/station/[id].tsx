@@ -13,6 +13,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
   useGetStation,
   useStartSession,
@@ -21,7 +22,6 @@ import {
 } from '@workspace/api-client-react';
 import { useColors } from '@/hooks/useColors';
 import { useApp } from '@/contexts/AppContext';
-import { StatusBadge } from '@/components/StatusBadge';
 import { ConnectorBadge } from '@/components/ConnectorBadge';
 import { GradientButton } from '@/components/GradientButton';
 
@@ -40,8 +40,9 @@ export default function StationDetailScreen() {
   const qc = useQueryClient();
   const { userId, setActiveSessionId } = useApp();
   const [selectedConnector, setSelectedConnector] = useState<string | null>(null);
+  const [isFavorite, setIsFavorite] = useState(false);
 
-  const { data: station, isLoading } = useGetStation({ id: Number(id) });
+  const { data: station, isLoading } = useGetStation(Number(id));
 
   const startMutation = useStartSession({
     mutation: {
@@ -51,7 +52,7 @@ export default function StationDetailScreen() {
         qc.invalidateQueries({ queryKey: getGetStationsQueryKey() });
         router.push('/charge');
       },
-      onError: () => Alert.alert('Error', 'Failed to start session. Try again.'),
+      onError: () => Alert.alert('Ошибка', 'Не удалось начать сессию. Попробуйте еще раз.'),
     },
   });
 
@@ -61,7 +62,7 @@ export default function StationDetailScreen() {
   function handleCharge() {
     if (!station) return;
     if (station.status === 'offline') {
-      Alert.alert('Station Offline', 'This station is currently offline.');
+      Alert.alert('Станция недоступна', 'Эта станция сейчас не в сети.');
       return;
     }
     startMutation.mutate({
@@ -74,6 +75,7 @@ export default function StationDetailScreen() {
   }
 
   const bottomPad = Platform.OS === 'web' ? 34 : insets.bottom;
+  const topPad = Platform.OS === 'web' ? 67 : insets.top;
 
   if (isLoading) {
     return (
@@ -86,145 +88,187 @@ export default function StationDetailScreen() {
   if (!station) {
     return (
       <View style={[styles.loading, { backgroundColor: colors.background }]}>
-        <Text style={{ color: colors.mutedForeground }}>Station not found</Text>
+        <Text style={{ color: colors.mutedForeground }}>Станция не найдена</Text>
       </View>
     );
   }
 
+  const operatorName = station.operator ? (station.operator as { name: string }).name : '';
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: bottomPad + 100 }]}
+        contentContainerStyle={{ paddingBottom: bottomPad + 100 }}
         showsVerticalScrollIndicator={false}
+        bounces={false}
       >
-        {/* Hero card */}
-        <View style={[styles.heroCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={styles.heroTop}>
-            <View style={styles.heroTitles}>
-              <Text style={[styles.stationName, { color: colors.text }]}>{station.name}</Text>
-              {station.operator && (
-                <Text style={[styles.operatorName, { color: colors.mutedForeground }]}>
-                  {(station.operator as { name: string }).name}
-                </Text>
-              )}
+        {/* Hero section */}
+        <LinearGradient
+          colors={['#1A1A2E', '#2563EB']}
+          style={[styles.heroSection, { paddingTop: Math.max(topPad, 16) }]}
+        >
+          <View style={styles.heroHeader}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+              <Feather name="arrow-left" size={24} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setIsFavorite(!isFavorite)} style={styles.iconBtn}>
+              <Feather name="heart" size={24} color={isFavorite ? '#EF4444' : '#fff'} fill={isFavorite ? '#EF4444' : 'transparent'} />
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.heroBottom}>
+            <Text style={styles.heroStationName}>{station.name}</Text>
+            
+            <View style={styles.ratingRow}>
+              <Feather name="star" size={14} color="#FBBF24" fill="#FBBF24" />
+              <Text style={styles.ratingText}>4.8</Text>
+              <View style={styles.ratingDot} />
+              <Text style={styles.ratingText}>0,3 км</Text>
             </View>
-            <StatusBadge status={station.status as 'free' | 'occupied' | 'offline'} />
+
+            <View style={styles.pillsRow}>
+              {operatorName ? (
+                <View style={styles.pill}>
+                  <Text style={styles.pillText}>{operatorName}</Text>
+                </View>
+              ) : null}
+              <View style={styles.pill}>
+                <Text style={styles.pillText}>Быстрая зарядка</Text>
+              </View>
+              <View style={styles.pill}>
+                <Text style={styles.pillText}>DC</Text>
+              </View>
+            </View>
+          </View>
+        </LinearGradient>
+
+        <View style={styles.content}>
+          {/* Quick stats row */}
+          <View style={[styles.card, { backgroundColor: colors.card, shadowColor: '#000' }]}>
+            <View style={styles.statsRow}>
+              <View style={styles.statCol}>
+                <Text style={[styles.statValue, { color: colors.text }]}>{station.power_kw} кВт</Text>
+                <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>мощность</Text>
+              </View>
+              <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
+              <View style={styles.statCol}>
+                <Text style={[
+                  styles.statValue, 
+                  { color: connectors.reduce((a, c) => a + c.available, 0) > 0 ? '#10B981' : colors.text }
+                ]}>
+                  {connectors.reduce((a, c) => a + c.available, 0)}/{connectors.reduce((a, c) => a + c.total, 0)}
+                </Text>
+                <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>доступно</Text>
+              </View>
+              <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
+              <View style={styles.statCol}>
+                <View style={styles.priceRow}>
+                  <Text style={[styles.statValue, { color: colors.text }]}>
+                    {station.price_per_kwh.toLocaleString('ru-RU')}
+                  </Text>
+                  <View style={styles.discountBadge}>
+                    <Text style={styles.discountText}>-10%</Text>
+                  </View>
+                </View>
+                <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>сум/кВт·ч</Text>
+              </View>
+            </View>
           </View>
 
-          <View style={styles.addressRow}>
-            <Feather name="map-pin" size={14} color={colors.mutedForeground} />
-            <Text style={[styles.address, { color: colors.mutedForeground }]}>
+          {/* Address row */}
+          <View style={[styles.card, styles.addressCard, { backgroundColor: colors.card, shadowColor: '#000' }]}>
+            <View style={[styles.iconCircle, { backgroundColor: colors.muted }]}>
+              <Feather name="map-pin" size={18} color={colors.primary} />
+            </View>
+            <Text style={[styles.addressText, { color: colors.text }]}>
               {station.address}
             </Text>
           </View>
-        </View>
 
-        {/* Key stats */}
-        <View style={[styles.statsGrid, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={styles.statBlock}>
-            <Feather name="zap" size={20} color={colors.primary} />
-            <Text style={[styles.statValue, { color: colors.text }]}>{station.power_kw} kW</Text>
-            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Max Power</Text>
-          </View>
-          <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
-          <View style={styles.statBlock}>
-            <Feather name="credit-card" size={20} color={colors.primary} />
-            <Text style={[styles.statValue, { color: colors.text }]}>
-              {station.price_per_kwh.toLocaleString()}
-            </Text>
-            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>sum / kWh</Text>
-          </View>
-          <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
-          <View style={styles.statBlock}>
-            <Feather name="cpu" size={20} color={colors.primary} />
-            <Text style={[styles.statValue, { color: colors.text }]}>
-              {connectors.reduce((a, c) => a + c.available, 0)}/{connectors.reduce((a, c) => a + c.total, 0)}
-            </Text>
-            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Available</Text>
-          </View>
-        </View>
+          {/* Amenities row */}
+          {amenities.length > 0 && (
+            <View style={[styles.card, styles.amenitiesCard, { backgroundColor: colors.card, shadowColor: '#000' }]}>
+              {amenities.map((a) => {
+                let iconName: any = 'check';
+                let label = a;
+                if (a === 'cafe') { iconName = 'coffee'; label = 'Кафе'; }
+                else if (a === 'toilet') { iconName = 'home'; label = 'Туалет'; }
+                else if (a === 'shop') { iconName = 'shopping-bag'; label = 'Магазин'; }
+                else if (a === 'wifi') { iconName = 'wifi'; label = 'Wi-Fi'; }
+                else if (a === 'lounge') { iconName = 'star'; label = 'Зона отдыха'; }
+                else if (a === '24/7') { iconName = 'clock'; label = '24/7'; }
 
-        {/* Connectors */}
-        {connectors.length > 0 && (
-          <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Select Connector</Text>
-            {connectors.map((c, i) => {
-              const isSelected = selectedConnector === c.type || (!selectedConnector && i === 0);
-              return (
-                <TouchableOpacity
-                  key={i}
-                  onPress={() => setSelectedConnector(c.type)}
-                  style={[
-                    styles.connectorRow,
-                    {
-                      borderColor: isSelected ? colors.primary : colors.border,
-                      backgroundColor: isSelected ? colors.primary + '08' : 'transparent',
-                    },
-                  ]}
-                >
-                  <ConnectorBadge type={c.type} powerKw={c.power_kw} />
-                  <View style={styles.connectorInfo}>
-                    <Text style={[styles.connectorType, { color: colors.text }]}>{c.type}</Text>
-                    <Text style={[styles.connectorAvail, { color: colors.mutedForeground }]}>
-                      {c.available}/{c.total} available
-                    </Text>
-                  </View>
-                  {isSelected && (
-                    <View style={[styles.checkCircle, { backgroundColor: colors.primary }]}>
-                      <Feather name="check" size={12} color="#fff" />
+                return (
+                  <View key={a} style={styles.amenityCol}>
+                    <View style={[styles.amenityIcon, { backgroundColor: colors.muted }]}>
+                      <Feather name={iconName} size={20} color={colors.text} />
                     </View>
-                  )}
+                    <Text style={[styles.amenityLabel, { color: colors.text }]}>{label}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
+          {/* Connectors section */}
+          {connectors.length > 0 && (
+            <View style={[styles.card, { backgroundColor: colors.card, shadowColor: '#000' }]}>
+              <View style={styles.cardHeader}>
+                <Text style={[styles.cardTitle, { color: colors.text }]}>Коннекторы</Text>
+                <TouchableOpacity>
+                  <Text style={[styles.linkText, { color: colors.primary }]}>Подробнее</Text>
                 </TouchableOpacity>
+              </View>
+              <View style={styles.connectorsList}>
+                {connectors.map((c, i) => {
+                  const isSelected = selectedConnector === c.type || (!selectedConnector && i === 0);
+                  return (
+                    <TouchableOpacity
+                      key={i}
+                      onPress={() => setSelectedConnector(c.type)}
+                      style={[
+                        styles.connectorRow,
+                        {
+                          borderColor: isSelected ? colors.primary : colors.border,
+                          backgroundColor: isSelected ? colors.primary + '0D' : 'transparent',
+                        },
+                      ]}
+                    >
+                      <View style={styles.connectorInfoLeft}>
+                        <Text style={[styles.connectorTypeName, { color: colors.text }]}>{c.type}</Text>
+                        <Text style={[styles.connectorAvailText, { color: '#10B981' }]}>
+                          {c.available}/{c.total}
+                        </Text>
+                      </View>
+                      <Text style={[styles.connectorPowerKw, { color: colors.mutedForeground }]}>
+                        {c.power_kw} кВт
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          )}
+
+          {/* Cost estimate table */}
+          <View style={[styles.card, { backgroundColor: colors.card, shadowColor: '#000' }]}>
+            <Text style={[styles.cardTitle, { color: colors.text, marginBottom: 12 }]}>Стоимость</Text>
+            {[10, 30, 60].map((mins) => {
+              const energyKwh = (station.power_kw * mins) / 60;
+              const cost = energyKwh * station.price_per_kwh;
+              return (
+                <View key={mins} style={[styles.costRow, { borderBottomColor: colors.border }]}>
+                  <Text style={[styles.costMins, { color: colors.text }]}>{mins} мин</Text>
+                  <Text style={[styles.costKwh, { color: colors.mutedForeground }]}>~{energyKwh.toFixed(1)} кВт·ч</Text>
+                  <Text style={[styles.costTotal, { color: colors.text }]}>{Math.round(cost).toLocaleString('ru-RU')} сум</Text>
+                </View>
               );
             })}
           </View>
-        )}
-
-        {/* Amenities */}
-        {amenities.length > 0 && (
-          <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Amenities</Text>
-            <View style={styles.amenitiesRow}>
-              {amenities.map((a) => (
-                <View key={a} style={[styles.amenityBadge, { backgroundColor: colors.muted }]}>
-                  <Feather
-                    name={a === 'cafe' ? 'coffee' : a === 'wifi' ? 'wifi' : a === 'toilet' ? 'home' : a === 'shop' ? 'shopping-bag' : a === 'lounge' ? 'star' : 'check'}
-                    size={12}
-                    color={colors.mutedForeground}
-                  />
-                  <Text style={[styles.amenityText, { color: colors.mutedForeground }]}>
-                    {a.charAt(0).toUpperCase() + a.slice(1)}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        )}
-
-        {/* Cost estimate */}
-        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Cost Estimate</Text>
-          {[10, 30, 60].map((mins) => {
-            const energyKwh = (station.power_kw * mins) / 60;
-            const cost = energyKwh * station.price_per_kwh;
-            return (
-              <View key={mins} style={styles.estimateRow}>
-                <Text style={[styles.estimateMins, { color: colors.mutedForeground }]}>
-                  {mins} minutes
-                </Text>
-                <Text style={[styles.estimateKwh, { color: colors.mutedForeground }]}>
-                  ~{energyKwh.toFixed(1)} kWh
-                </Text>
-                <Text style={[styles.estimateCost, { color: colors.text }]}>
-                  {Math.round(cost).toLocaleString()} sum
-                </Text>
-              </View>
-            );
-          })}
         </View>
       </ScrollView>
 
-      {/* Charge button */}
+      {/* Bottom CTA */}
       <View
         style={[
           styles.footer,
@@ -238,16 +282,20 @@ export default function StationDetailScreen() {
         <GradientButton
           label={
             station.status === 'offline'
-              ? 'Station Offline'
+              ? 'Станция недоступна'
               : station.status === 'occupied'
-              ? 'Station Busy'
-              : 'Start Charging'
+              ? 'Станция занята'
+              : 'Зарядиться'
           }
           onPress={handleCharge}
           loading={startMutation.isPending}
           disabled={station.status !== 'free'}
-          icon={<Feather name="zap" size={18} color="#fff" />}
         />
+        {station.status === 'free' && (
+          <TouchableOpacity style={[styles.outlineBtn, { borderColor: colors.border }]} onPress={() => router.push('/route/new')}>
+            <Text style={[styles.outlineBtnText, { color: colors.text }]}>Маршрут</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
@@ -256,79 +304,235 @@ export default function StationDetailScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  content: { padding: 16, gap: 12 },
-  heroCard: {
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    gap: 10,
+  heroSection: {
+    height: 240,
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 24,
   },
-  heroTop: {
+  heroHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 8,
-  },
-  heroTitles: { flex: 1, gap: 2 },
-  stationName: { fontSize: 20, fontFamily: 'Inter_700Bold' },
-  operatorName: { fontSize: 13, fontFamily: 'Inter_400Regular' },
-  addressRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  address: { fontSize: 14, fontFamily: 'Inter_400Regular', flex: 1 },
-  statsGrid: {
-    borderRadius: 16,
-    padding: 20,
-    flexDirection: 'row',
-    borderWidth: 1,
-  },
-  statBlock: { flex: 1, alignItems: 'center', gap: 6 },
-  statValue: { fontSize: 18, fontFamily: 'Inter_700Bold' },
-  statLabel: { fontSize: 11, fontFamily: 'Inter_400Regular' },
-  statDivider: { width: 1, height: 50, alignSelf: 'center', marginHorizontal: 4 },
-  section: {
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    gap: 10,
-  },
-  sectionTitle: { fontSize: 16, fontFamily: 'Inter_600SemiBold' },
-  connectorRow: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    padding: 12,
-    borderRadius: 10,
-    borderWidth: 1.5,
+    paddingTop: 10,
   },
-  connectorInfo: { flex: 1 },
-  connectorType: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
-  connectorAvail: { fontSize: 12, fontFamily: 'Inter_400Regular' },
-  checkCircle: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+  iconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  amenitiesRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  amenityBadge: {
+  heroBottom: { gap: 8 },
+  heroStationName: {
+    fontSize: 24,
+    fontFamily: 'Inter_700Bold',
+    color: '#ffffff',
+  },
+  ratingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 6,
+  },
+  ratingText: {
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
+    color: '#ffffff',
+  },
+  ratingDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.5)',
+  },
+  pillsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 4,
+  },
+  pill: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
     paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
-  amenityText: { fontSize: 13, fontFamily: 'Inter_500Medium' },
-  estimateRow: {
+  pillText: {
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    color: '#ffffff',
+  },
+  content: {
+    padding: 16,
+    gap: 16,
+    marginTop: -20,
+  },
+  card: {
+    borderRadius: 16,
+    padding: 16,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 6,
+    justifyContent: 'space-between',
   },
-  estimateMins: { flex: 1, fontSize: 14, fontFamily: 'Inter_400Regular' },
-  estimateKwh: { flex: 1, fontSize: 14, fontFamily: 'Inter_400Regular', textAlign: 'center' },
-  estimateCost: { flex: 1, fontSize: 15, fontFamily: 'Inter_600SemiBold', textAlign: 'right' },
+  statCol: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 4,
+  },
+  statDivider: {
+    width: 1,
+    height: 40,
+  },
+  statValue: {
+    fontSize: 18,
+    fontFamily: 'Inter_700Bold',
+  },
+  statLabel: {
+    fontSize: 12,
+    fontFamily: 'Inter_400Regular',
+  },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  discountBadge: {
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  discountText: {
+    fontSize: 10,
+    fontFamily: 'Inter_700Bold',
+    color: '#ffffff',
+  },
+  addressCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  iconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addressText: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
+    lineHeight: 20,
+  },
+  amenitiesCard: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+    justifyContent: 'flex-start',
+  },
+  amenityCol: {
+    alignItems: 'center',
+    gap: 8,
+    width: 60,
+  },
+  amenityIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  amenityLabel: {
+    fontSize: 11,
+    fontFamily: 'Inter_500Medium',
+    textAlign: 'center',
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  linkText: {
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
+  },
+  connectorsList: {
+    gap: 8,
+  },
+  connectorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1.5,
+  },
+  connectorInfoLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  connectorTypeName: {
+    fontSize: 15,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  connectorAvailText: {
+    fontSize: 15,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  connectorPowerKw: {
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
+  },
+  costRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  costMins: {
+    flex: 1,
+    fontSize: 15,
+    fontFamily: 'Inter_500Medium',
+  },
+  costKwh: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: 'Inter_400Regular',
+    textAlign: 'center',
+  },
+  costTotal: {
+    flex: 1,
+    fontSize: 15,
+    fontFamily: 'Inter_600SemiBold',
+    textAlign: 'right',
+  },
   footer: {
     padding: 16,
     borderTopWidth: 1,
+    gap: 12,
+  },
+  outlineBtn: {
+    borderWidth: 1.5,
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  outlineBtnText: {
+    fontSize: 16,
+    fontFamily: 'Inter_600SemiBold',
   },
 });

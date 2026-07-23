@@ -34,17 +34,18 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.mutedForeground,
+        tabBarActiveTintColor: '#2563EB',
+        tabBarInactiveTintColor: '#94A3B8',
         headerShown: false,
         tabBarStyle: {
           position: 'absolute',
-          backgroundColor: isIOS ? 'transparent' : colors.card,
+          backgroundColor: isIOS ? 'transparent' : '#FFFFFF',
           borderTopWidth: 1,
-          borderTopColor: colors.border,
+          borderTopColor: '#E2E8F0',
           elevation: 0,
-          height: Platform.OS === 'web' ? 84 : 60 + insets.bottom,
-          paddingBottom: Platform.OS === 'web' ? 34 : insets.bottom,
+          height: Platform.OS === 'web' ? 84 : 80,
+          paddingBottom: Platform.OS === 'web' ? 34 : insets.bottom + 8,
+          paddingTop: 8,
         },
         tabBarBackground: () =>
           isIOS ? (
@@ -54,7 +55,7 @@ export default function TabLayout() {
               style={StyleSheet.absoluteFill}
             />
           ) : (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.card }]} />
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: '#FFFFFF' }]} />
           ),
         tabBarLabelStyle: {
           fontFamily: 'Inter_500Medium',
@@ -65,7 +66,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Map',
+          title: 'Карта',
           tabBarIcon: ({ color, size }) =>
             isIOS ? (
               <SymbolView name="map" tintColor={color} size={size} />
@@ -77,7 +78,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="routes"
         options={{
-          title: 'Routes',
+          title: 'Маршруты',
           tabBarIcon: ({ color, size }) =>
             isIOS ? (
               <SymbolView name="location.north.line" tintColor={color} size={size} />
@@ -98,7 +99,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="sessions"
         options={{
-          title: 'Sessions',
+          title: 'Сессии',
           tabBarIcon: ({ color, size }) =>
             isIOS ? (
               <SymbolView name="bolt.fill" tintColor={color} size={size} />
@@ -110,7 +111,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
+          title: 'Профиль',
           tabBarIcon: ({ color, size }) =>
             isIOS ? (
               <SymbolView name="person.circle" tintColor={color} size={size} />

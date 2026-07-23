@@ -5,12 +5,12 @@ import { useColors } from '@/hooks/useColors';
 type Status = 'free' | 'occupied' | 'offline' | 'active' | 'completed' | 'cancelled';
 
 const LABEL: Record<Status, string> = {
-  free: 'Available',
-  occupied: 'In Use',
-  offline: 'Offline',
-  active: 'Active',
-  completed: 'Completed',
-  cancelled: 'Cancelled',
+  free: 'Доступно',
+  occupied: 'Занято',
+  offline: 'Не в сети',
+  active: 'Активна',
+  completed: 'Завершена',
+  cancelled: 'Отменена',
 };
 
 interface StatusBadgeProps {
