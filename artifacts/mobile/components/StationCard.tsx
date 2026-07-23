@@ -98,10 +98,14 @@ export function StationCard({
   const [grad1, grad2] = operatorColors(station.operator?.name);
   const initial        = station.operator?.name?.charAt(0).toUpperCase() ?? 'i';
 
-  const originalPrice  = discount_pct > 0
-    ? Math.round(station.price_per_kwh / (1 - discount_pct / 100))
+  // Явное приведение к числу — защита от строк из API
+  const pricePerKwh    = Number(station.price_per_kwh) || 0;
+  const discPct        = Number(discount_pct) || 0;
+  const originalPrice  = discPct > 0
+    ? Math.round(pricePerKwh / (1 - discPct / 100))
     : null;
-  const savingsPerKwh  = originalPrice ? originalPrice - station.price_per_kwh : 0;
+  // Используем != null (а не truthy), чтобы originalPrice = 0 не скрылся
+  const savingsPerKwh  = originalPrice != null ? originalPrice - pricePerKwh : 0;
 
   const statusColor    =
     station.status === 'free'     ? '#10B981'
@@ -141,10 +145,10 @@ export function StationCard({
       )}
 
       {/* ── DISCOUNT corner badge ─────────────────────────────────────── */}
-      {discount_pct > 0 && (
+      {discPct > 0 && (
         <View style={[styles.discCornerWrap, { pointerEvents: 'none' }]}>
           <View style={styles.discCorner}>
-            <Text style={styles.discCornerText}>-{discount_pct}%</Text>
+            <Text style={styles.discCornerText}>-{discPct}%</Text>
           </View>
         </View>
       )}
@@ -190,36 +194,39 @@ export function StationCard({
         </View>
 
         {/* Rating chip — only promoted */}
-        {!!rating && (
+        {rating != null && Number(rating) > 0 && (
           <View style={[styles.chip, { backgroundColor: '#FFFBEB' }]}>
             <Feather name="star" size={11} color="#F59E0B" />
-            <Text style={[styles.chipText, { color: '#D97706' }]}>{rating}</Text>
+            <Text style={[styles.chipText, { color: '#D97706' }]}>{Number(rating)}</Text>
           </View>
         )}
       </View>
 
       {/* ── PRICE BLOCK ──────────────────────────────────────────────── */}
       <View style={styles.priceBlock}>
-        {originalPrice ? (
+        {/* != null (не просто truthy) — чтобы originalPrice = 0 не прятался */}
+        {originalPrice != null ? (
           <>
             <Text style={styles.oldPrice}>{originalPrice.toLocaleString('ru-RU')}</Text>
-            <Text style={styles.newPrice}>{station.price_per_kwh.toLocaleString('ru-RU')}</Text>
-            <Text style={styles.priceUnit}> сум/кВт·ч</Text>
+            <Text style={styles.newPrice}>{pricePerKwh.toLocaleString('ru-RU')}</Text>
+            <Text style={styles.priceUnit}>{' '}сум/кВт·ч</Text>
           </>
         ) : (
           <>
-            <Text style={[styles.price, { color: colors.text }]}>{station.price_per_kwh.toLocaleString('ru-RU')}</Text>
-            <Text style={[styles.priceUnit, { color: colors.mutedForeground }]}> сум/кВт·ч</Text>
+            <Text style={[styles.price, { color: colors.text }]}>{pricePerKwh.toLocaleString('ru-RU')}</Text>
+            <Text style={[styles.priceUnit, { color: colors.mutedForeground }]}>{' '}сум/кВт·ч</Text>
           </>
         )}
       </View>
 
-      {/* Savings strip — only when discount */}
-      {savingsPerKwh > 0 && (
+      {/* Savings strip — только при ненулевой экономии */}
+      {Number(savingsPerKwh) > 0 && (
         <View style={styles.savingsStrip}>
           <Feather name="tag" size={12} color="#92400E" />
           <Text style={styles.savingsText}>
-            Экономия {savingsPerKwh.toLocaleString('ru-RU')} сум с кВт·ч
+            {'Экономия '}
+            {Math.round(savingsPerKwh).toLocaleString('ru-RU')}
+            {' сум/кВт·ч'}
           </Text>
         </View>
       )}
