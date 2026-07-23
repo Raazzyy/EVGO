@@ -11,6 +11,7 @@ import adminRouter from "./admin";
 import supportRouter from "./support";
 import notificationsRouter from "./notifications";
 import favoritesRouter from "./favorites";
+import connectorsRouter from "./connectors";
 
 const router = Router();
 
@@ -67,5 +68,6 @@ router.use(adminRouter);
 router.use(supportRouter);
 router.use(notificationsRouter);
 router.use(favoritesRouter);
+router.use(connectorsRouter);
 
 export default router;

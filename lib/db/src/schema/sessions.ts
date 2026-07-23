@@ -14,6 +14,7 @@ export const sessionsTable = pgTable("sessions", {
   started_at: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
   ended_at: timestamp("ended_at", { withTimezone: true }),
   connector_type: text("connector_type"),
+  connector_id: integer("connector_id"),
   payment_method_id: integer("payment_method_id"),
 });
 

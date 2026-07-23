@@ -1,94 +1,79 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import Svg, { Circle, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
-import { Feather } from '@expo/vector-icons';
-import { useColors } from '@/hooks/useColors';
 
-interface CircularProgressProps {
-  progress: number; // 0-100
+interface Props {
+  pct: number;   // 0-100
   size?: number;
-  strokeWidth?: number;
-  label?: string;
-  subLabel?: string;
-  icon?: React.ReactNode;
+  color?: string;
+  trackColor?: string;
+  fontSize?: number;
 }
 
+/**
+ * Pure-RN circular progress ring using the two-half-clip technique.
+ */
 export function CircularProgress({
-  progress,
-  size = 160,
-  strokeWidth = 12,
-  label,
-  subLabel,
-  icon,
-}: CircularProgressProps) {
-  const colors = useColors();
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (Math.min(100, Math.max(0, progress)) / 100) * circumference;
-  const center = size / 2;
+  pct,
+  size = 64,
+  color = '#F59E0B',
+  trackColor = '#FDE68A',
+  fontSize = 13,
+}: Props) {
+  const stroke = Math.max(4, Math.round(size * 0.09));
+  const deg = Math.round(Math.min(100, Math.max(0, pct)) * 3.6);
+
+  // Right half — shows 0..180 of fill
+  const rightDeg = Math.min(deg, 180);
+  // Left half — shows 181..360 of fill
+  const leftDeg = deg > 180 ? deg - 180 : 0;
 
   return (
-    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
-      <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
-        <Defs>
-          <SvgGradient id="ring-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-            <Stop offset="0%" stopColor={colors.gradientStart} />
-            <Stop offset="100%" stopColor={colors.gradientEnd} />
-          </SvgGradient>
-        </Defs>
-        {/* Track */}
-        <Circle
-          cx={center}
-          cy={center}
-          r={radius}
-          stroke={colors.border}
-          strokeWidth={strokeWidth}
-          fill="none"
-        />
-        {/* Progress */}
-        <Circle
-          cx={center}
-          cy={center}
-          r={radius}
-          stroke="url(#ring-grad)"
-          strokeWidth={strokeWidth}
-          fill="none"
-          strokeDasharray={circumference}
-          strokeDashoffset={strokeDashoffset}
-          strokeLinecap="round"
-          rotation={-90}
-          origin={`${center}, ${center}`}
-        />
-      </Svg>
-      <View style={styles.center}>
-        <Text style={[styles.value, { color: colors.text }]}>
-          {label ?? `${Math.round(progress)}%`}
-        </Text>
-        {icon && <View style={styles.iconContainer}>{icon}</View>}
-        {subLabel ? (
-          <Text style={[styles.subLabel, { color: colors.mutedForeground }]}>{subLabel}</Text>
-        ) : null}
+    <View style={{ width: size, height: size }}>
+      {/* Track ring */}
+      <View style={[StyleSheet.absoluteFillObject, {
+        borderRadius: size / 2,
+        borderWidth: stroke,
+        borderColor: trackColor,
+      }]} />
+
+      {/* Right half clip — shows fill 0→180 */}
+      <View style={{
+        position: 'absolute', right: 0, top: 0,
+        width: size / 2, height: size,
+        overflow: 'hidden',
+      }}>
+        <View style={{
+          position: 'absolute', right: 0, top: 0,
+          width: size, height: size,
+          borderRadius: size / 2,
+          borderWidth: stroke,
+          borderColor: rightDeg > 0 ? color : 'transparent',
+          transform: [{ rotate: `${rightDeg}deg` }],
+        }} />
+      </View>
+
+      {/* Left half clip — shows fill 180→360 */}
+      {leftDeg > 0 && (
+        <View style={{
+          position: 'absolute', left: 0, top: 0,
+          width: size / 2, height: size,
+          overflow: 'hidden',
+        }}>
+          <View style={{
+            position: 'absolute', left: 0, top: 0,
+            width: size, height: size,
+            borderRadius: size / 2,
+            borderWidth: stroke,
+            borderColor: color,
+            transform: [{ rotate: `${leftDeg}deg` }],
+          }} />
+        </View>
+      )}
+
+      {/* Centre label */}
+      <View style={[StyleSheet.absoluteFillObject, { alignItems: 'center', justifyContent: 'center' }]}>
+        <Text style={{ fontSize, fontFamily: 'Inter_700Bold', color }}>{pct}%</Text>
       </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  center: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconContainer: {
-    marginVertical: 4,
-  },
-  value: {
-    fontSize: 40,
-    fontFamily: 'Inter_700Bold',
-    letterSpacing: -1,
-  },
-  subLabel: {
-    fontSize: 14,
-    fontFamily: 'Inter_400Regular',
-    marginTop: 2,
-  },
-});

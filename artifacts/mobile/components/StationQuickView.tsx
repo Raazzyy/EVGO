@@ -114,11 +114,21 @@ export function StationQuickView({
 
   // ── Derived data ──────────────────────────────────────────────────────
   const connectors: Connector[] = (station?.connectors as Connector[] | null) ?? [];
-  const totalAvail = connectors.reduce((s, c) => s + c.available, 0);
-  const totalConns = connectors.reduce((s, c) => s + c.total, 0);
+  // Use connectors_detail if available (from GET /stations/:id)
+  const connectorsDetail: any[] = (station as any)?.connectors_detail ?? [];
   const hasDC      = connectors.some(c => ['CCS2', 'CHAdeMO', 'GB-T'].includes(c.type));
   const chargeType = hasDC ? 'DC' : 'AC';
   const firstType  = connectors[0]?.type ?? 'CCS2';
+  // Live counts from detail if available, else from jsonb
+  const freeCount = connectorsDetail.length > 0
+    ? connectorsDetail.filter((c: any) => c.status === 'free').length
+    : connectors.reduce((s, c) => s + c.available, 0);
+  const occupiedCount = connectorsDetail.length > 0
+    ? connectorsDetail.filter((c: any) => c.status === 'occupied').length
+    : connectors.reduce((s, c) => s + (c.total - c.available), 0);
+  const totalConns = connectorsDetail.length > 0
+    ? connectorsDetail.length
+    : connectors.reduce((s, c) => s + c.total, 0);
 
   const operatorName   = station?.operator?.name ?? null;
   const [gradStart, gradEnd] = getOpColors(operatorName);
@@ -221,7 +231,7 @@ export function StationQuickView({
           <View style={[styles.badge, { backgroundColor: statusColor + '18' }]}>
             <View style={[styles.dot, { backgroundColor: statusColor }]} />
             <Text style={[styles.badgeText, { color: statusColor }]}>
-              {totalAvail}/{totalConns} · {statusText}
+              {freeCount}/{totalConns} · {statusText}
             </Text>
           </View>
           {distKm != null && (

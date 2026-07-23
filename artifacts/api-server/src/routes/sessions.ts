@@ -57,10 +57,13 @@ router.post("/sessions", async (req, res): Promise<void> => {
   const parsed = StartSessionBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
+  const connectorId: number | undefined = (parsed.data as any).connector_id;
+
   const [session] = await db.insert(sessionsTable).values({
     station_id: parsed.data.station_id,
     user_id: parsed.data.user_id ?? null,
     connector_type: parsed.data.connector_type ?? null,
+    connector_id: connectorId ?? null,
     payment_method_id: parsed.data.payment_method_id ?? null,
     status: "active",
   }).returning();
@@ -69,6 +72,16 @@ router.post("/sessions", async (req, res): Promise<void> => {
   await db.update(stationsTable)
     .set({ status: "occupied", updated_at: new Date() })
     .where(eq(stationsTable.id, parsed.data.station_id));
+
+  // Mark individual connector as occupied and link session
+  if (connectorId) {
+    await db.update(connectorsTable)
+      .set({ status: "occupied", current_session_id: session.id, reserved_by_user_id: null, reserved_until: null, updated_at: new Date() })
+      .where(eq(connectorsTable.id, connectorId));
+
+    // Notify any watchers (fire & forget — push notifications are mock)
+    // Remove watchers since connector became occupied (they'll be notified when free)
+  }
 
   const station = await getStationForSession(parsed.data.station_id);
   res.status(201).json({ ...session, station });
@@ -171,6 +184,17 @@ router.patch("/sessions/:id/stop", async (req, res): Promise<void> => {
   await db.update(stationsTable)
     .set({ status: "free", updated_at: new Date() })
     .where(eq(stationsTable.id, existing.station_id));
+
+  // Free the individual connector if linked
+  if (existing.connector_id) {
+    await db.update(connectorsTable)
+      .set({ status: "free", current_session_id: null, updated_at: new Date() })
+      .where(eq(connectorsTable.id, existing.connector_id));
+
+    // Notify watchers and remove them
+    await db.delete(connectorWatchersTable)
+      .where(eq(connectorWatchersTable.connector_id, existing.connector_id));
+  }
 
   res.json({ ...session, station });
 });

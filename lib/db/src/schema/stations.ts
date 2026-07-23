@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, real, pgEnum, json, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, real, pgEnum, json, timestamp, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -21,6 +21,7 @@ export const stationsTable = pgTable("stations", {
   discount_pct: integer("discount_pct").notNull().default(0),
   promo_ends_at: timestamp("promo_ends_at", { withTimezone: true }),
   amenities: json("amenities").$type<string[]>().default([]),
+  supports_reservation: boolean("supports_reservation").notNull().default(false),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

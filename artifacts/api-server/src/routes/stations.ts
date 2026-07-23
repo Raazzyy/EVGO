@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, and, gte, lte, sql } from "drizzle-orm";
-import { db, stationsTable, operatorsTable } from "@workspace/db";
+import { eq, and, gte, lte } from "drizzle-orm";
+import { db, stationsTable, operatorsTable, connectorsTable, sessionsTable } from "@workspace/db";
 import {
   CreateStationBody,
   UpdateStationBody,
@@ -89,16 +89,75 @@ router.post("/stations", async (req, res): Promise<void> => {
   res.status(201).json(buildStationWithOperator(station, op ?? null));
 });
 
+/** Compute progress/ETA for an active session on a connector */
+function computeConnectorProgress(startedAt: Date, powerKw: number) {
+  const CAR_BATTERY_KWH = 77.4;
+  const startPct = 45;
+  const elapsedH = (Date.now() - startedAt.getTime()) / 3_600_000;
+  const cappedH = Math.min(elapsedH, 0.5);
+  const addedKwh = cappedH * powerKw;
+  const currentKwh = (startPct / 100) * CAR_BATTERY_KWH + addedKwh;
+  const progress_pct = Math.min(95, Math.round((currentKwh / CAR_BATTERY_KWH) * 100));
+  const energy_kwh = parseFloat(addedKwh.toFixed(2));
+  const targetKwh = 0.8 * CAR_BATTERY_KWH;
+  const remainingKwh = Math.max(0, targetKwh - currentKwh);
+  const minsTo80 = powerKw > 0 ? Math.round((remainingKwh / powerKw) * 60) : 0;
+  const freeAt = new Date(Date.now() + minsTo80 * 60_000);
+  const freeAtStr = freeAt.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  return { progress_pct, energy_kwh, mins_to_80: minsTo80, free_at: freeAtStr };
+}
+
 router.get("/stations/:id", async (req, res): Promise<void> => {
   const p = GetStationParams.safeParse(req.params);
   if (!p.success) { res.status(400).json({ error: p.error.message }); return; }
+  const user_id = req.query.user_id as string | undefined;
+
   const [row] = await db
     .select({ station: stationsTable, operator: operatorsTable })
     .from(stationsTable)
     .leftJoin(operatorsTable, eq(stationsTable.operator_id, operatorsTable.id))
     .where(eq(stationsTable.id, p.data.id));
   if (!row) { res.status(404).json({ error: "Station not found" }); return; }
-  res.json(buildStationWithOperator(row.station, row.operator));
+
+  // Fetch individual connectors and lazily expire stale reservations
+  const now = new Date();
+  const connectorRows = await db.select().from(connectorsTable)
+    .where(eq(connectorsTable.station_id, p.data.id))
+    .orderBy(connectorsTable.label);
+
+  for (const c of connectorRows) {
+    if (c.status === "reserved" && c.reserved_until && c.reserved_until < now) {
+      await db.update(connectorsTable)
+        .set({ status: "free", reserved_by_user_id: null, reserved_until: null, updated_at: now })
+        .where(eq(connectorsTable.id, c.id));
+      c.status = "free"; c.reserved_by_user_id = null; c.reserved_until = null;
+    }
+  }
+
+  // Enrich occupied connectors with live session progress
+  const enrichedConnectors = await Promise.all(connectorRows.map(async (c) => {
+    if (c.status === "occupied" && c.current_session_id) {
+      const [sess] = await db.select().from(sessionsTable)
+        .where(eq(sessionsTable.id, c.current_session_id));
+      if (sess && sess.status === "active") {
+        const isOurs = user_id ? sess.user_id === user_id : false;
+        if (isOurs) {
+          return { ...c, session: { is_mine: true, ...computeConnectorProgress(sess.started_at, c.power_kw) } };
+        }
+        return { ...c, session: { is_mine: false } };
+      }
+    }
+    return c;
+  }));
+
+  const freeCount = enrichedConnectors.filter(c => c.status === "free").length;
+  const base = buildStationWithOperator(row.station, row.operator);
+  res.json({
+    ...base,
+    connectors_detail: enrichedConnectors,
+    available: freeCount,
+    total_connectors: enrichedConnectors.length,
+  });
 });
 
 router.put("/stations/:id", async (req, res): Promise<void> => {

@@ -10,3 +10,5 @@ export * from "./support_tickets";
 export * from "./notifications";
 export * from "./push_tokens";
 export * from "./favorites";
+export * from "./connectors";
+export * from "./connector_watchers";

@@ -27,6 +27,7 @@ import { useApp } from '@/contexts/AppContext';
 import { ConnectorBadge, ConnectorIcon } from '@/components/ConnectorBadge';
 import { GradientButton } from '@/components/GradientButton';
 import { PromoCountdown } from '@/components/PromoCountdown';
+import { CircularProgress } from '@/components/CircularProgress';
 
 const API = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
@@ -39,6 +40,26 @@ interface Connector {
   available: number;
 }
 
+// Individual connector row (from connectors_detail in GET /stations/:id)
+interface ConnectorDetail {
+  id: number;
+  station_id: number;
+  label: string;
+  type: string;
+  power_kw: number;
+  status: 'free' | 'occupied' | 'offline' | 'reserved';
+  current_session_id?: number | null;
+  reserved_by_user_id?: string | null;
+  reserved_until?: string | null;
+  session?: {
+    is_mine: boolean;
+    progress_pct?: number;
+    energy_kwh?: number;
+    mins_to_80?: number;
+    free_at?: string;
+  };
+}
+
 export default function StationDetailScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -46,9 +67,10 @@ export default function StationDetailScreen() {
   const router = useRouter();
   const qc = useQueryClient();
   const { userId, setActiveSessionId } = useApp();
-  const [selectedConnector, setSelectedConnector] = useState<string | null>(null);
+  const [selectedConnectorId, setSelectedConnectorId] = useState<number | null>(null);
   const [cardModalVisible, setCardModalVisible] = useState(false);
   const [selectedCard, setSelectedCard] = useState('Uzcard');
+  const [watchedConnectors, setWatchedConnectors] = useState<Set<number>>(new Set());
 
   const stationIdNum = id ? Number(id) : NaN;
 
@@ -106,28 +128,72 @@ export default function StationDetailScreen() {
   });
 
   const connectors: Connector[] = (station?.connectors as Connector[] | null) ?? [];
+  const connectorsDetail: ConnectorDetail[] = (station as any)?.connectors_detail ?? [];
   const amenities: string[] = (station?.amenities as string[] | null) ?? [];
+  const supportsReservation: boolean = (station as any)?.supports_reservation ?? false;
 
-  function handleCharge() {
+  // Count live free/occupied from detail
+  const freeCount = connectorsDetail.filter(c => c.status === 'free').length;
+  const occupiedCount = connectorsDetail.filter(c => c.status === 'occupied').length;
+
+  function handleCharge(connectorId?: number) {
     if (!station) return;
     if (station.status === 'offline') {
       Alert.alert('Станция недоступна', 'Эта станция сейчас не в сети.');
       return;
     }
-    // Open card selection modal first
+    if (connectorId) setSelectedConnectorId(connectorId);
     setCardModalVisible(true);
   }
 
   function confirmCharge() {
     if (!station) return;
     setCardModalVisible(false);
+    const detail = connectorsDetail.find(c => c.id === selectedConnectorId);
     startMutation.mutate({
       data: {
         station_id: station.id,
         user_id: userId,
-        connector_type: selectedConnector ?? connectors[0]?.type ?? 'CCS2',
-      },
+        connector_type: detail?.type ?? connectors[0]?.type ?? 'CCS2',
+        connector_id: selectedConnectorId ?? undefined,
+      } as any,
     });
+  }
+
+  async function toggleWatcher(connectorId: number) {
+    const isWatching = watchedConnectors.has(connectorId);
+    if (isWatching) {
+      await fetch(`${API}/connector-watchers?user_id=${encodeURIComponent(userId ?? '')}&connector_id=${connectorId}`, { method: 'DELETE' });
+      setWatchedConnectors(prev => { const s = new Set(prev); s.delete(connectorId); return s; });
+    } else {
+      await fetch(`${API}/connector-watchers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, connector_id: connectorId }),
+      });
+      setWatchedConnectors(prev => new Set(prev).add(connectorId));
+    }
+  }
+
+  async function handleReserve(connector: ConnectorDetail) {
+    if (!userId) return;
+    try {
+      const r = await fetch(`${API}/connectors/${connector.id}/reserve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId }),
+      });
+      if (!r.ok) { const e = await r.json(); Alert.alert('Ошибка', e.error ?? 'Не удалось забронировать'); return; }
+      const data = await r.json();
+      // TODO: navigate to payment screen with reservation data
+      Alert.alert(
+        'Бронь подтверждена',
+        `Коннектор ${connector.label} забронирован на 15 минут.\nСтоимость брони: ${(data.reservation_cost ?? 5000).toLocaleString('ru-RU')} сум`,
+        [{ text: 'OK', onPress: () => {} }]
+      );
+    } catch {
+      Alert.alert('Ошибка', 'Нет соединения с сервером');
+    }
   }
 
   const bottomPad = Platform.OS === 'web' ? 34 : insets.bottom;
@@ -334,50 +400,185 @@ export default function StationDetailScreen() {
             </View>
           )}
 
-          {/* Connectors section */}
-          {connectors.length > 0 && (
-            <View style={[styles.card, { backgroundColor: colors.card, shadowColor: '#000' }]}>
-              <View style={styles.cardHeader}>
+          {/* Connectors section — individual cards */}
+          {(connectorsDetail.length > 0 || connectors.length > 0) && (
+            <View>
+              {/* Header */}
+              <View style={[styles.cardHeader, { marginBottom: 10, paddingHorizontal: 2 }]}>
                 <Text style={[styles.cardTitle, { color: colors.text }]}>Коннекторы</Text>
-                <TouchableOpacity>
-                  <Text style={[styles.linkText, { color: colors.primary }]}>Подробнее</Text>
-                </TouchableOpacity>
+                {connectorsDetail.length > 0 && (
+                  <Text style={[styles.linkText, { color: colors.mutedForeground, fontSize: 13 }]}>
+                    {freeCount > 0 && <Text style={{ color: '#10B981' }}>{freeCount} свободен</Text>}
+                    {freeCount > 0 && occupiedCount > 0 && '  '}
+                    {occupiedCount > 0 && <Text style={{ color: '#F59E0B' }}>{occupiedCount} занят</Text>}
+                  </Text>
+                )}
               </View>
-              <View style={styles.connectorsList}>
-                {connectors.map((c, i) => {
-                  const isSelected = selectedConnector === c.type || (!selectedConnector && i === 0);
-                  return (
-                    <TouchableOpacity
-                      key={i}
-                      onPress={() => setSelectedConnector(c.type)}
-                      style={[
-                        styles.connectorRow,
-                        {
-                          borderColor: isSelected ? colors.primary : colors.border,
-                          backgroundColor: isSelected ? colors.primary + '0D' : 'transparent',
-                        },
-                      ]}
-                    >
-                      <View style={styles.connectorInfoLeft}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                          <ConnectorIcon
-                            type={c.type}
-                            size={17}
-                            color={isSelected ? colors.primary : colors.text}
-                          />
-                          <Text style={[styles.connectorTypeName, { color: colors.text }]}>{c.type}</Text>
+
+              {/* Individual connector cards (from connectors_detail) */}
+              {connectorsDetail.length > 0 ? (
+                <View style={{ gap: 10 }}>
+                  {connectorsDetail.map((c) => {
+                    const isMine = c.session?.is_mine === true;
+                    const isOccupied = c.status === 'occupied';
+                    const isFree = c.status === 'free';
+                    const isOffline = c.status === 'offline';
+                    const isReserved = c.status === 'reserved';
+                    const watching = watchedConnectors.has(c.id);
+
+                    const statusBg = isFree ? '#DCFCE7' : isOccupied ? '#FEF3C7' : isReserved ? '#EEF2FF' : '#F1F5F9';
+                    const statusTxt = isFree ? '#15803D' : isOccupied ? '#92400E' : isReserved ? '#3730A3' : '#475569';
+                    const statusLabel = isFree ? 'Свободно' : isOccupied ? 'Занят' : isReserved ? 'Забронирован' : 'Не в сети';
+
+                    return (
+                      <View
+                        key={c.id}
+                        style={[
+                          styles.card,
+                          {
+                            backgroundColor: colors.card,
+                            borderWidth: isFree ? 1.5 : 1,
+                            borderColor: isFree ? '#10B981' + '44' : isOccupied && isMine ? '#F59E0B' + '55' : colors.border,
+                            padding: 14, shadowColor: '#000',
+                          },
+                        ]}
+                      >
+                        {/* Label badge */}
+                        <View style={[styles.labelBadge, { backgroundColor: colors.muted }]}>
+                          <Text style={[styles.labelBadgeText, { color: colors.text }]}>{c.label}</Text>
                         </View>
-                        <Text style={[styles.connectorAvailText, { color: '#10B981' }]}>
-                          {c.available}/{c.total}
-                        </Text>
+
+                        {/* Top row: icon + type + power + status */}
+                        <View style={styles.connectorCardTop}>
+                          <View style={[styles.connIconWrap, { backgroundColor: isOccupied ? '#FEF3C7' : isFree ? '#DCFCE7' : colors.muted }]}>
+                            <ConnectorIcon type={c.type} size={22} color={isOccupied ? '#F59E0B' : isFree ? '#10B981' : colors.mutedForeground} />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.connectorTypeName, { color: colors.text }]}>{c.type}</Text>
+                            <Text style={[styles.connectorPowerKw, { color: colors.mutedForeground, marginTop: 1 }]}>{c.power_kw} кВт</Text>
+                          </View>
+                          <View style={[styles.statusBadge, { backgroundColor: statusBg }]}>
+                            <Text style={[styles.statusBadgeTxt, { color: statusTxt }]}>{statusLabel}</Text>
+                          </View>
+                        </View>
+
+                        {/* Occupied by MY session — progress */}
+                        {isOccupied && isMine && c.session && (
+                          <View style={styles.sessionRow}>
+                            <View style={{ flex: 1, gap: 4 }}>
+                              <Text style={[styles.sessionLabel, { color: colors.mutedForeground }]}>Заряжается</Text>
+                              <Text style={[styles.sessionValue, { color: colors.text }]}>
+                                {c.session.energy_kwh?.toFixed(1)} кВт·ч получено
+                              </Text>
+                              {c.session.mins_to_80 != null && (
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                  <Feather name="clock" size={12} color={colors.mutedForeground} />
+                                  <Text style={[styles.sessionSub, { color: colors.mutedForeground }]}>
+                                    ещё {c.session.mins_to_80} мин до 80%
+                                  </Text>
+                                </View>
+                              )}
+                              {c.session.free_at && (
+                                <Text style={[styles.sessionSub, { color: colors.mutedForeground }]}>
+                                  освободится в {c.session.free_at}
+                                </Text>
+                              )}
+                            </View>
+                            <CircularProgress pct={c.session.progress_pct ?? 0} size={62} />
+                          </View>
+                        )}
+
+                        {/* Occupied by someone else */}
+                        {isOccupied && !isMine && (
+                          <Text style={[styles.sessionSub, { color: colors.mutedForeground, marginTop: 8, fontStyle: 'italic' }]}>
+                            Занято другим пользователем · точное время недоступно
+                          </Text>
+                        )}
+
+                        {/* Free — CTA */}
+                        {isFree && (
+                          <View style={{ marginTop: 10 }}>
+                            <Text style={[styles.sessionSub, { color: '#10B981', marginBottom: 8 }]}>
+                              Начните зарядку — прямо сейчас
+                            </Text>
+                            <View style={{ flexDirection: 'row', gap: 8 }}>
+                              {supportsReservation && (
+                                <TouchableOpacity
+                                  onPress={() => handleReserve(c)}
+                                  activeOpacity={0.8}
+                                  style={[styles.connActionBtn, { borderColor: colors.primary, backgroundColor: '#EEF2FF', flex: 1 }]}
+                                >
+                                  <Feather name="calendar" size={13} color={colors.primary} />
+                                  <Text style={[styles.connActionTxt, { color: colors.primary }]}>Забронировать</Text>
+                                </TouchableOpacity>
+                              )}
+                              <TouchableOpacity
+                                onPress={() => handleCharge(c.id)}
+                                activeOpacity={0.85}
+                                style={[styles.connActionBtn, { backgroundColor: '#10B981', borderColor: '#10B981', flex: supportsReservation ? 1 : 2 }]}
+                              >
+                                <Feather name="zap" size={13} color="#fff" />
+                                <Text style={[styles.connActionTxt, { color: '#fff' }]}>Зарядиться</Text>
+                              </TouchableOpacity>
+                            </View>
+                            {supportsReservation && (
+                              <Text style={[styles.sessionSub, { color: colors.mutedForeground, textAlign: 'center', marginTop: 6 }]}>
+                                🔒 Бронь → оплата · 5 000 сум · 15 мин
+                              </Text>
+                            )}
+                          </View>
+                        )}
+
+                        {/* Notify button for occupied/offline */}
+                        {(isOccupied && !isMine) && (
+                          <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+                            <TouchableOpacity
+                              onPress={() => toggleWatcher(c.id)}
+                              activeOpacity={0.8}
+                              style={[
+                                styles.connActionBtn,
+                                {
+                                  flex: 1,
+                                  borderColor: watching ? '#3B82F6' : colors.border,
+                                  backgroundColor: watching ? '#EFF6FF' : colors.muted,
+                                },
+                              ]}
+                            >
+                              <Feather name="bell" size={13} color={watching ? '#2563EB' : colors.mutedForeground} />
+                              <Text style={[styles.connActionTxt, { color: watching ? '#2563EB' : colors.mutedForeground }]}>
+                                {watching ? 'Вы получите уведомление' : 'Уведомить'}
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
                       </View>
-                      <Text style={[styles.connectorPowerKw, { color: colors.mutedForeground }]}>
-                        {c.power_kw} кВт
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+                    );
+                  })}
+                </View>
+              ) : (
+                /* Fallback: old jsonb connector list */
+                <View style={[styles.card, { backgroundColor: colors.card, shadowColor: '#000' }]}>
+                  <View style={styles.connectorsList}>
+                    {connectors.map((c, i) => (
+                      <TouchableOpacity
+                        key={i}
+                        onPress={() => setSelectedConnectorId(i)}
+                        style={[styles.connectorRow, {
+                          borderColor: selectedConnectorId === i ? colors.primary : colors.border,
+                          backgroundColor: selectedConnectorId === i ? colors.primary + '0D' : 'transparent',
+                        }]}
+                      >
+                        <View style={styles.connectorInfoLeft}>
+                          <ConnectorIcon type={c.type} size={17} color={colors.text} />
+                          <Text style={[styles.connectorTypeName, { color: colors.text }]}>{c.type}</Text>
+                          <Text style={[styles.connectorAvailText, { color: '#10B981' }]}>{c.available}/{c.total}</Text>
+                        </View>
+                        <Text style={[styles.connectorPowerKw, { color: colors.mutedForeground }]}>{c.power_kw} кВт</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
             </View>
           )}
 
@@ -414,13 +615,11 @@ export default function StationDetailScreen() {
           label={
             station.status === 'offline'
               ? 'Станция недоступна'
-              : station.status === 'occupied'
-              ? 'Станция занята'
               : 'Зарядиться'
           }
-          onPress={handleCharge}
+          onPress={() => handleCharge()}
           loading={startMutation.isPending}
-          disabled={station.status !== 'free'}
+          disabled={station.status === 'offline'}
         />
         <TouchableOpacity
           style={[styles.outlineBtn, { borderColor: colors.border }]}
@@ -683,34 +882,38 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'Inter_500Medium',
   },
-  connectorsList: {
-    gap: 8,
-  },
+  connectorsList: { gap: 8 },
   connectorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1.5,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    padding: 14, borderRadius: 12, borderWidth: 1.5,
   },
-  connectorInfoLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  connectorInfoLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  connectorTypeName: { fontSize: 15, fontFamily: 'Inter_600SemiBold' },
+  connectorAvailText: { fontSize: 15, fontFamily: 'Inter_600SemiBold' },
+  connectorPowerKw: { fontSize: 13, fontFamily: 'Inter_500Medium' },
+  // Individual connector card elements
+  labelBadge: {
+    position: 'absolute', top: 10, right: 10,
+    width: 22, height: 22, borderRadius: 11,
+    alignItems: 'center', justifyContent: 'center',
   },
-  connectorTypeName: {
-    fontSize: 15,
-    fontFamily: 'Inter_600SemiBold',
+  labelBadgeText: { fontSize: 11, fontFamily: 'Inter_700Bold' },
+  connectorCardTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  connIconWrap: {
+    width: 44, height: 44, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
-  connectorAvailText: {
-    fontSize: 15,
-    fontFamily: 'Inter_600SemiBold',
+  statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  statusBadgeTxt: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  sessionRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 12 },
+  sessionLabel: { fontSize: 11, fontFamily: 'Inter_400Regular' },
+  sessionValue: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
+  sessionSub: { fontSize: 12, fontFamily: 'Inter_400Regular' },
+  connActionBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5,
   },
-  connectorPowerKw: {
-    fontSize: 14,
-    fontFamily: 'Inter_500Medium',
-  },
+  connActionTxt: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
   costRow: {
     flexDirection: 'row',
     alignItems: 'center',
