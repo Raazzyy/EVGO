@@ -17,6 +17,7 @@ import Operators from '@/pages/Operators';
 import Sessions from '@/pages/Sessions';
 import Users from '@/pages/Users';
 import Support from '@/pages/Support';
+import Vehicles from '@/pages/Vehicles';
 
 const queryClient = new QueryClient();
 
@@ -47,6 +48,11 @@ function Router() {
       <Route path="/users">
         <AdminLayout>
           <Users />
+        </AdminLayout>
+      </Route>
+      <Route path="/vehicles">
+        <AdminLayout>
+          <Vehicles />
         </AdminLayout>
       </Route>
       <Route path="/support">

@@ -1,1 +1,3 @@
 - [EV Platform Architecture](ev-platform-architecture.md) — stack decisions, react-native-maps web fix, seed data, auth, route naming quirks
+- [OpenEV Import](openev-import.md) — GitHub releases asset name pattern, import startup logic, connector/range mapping rules
+- [Vehicles Search Pipeline](vehicles-search.md) — alias table, trgm fuzzy, multi-source merge order, logging pattern

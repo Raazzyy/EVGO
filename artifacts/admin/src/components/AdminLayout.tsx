@@ -8,6 +8,7 @@ import {
   BatteryCharging, 
   Users, 
   LifeBuoy, 
+  Car,
   LogOut 
 } from "lucide-react";
 import {
@@ -47,6 +48,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     { label: "Operators", icon: Briefcase, path: "/operators" },
     { label: "Sessions", icon: BatteryCharging, path: "/sessions" },
     { label: "Users", icon: Users, path: "/users" },
+    { label: "Vehicles", icon: Car, path: "/vehicles" },
     { label: "Support", icon: LifeBuoy, path: "/support" },
   ];
 
