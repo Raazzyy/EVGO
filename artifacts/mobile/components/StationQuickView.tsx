@@ -177,14 +177,13 @@ export function StationQuickView({
   // ── Render ────────────────────────────────────────────────────────────
   return (
     // Wrapper: fills the container, passes touches through in empty areas
-    <View style={StyleSheet.absoluteFillObject} pointerEvents="box-none">
+    <View style={[StyleSheet.absoluteFillObject, { pointerEvents: 'box-none' }]}>
       <Animated.View
-        pointerEvents="auto"
         onLayout={(e) => { cardHeightRef.current = e.nativeEvent.layout.height; }}
         style={[
           styles.card,
           { backgroundColor: colors.card, left: cardLeft, top: cardTop, width: CARD_W },
-          { opacity: opacityAnim, transform: [{ scale: scaleAnim }] },
+          { opacity: opacityAnim, transform: [{ scale: scaleAnim }], pointerEvents: 'auto' },
         ]}
       >
         {/* Upward tail (when card is below the pin) */}

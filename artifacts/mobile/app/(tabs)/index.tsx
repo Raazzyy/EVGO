@@ -180,6 +180,7 @@ export default function MapScreen() {
   const markers = useMemo(() => filteredStations.map(s => ({
     id: s.id, lat: s.lat, lng: s.lng, name: s.name, status: s.status,
     power_kw: s.power_kw, price_per_kwh: s.price_per_kwh,
+    is_promoted: !!(s as any).is_promoted,
   })), [filteredStations]);
 
   const handleStationPress = useCallback((id: number) => {
