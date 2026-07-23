@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
 import * as Location from 'expo-location';
+import * as Speech from 'expo-speech';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -41,7 +42,16 @@ function maneuverIcon(maneuver: string): string {
   return 'arrow-up';
 }
 
-const STEP_ADVANCE_M = 40; // metres from step end_location → advance
+const STEP_ADVANCE_M  = 40;  // metres → advance to next step
+const ANNOUNCE_FAR_M  = 150; // metres → "Через 150 метров, ..."
+const ANNOUNCE_NEAR_M = 50;  // metres → imminent repeat
+
+/** Speak text in Russian, cancelling any ongoing utterance first. */
+function announce(text: string) {
+  if (!text) return;
+  Speech.stop();
+  Speech.speak(text, { language: 'ru' });
+}
 
 // ── Screen ────────────────────────────────────────────────────────────────
 export default function NavigateScreen() {
@@ -62,9 +72,11 @@ export default function NavigateScreen() {
   const [speedKmh, setSpeedKmh] = useState(0);
 
   // Refs so location callback always reads current values without stale closure
-  const stepIdxRef = useRef(0);
+  const stepIdxRef    = useRef(0);
   const googleStepsRef = useRef<any[]>([]);
   const locationSubRef = useRef<Location.LocationSubscription | null>(null);
+  // announcedRef[stepIdx] = { far: boolean, near: boolean }
+  const announcedRef  = useRef<Record<number, { far: boolean; near: boolean }>>({});
 
   // Keep refs in sync
   useEffect(() => { stepIdxRef.current = currentStepIdx; }, [currentStepIdx]);
@@ -72,11 +84,23 @@ export default function NavigateScreen() {
     googleStepsRef.current = (route as any)?.google_steps ?? [];
   }, [route]);
 
-  // Reset step index when a new route loads
+  // Reset on new route; announce first step
   useEffect(() => {
     setCurrentStepIdx(0);
     stepIdxRef.current = 0;
+    announcedRef.current = {};
   }, [activeRouteId]);
+
+  // Announce step 0 as soon as route data arrives (native only)
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    const gSteps: any[] = (route as any)?.google_steps ?? [];
+    if (gSteps.length > 0) {
+      announcedRef.current[0] = { far: true, near: true }; // prevent duplicate at 150/50m
+      announce(gSteps[0].instruction);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [(route as any)?.id]); // fires once per route, not on every refetch
 
   // ── GPS watch ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -99,18 +123,43 @@ export default function NavigateScreen() {
           // Live speed (m/s → km/h; negative/null → 0)
           setSpeedKmh(speed != null && speed >= 0 ? Math.round(speed * 3.6) : 0);
 
-          // Step advance logic
-          const idx = stepIdxRef.current;
+          // Step advance + voice announcement logic
+          const idx    = stepIdxRef.current;
           const gSteps = googleStepsRef.current;
           if (idx >= gSteps.length) return;
 
-          const curStep = gSteps[idx];
+          const curStep   = gSteps[idx];
           const distToEnd = haversineM(lat, lng, curStep.end_lat, curStep.end_lng);
 
+          // ── Voice announcements ──────────────────────────────────────────
+          const announced = announcedRef.current[idx] ?? { far: false, near: false };
+          const nextStep  = gSteps[idx + 1];
+
+          // 150 m preview: "Через 150 метров, [следующий манёвр]"
+          if (!announced.far && distToEnd < ANNOUNCE_FAR_M && nextStep) {
+            announcedRef.current[idx] = { ...announced, far: true };
+            announce(`Через 150 метров, ${nextStep.instruction}`);
+          }
+
+          // 50 m imminent: повтор следующего манёвра
+          if (!announced.near && distToEnd < ANNOUNCE_NEAR_M && distToEnd >= STEP_ADVANCE_M && nextStep) {
+            announcedRef.current[idx] = { ...announcedRef.current[idx]!, near: true };
+            announce(nextStep.instruction);
+          }
+
+          // ── Step advance ─────────────────────────────────────────────────
           if (distToEnd < STEP_ADVANCE_M && idx < gSteps.length - 1) {
             const next = idx + 1;
             stepIdxRef.current = next;
             setCurrentStepIdx(next);
+            // Если 50-метровое объявление не успело сработать — озвучиваем сейчас
+            if (!announcedRef.current[idx]?.near) {
+              announce(gSteps[next].instruction);
+            }
+            // Инициализируем запись для нового шага (step 0 уже объявлен при загрузке)
+            if (!announcedRef.current[next]) {
+              announcedRef.current[next] = { far: false, near: false };
+            }
           }
         },
       );
