@@ -10,7 +10,8 @@ import { useApp } from '@/contexts/AppContext';
 import { useGetRoute } from '@workspace/api-client-react';
 import { MapViewWrapper } from '@/components/MapViewWrapper';
 
-// ── Helpers ───────────────────────────────────────────────────────────────
+// ── Pure helpers ──────────────────────────────────────────────────────────
+
 function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6_371_000;
   const toRad = (x: number) => (x * Math.PI) / 180;
@@ -20,6 +21,30 @@ function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): num
     Math.sin(dLat / 2) ** 2 +
     Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/** Minimum distance (metres) from point P to segment AB in lat/lng space. */
+function distToSegmentM(
+  plat: number, plng: number,
+  alat: number, alng: number,
+  blat: number, blng: number,
+): number {
+  const dx = blat - alat, dy = blng - alng;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq === 0) return haversineM(plat, plng, alat, alng);
+  const t = Math.max(0, Math.min(1, ((plat - alat) * dx + (plng - alng) * dy) / lenSq));
+  return haversineM(plat, plng, alat + t * dx, alng + t * dy);
+}
+
+/** Minimum distance (metres) from point to any segment of the polyline. */
+function distToPolylineM(lat: number, lng: number, poly: Array<[number, number]>): number {
+  if (poly.length < 2) return Infinity;
+  let min = Infinity;
+  for (let i = 0; i < poly.length - 1; i++) {
+    const d = distToSegmentM(lat, lng, poly[i][0], poly[i][1], poly[i + 1][0], poly[i + 1][1]);
+    if (d < min) min = d;
+  }
+  return min;
 }
 
 function formatTime(totalMin: number) {
@@ -42,10 +67,6 @@ function maneuverIcon(maneuver: string): string {
   return 'arrow-up';
 }
 
-const STEP_ADVANCE_M  = 40;  // metres → advance to next step
-const ANNOUNCE_FAR_M  = 150; // metres → "Через 150 метров, ..."
-const ANNOUNCE_NEAR_M = 50;  // metres → imminent repeat
-
 /** Speak text in Russian, cancelling any ongoing utterance first. */
 function announce(text: string) {
   if (!text) return;
@@ -53,7 +74,16 @@ function announce(text: string) {
   Speech.speak(text, { language: 'ru' });
 }
 
+// ── Constants ─────────────────────────────────────────────────────────────
+
+const STEP_ADVANCE_M      = 40;  // metres → advance to next step
+const ANNOUNCE_FAR_M      = 150; // metres → "Через 150 метров, ..."
+const ANNOUNCE_NEAR_M     = 50;  // metres → imminent repeat before step advance
+const OFF_ROUTE_M         = 90;  // metres from polyline → "off route"
+const OFF_ROUTE_COUNT     = 4;   // consecutive GPS ticks needed to trigger reroute
+
 // ── Screen ────────────────────────────────────────────────────────────────
+
 export default function NavigateScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -64,47 +94,136 @@ export default function NavigateScreen() {
     query: { enabled: !!activeRouteId, refetchInterval: 30_000 },
   });
 
-  const topPad = Platform.OS === 'web' ? 20 : insets.top;
+  const topPad    = Platform.OS === 'web' ? 20 : insets.top;
   const bottomPad = Platform.OS === 'web' ? 34 : insets.bottom;
 
-  // ── Navigation state ───────────────────────────────────────────────────
+  // ── React state ────────────────────────────────────────────────────────
   const [currentStepIdx, setCurrentStepIdx] = useState(0);
-  const [speedKmh, setSpeedKmh] = useState(0);
+  const [speedKmh,       setSpeedKmh]       = useState(0);
+  const [isRerouting,    setIsRerouting]    = useState(false);
 
-  // Refs so location callback always reads current values without stale closure
-  const stepIdxRef    = useRef(0);
-  const googleStepsRef = useRef<any[]>([]);
-  const locationSubRef = useRef<Location.LocationSubscription | null>(null);
-  // announcedRef[stepIdx] = { far: boolean, near: boolean }
-  const announcedRef  = useRef<Record<number, { far: boolean; near: boolean }>>({});
+  // ── Refs (avoid stale closures inside GPS callback) ────────────────────
+  const stepIdxRef      = useRef(0);
+  const googleStepsRef  = useRef<any[]>([]);
+  const polylineRef     = useRef<Array<[number, number]>>([]);
+  const routeRef        = useRef<any>(null);
+  const locationSubRef  = useRef<Location.LocationSubscription | null>(null);
+  // announcedRef[stepIdx] = { far, near }
+  const announcedRef    = useRef<Record<number, { far: boolean; near: boolean }>>({});
+  // off-route detection
+  const offRouteCountRef   = useRef(0);
+  const isReroutingRef     = useRef(false);
+  const lastRerouteTimeRef = useRef(0);          // timestamp ms of last completed reroute
+  const REROUTE_COOLDOWN_MS = 30_000;            // min 30 s between reroutes
+  // stable handle to the reroute function (updated each render so setters are always fresh)
+  const rerouteFnRef = useRef<((lat: number, lng: number) => void) | null>(null);
 
-  // Keep refs in sync
+  // ── Sync refs with latest data ─────────────────────────────────────────
   useEffect(() => { stepIdxRef.current = currentStepIdx; }, [currentStepIdx]);
+
   useEffect(() => {
-    googleStepsRef.current = (route as any)?.google_steps ?? [];
+    routeRef.current        = route ?? null;
+    googleStepsRef.current  = (route as any)?.google_steps ?? [];
+    const p                 = (route as any)?.polyline;
+    polylineRef.current     = Array.isArray(p) && p.length >= 2 ? p : [];
   }, [route]);
 
-  // Reset on new route; announce first step
+  // ── Reset on new route ─────────────────────────────────────────────────
   useEffect(() => {
     setCurrentStepIdx(0);
     stepIdxRef.current = 0;
-    announcedRef.current = {};
+    announcedRef.current   = {};
+    offRouteCountRef.current = 0;
   }, [activeRouteId]);
 
-  // Announce step 0 as soon as route data arrives (native only)
+  // ── Announce first step when route data arrives ────────────────────────
   useEffect(() => {
     if (Platform.OS === 'web') return;
     const gSteps: any[] = (route as any)?.google_steps ?? [];
     if (gSteps.length > 0) {
-      announcedRef.current[0] = { far: true, near: true }; // prevent duplicate at 150/50m
+      announcedRef.current[0] = { far: true, near: true };
       announce(gSteps[0].instruction);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [(route as any)?.id]); // fires once per route, not on every refetch
+  }, [(route as any)?.id]);
 
-  // ── GPS watch ─────────────────────────────────────────────────────────
+  // ── Reroute function (stored in ref so GPS callback can call it) ────────
+  rerouteFnRef.current = async (lat: number, lng: number) => {
+    if (isReroutingRef.current) return;
+    isReroutingRef.current = true;
+    setIsRerouting(true);
+    offRouteCountRef.current = 0;
+
+    try {
+      const cur = routeRef.current;
+      if (!cur) return;
+
+      const domain = (process.env as any).EXPO_PUBLIC_DOMAIN;
+      const base   = domain ? `https://${domain}` : '';
+
+      // Best-effort reverse geocode for origin label
+      let originLabel = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+      try {
+        const gr = await fetch(`${base}/api/geocode/reverse?lat=${lat}&lng=${lng}`);
+        if (gr.ok) {
+          const { address } = await gr.json();
+          if (address) originLabel = address;
+        }
+      } catch { /* keep coordinate string */ }
+
+      // Delete old route
+      try { await fetch(`${base}/api/routes/${cur.id}`, { method: 'DELETE' }); } catch {}
+
+      // Create new route from current position
+      const res = await fetch(`${base}/api/routes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          origin:              originLabel,
+          destination:         cur.destination,
+          origin_lat:          lat,
+          origin_lng:          lng,
+          dest_lat:            cur.dest_lat,
+          dest_lng:            cur.dest_lng,
+          initial_battery_pct: cur.initial_battery_pct ?? 80,
+          vehicle_id:          cur.vehicle_id ?? null,
+        }),
+      });
+
+      if (!res.ok) return;
+      const newRoute = await res.json();
+
+      // Immediately update refs with new route so GPS callback works
+      // before useGetRoute refetches
+      routeRef.current       = newRoute;
+      googleStepsRef.current = newRoute.google_steps ?? [];
+      const np               = newRoute.polyline;
+      polylineRef.current    = Array.isArray(np) && np.length >= 2 ? np : [];
+
+      // Reset step state
+      setCurrentStepIdx(0);
+      stepIdxRef.current     = 0;
+      announcedRef.current   = { 0: { far: true, near: true } };
+
+      // Switch React Query to the new route
+      setActiveRouteId(newRoute.id);
+
+      // Announce new route
+      if (Platform.OS !== 'web') {
+        const gSteps: any[] = newRoute.google_steps ?? [];
+        announce(gSteps.length > 0
+          ? `Маршрут пересчитан. ${gSteps[0].instruction}`
+          : 'Маршрут пересчитан.');
+      }
+    } finally {
+      isReroutingRef.current = false;
+      setIsRerouting(false);
+    }
+  };
+
+  // ── GPS watch (mount-once; all mutable state via refs) ─────────────────
   useEffect(() => {
-    if (Platform.OS === 'web') return; // expo-location watch works on native
+    if (Platform.OS === 'web') return;
     let cancelled = false;
 
     (async () => {
@@ -113,17 +232,16 @@ export default function NavigateScreen() {
 
       locationSubRef.current = await Location.watchPositionAsync(
         {
-          accuracy: Location.Accuracy.BestForNavigation,
-          timeInterval: 1_000,   // 1 second
-          distanceInterval: 10,  // or 10 metres, whichever comes first
+          accuracy:         Location.Accuracy.BestForNavigation,
+          timeInterval:     1_000,
+          distanceInterval: 10,
         },
         (loc) => {
           const { latitude: lat, longitude: lng, speed } = loc.coords;
 
-          // Live speed (m/s → km/h; negative/null → 0)
+          // Live speed
           setSpeedKmh(speed != null && speed >= 0 ? Math.round(speed * 3.6) : 0);
 
-          // Step advance + voice announcement logic
           const idx    = stepIdxRef.current;
           const gSteps = googleStepsRef.current;
           if (idx >= gSteps.length) return;
@@ -131,34 +249,51 @@ export default function NavigateScreen() {
           const curStep   = gSteps[idx];
           const distToEnd = haversineM(lat, lng, curStep.end_lat, curStep.end_lng);
 
-          // ── Voice announcements ──────────────────────────────────────────
+          // ── Voice announcements ────────────────────────────────────────
           const announced = announcedRef.current[idx] ?? { far: false, near: false };
           const nextStep  = gSteps[idx + 1];
 
-          // 150 m preview: "Через 150 метров, [следующий манёвр]"
           if (!announced.far && distToEnd < ANNOUNCE_FAR_M && nextStep) {
             announcedRef.current[idx] = { ...announced, far: true };
             announce(`Через 150 метров, ${nextStep.instruction}`);
           }
 
-          // 50 m imminent: повтор следующего манёвра
           if (!announced.near && distToEnd < ANNOUNCE_NEAR_M && distToEnd >= STEP_ADVANCE_M && nextStep) {
             announcedRef.current[idx] = { ...announcedRef.current[idx]!, near: true };
             announce(nextStep.instruction);
           }
 
-          // ── Step advance ─────────────────────────────────────────────────
+          // ── Step advance ───────────────────────────────────────────────
           if (distToEnd < STEP_ADVANCE_M && idx < gSteps.length - 1) {
             const next = idx + 1;
             stepIdxRef.current = next;
             setCurrentStepIdx(next);
-            // Если 50-метровое объявление не успело сработать — озвучиваем сейчас
             if (!announcedRef.current[idx]?.near) {
               announce(gSteps[next].instruction);
             }
-            // Инициализируем запись для нового шага (step 0 уже объявлен при загрузке)
             if (!announcedRef.current[next]) {
               announcedRef.current[next] = { far: false, near: false };
+            }
+          }
+
+          // ── Off-route detection ────────────────────────────────────────
+          const poly = polylineRef.current;
+          if (!isReroutingRef.current && poly.length >= 2) {
+            const dToRoute = distToPolylineM(lat, lng, poly);
+            if (dToRoute > OFF_ROUTE_M) {
+              offRouteCountRef.current += 1;
+              if (offRouteCountRef.current >= OFF_ROUTE_COUNT) {
+                const now = Date.now();
+                if (now - lastRerouteTimeRef.current > REROUTE_COOLDOWN_MS) {
+                  offRouteCountRef.current = 0;
+                  lastRerouteTimeRef.current = now;
+                  rerouteFnRef.current?.(lat, lng);
+                }
+                // if still in cooldown — keep counter capped, don't reset,
+                // so we reroute immediately once cooldown expires
+              }
+            } else {
+              offRouteCountRef.current = 0; // back on route — reset streak
             }
           }
         },
@@ -170,9 +305,9 @@ export default function NavigateScreen() {
       locationSubRef.current?.remove();
       locationSubRef.current = null;
     };
-  }, []); // mount once; refs carry fresh values
+  }, []);
 
-  // ── Derived data ───────────────────────────────────────────────────────
+  // ── Derived display data ───────────────────────────────────────────────
   const routePoints = useMemo(() => {
     if (!route) return undefined;
     const stops: any[] = (route as any).stops ?? [];
@@ -192,7 +327,6 @@ export default function NavigateScreen() {
     return Array.isArray(p) && p.length >= 2 ? (p as Array<[number, number]>) : undefined;
   }, [route]);
 
-  // Turn-by-turn steps
   const steps = useMemo(() => {
     if (!route) return [];
     const gSteps: any[] = (route as any).google_steps ?? [];
@@ -222,24 +356,20 @@ export default function NavigateScreen() {
     ];
   }, [route]);
 
-  // Remaining distance & time from current step onwards (live)
   const { remDistKm, remTimeMin } = useMemo(() => {
     const gSteps: any[] = (route as any)?.google_steps ?? [];
     if (gSteps.length === 0) {
       return {
-        remDistKm: Math.round((route as any)?.total_distance_km ?? 0),
+        remDistKm:  Math.round((route as any)?.total_distance_km ?? 0),
         remTimeMin: (route as any)?.total_time_min ?? 0,
       };
     }
     let distM = 0, durS = 0;
     for (let i = currentStepIdx; i < gSteps.length; i++) {
       distM += gSteps[i].distance_m ?? 0;
-      durS += gSteps[i].duration_s ?? 0;
+      durS  += gSteps[i].duration_s ?? 0;
     }
-    return {
-      remDistKm: Math.round(distM / 1000),
-      remTimeMin: Math.round(durS / 60),
-    };
+    return { remDistKm: Math.round(distM / 1000), remTimeMin: Math.round(durS / 60) };
   }, [route, currentStepIdx]);
 
   const step = steps[currentStepIdx] ?? steps[0];
@@ -251,7 +381,7 @@ export default function NavigateScreen() {
     router.back();
   }
 
-  // ── Loading ────────────────────────────────────────────────────────────
+  // ── Loading state ──────────────────────────────────────────────────────
   if (isLoading || !route) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -279,54 +409,56 @@ export default function NavigateScreen() {
         polylineCoords={polylineCoords}
       />
 
-      {/* Top instruction card */}
+      {/* Top: rerouting banner OR turn instruction */}
       <View style={[styles.topOverlay, { paddingTop: topPad + 16 }]}>
-        <View style={[styles.instructionCard, { backgroundColor: colors.card }]}>
-          <View style={[styles.directionIcon, { backgroundColor: colors.primary }]}>
-            <Feather name={step?.icon as any} size={24} color="#FFFFFF" />
+        {isRerouting ? (
+          <View style={[styles.instructionCard, styles.reroutingCard]}>
+            <ActivityIndicator size="small" color="#FFFFFF" />
+            <Text style={styles.reroutingText}>Пересчёт маршрута…</Text>
           </View>
-          <View style={styles.instructionText}>
-            <Text style={[styles.action, { color: colors.text }]} numberOfLines={2}>
-              {step?.instruction}
-            </Text>
-            <Text style={[styles.street, { color: colors.mutedForeground }]} numberOfLines={1}>
-              {step?.street}
-            </Text>
-          </View>
-          {/* Step counter badge */}
-          {steps.length > 1 && (
-            <View style={[styles.stepBadge, { backgroundColor: colors.border }]}>
-              <Text style={[styles.stepBadgeText, { color: colors.mutedForeground }]}>
-                {currentStepIdx + 1}/{steps.length}
+        ) : (
+          <View style={[styles.instructionCard, { backgroundColor: colors.card }]}>
+            <View style={[styles.directionIcon, { backgroundColor: colors.primary }]}>
+              <Feather name={step?.icon as any} size={24} color="#FFFFFF" />
+            </View>
+            <View style={styles.instructionText}>
+              <Text style={[styles.action, { color: colors.text }]} numberOfLines={2}>
+                {step?.instruction}
+              </Text>
+              <Text style={[styles.street, { color: colors.mutedForeground }]} numberOfLines={1}>
+                {step?.street}
               </Text>
             </View>
-          )}
-        </View>
+            {steps.length > 1 && (
+              <View style={[styles.stepBadge, { backgroundColor: colors.border }]}>
+                <Text style={[styles.stepBadgeText, { color: colors.mutedForeground }]}>
+                  {currentStepIdx + 1}/{steps.length}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
       </View>
 
-      {/* Bottom stats + end button */}
+      {/* Bottom stats */}
       <View style={[styles.bottomBar, { backgroundColor: colors.card, paddingBottom: bottomPad + 16 }]}>
         <View style={styles.statsRow}>
-          {/* Arrival time */}
           <View style={styles.statCol}>
             <Text style={[styles.statValue, { color: colors.text }]}>{arrivalTime(remTimeMin)}</Text>
             <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>прибытие</Text>
           </View>
           <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
-          {/* Live speed */}
           <View style={styles.statCol}>
             <Text style={[styles.statValue, { color: colors.text }]}>{speedKmh}</Text>
             <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>км/ч</Text>
           </View>
           <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
-          {/* Remaining distance */}
           <View style={styles.statCol}>
             <Text style={[styles.statValue, { color: colors.text }]}>{remDistKm} км</Text>
             <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>осталось</Text>
           </View>
         </View>
 
-        {/* Remaining time label */}
         <Text style={[styles.remTime, { color: colors.mutedForeground }]}>
           {formatTime(remTimeMin)} в пути
         </Text>
@@ -353,6 +485,12 @@ const styles = StyleSheet.create({
     padding: 16, borderRadius: 16, gap: 12,
     shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1, shadowRadius: 12, elevation: 5,
+  },
+  reroutingCard: {
+    backgroundColor: '#2563EB', gap: 12, justifyContent: 'center',
+  },
+  reroutingText: {
+    fontSize: 16, fontFamily: 'Inter_600SemiBold', color: '#FFFFFF',
   },
   directionIcon: {
     width: 48, height: 48, borderRadius: 24,
