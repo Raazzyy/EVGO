@@ -17,9 +17,21 @@ description: Key decisions and patterns for the EV charging aggregator project (
 
 ## react-native-maps on Web
 - `react-native-maps` is native-only; importing it in any `.tsx` file breaks the web bundle
-- **Fix**: split into `components/MapViewWrapper.native.tsx` (real MapView) and `components/MapViewWrapper.web.tsx` (placeholder)
+- **Fix**: split into `components/MapViewWrapper.native.tsx` (real MapView) and `components/MapViewWrapper.web.tsx` (Leaflet/OSM)
 - Do NOT put react-native-maps import anywhere except `.native.tsx` files
 - Pin to exactly `1.18.0` in package.json; do NOT add it to `plugins` in app.json
+
+## Web Map (Leaflet + OpenStreetMap)
+- Packages: `leaflet` + `react-leaflet` — free, no API key needed
+- Inject CSS from CDN: `https://unpkg.com/leaflet@1.9.4/dist/leaflet.css` via `injectLeafletCSS()`
+- Dynamic import: `const L = (await import('leaflet')).default` inside useEffect
+- **Race condition fix**: use `useState(mapReady)` flag — set to `true` after map init, include in markers effect deps. Without this, stations load before Leaflet finishes and markers never appear.
+- Marker color: green=#10B981 (free), amber=#F59E0B (occupied), gray=#94A3B8 (offline)
+
+## Charge Screen Simulation
+- Active session `started_at` is seeded in the past (>20h ago) — do NOT use real elapsed time
+- Simulated timer: cap at `SIM_DURATION_S = 28*60`, tick state from 0 each mount
+- **Why:** Shows realistic charging values (25-30 min session) instead of days of fake energy
 
 ## API Routes
 - Routes file named `routes_route.ts` (not `routes.ts`) to avoid Node module shadowing

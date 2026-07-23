@@ -1,10 +1,9 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  ScrollView,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
@@ -29,6 +28,7 @@ interface StationCardProps {
     connectors?: Connector[] | null;
     distance_km?: number | null;
     operator?: { name: string } | null;
+    rating?: number | null;
   };
   onPress: () => void;
   compact?: boolean;
@@ -38,142 +38,196 @@ interface StationCardProps {
   onRoute?: () => void;
 }
 
-export function StationCard({ station, onPress, compact = false, discount_pct = 0, is_promoted, amenities = [], onRoute }: StationCardProps) {
+// Deterministic color based on operator initial
+const OPERATOR_COLORS: Record<string, [string, string]> = {
+  I: ['#0EA5E9', '#0284C7'],
+  K: ['#F59E0B', '#D97706'],
+  C: ['#10B981', '#059669'],
+  T: ['#8B5CF6', '#7C3AED'],
+  U: ['#EF4444', '#DC2626'],
+  B: ['#EC4899', '#DB2777'],
+  G: ['#14B8A6', '#0D9488'],
+};
+
+function getOperatorColors(name?: string | null): [string, string] {
+  const initial = name?.charAt(0).toUpperCase() ?? 'i';
+  return OPERATOR_COLORS[initial] ?? ['#6366F1', '#4F46E5'];
+}
+
+function getChargeType(connectors: Connector[]): string {
+  const dcTypes = ['CCS2', 'CHAdeMO', 'GB/T'];
+  const hasDC = connectors.some((c) => dcTypes.includes(c.type));
+  return hasDC ? 'DC' : 'AC';
+}
+
+function getFirstConnectorType(connectors: Connector[]): string {
+  return connectors[0]?.type ?? 'CCS2';
+}
+
+function estimateMinutes(distanceKm?: number | null): number | null {
+  if (!distanceKm || distanceKm <= 0) return null;
+  return Math.max(1, Math.round((distanceKm / 30) * 60));
+}
+
+export function StationCard({
+  station,
+  onPress,
+  compact = false,
+  discount_pct = 0,
+  is_promoted,
+  onRoute,
+}: StationCardProps) {
   const colors = useColors();
-  const connectors = (station.connectors as Connector[] | null) ?? [];
-  
-  const totalConnectors = connectors.reduce((sum, c) => sum + c.total, 0);
-  const availableConnectors = connectors.reduce((sum, c) => sum + c.available, 0);
-  
-  const oldPrice = discount_pct ? station.price_per_kwh / (1 - discount_pct / 100) : station.price_per_kwh;
+  const connectors: Connector[] = (station.connectors as Connector[] | null) ?? [];
 
-  const getOperatorInitial = () => {
-    return station.operator?.name ? station.operator.name.charAt(0).toUpperCase() : 'i';
-  };
+  const totalConnectors = connectors.reduce((s, c) => s + c.total, 0);
+  const availableConnectors = connectors.reduce((s, c) => s + c.available, 0);
 
-  const mapAmenityIcon = (amenity: string): keyof typeof Feather.glyphMap => {
-    const map: Record<string, keyof typeof Feather.glyphMap> = {
-      cafe: 'coffee',
-      toilet: 'user', // closest approximation
-      shop: 'shopping-bag',
-      wifi: 'wifi',
-      '24h': 'clock'
-    };
-    return map[amenity] || 'check-circle';
-  };
+  const operatorName = station.operator?.name ?? null;
+  const [gradStart, gradEnd] = getOperatorColors(operatorName);
+  const initial = operatorName?.charAt(0).toUpperCase() ?? 'i';
+
+  const chargeType = getChargeType(connectors);
+  const connType = getFirstConnectorType(connectors);
+
+  const originalPrice = discount_pct > 0
+    ? Math.round(station.price_per_kwh / (1 - discount_pct / 100))
+    : null;
+
+  const statusColor =
+    station.status === 'free' ? '#10B981'
+    : station.status === 'occupied' ? '#F59E0B'
+    : '#94A3B8';
+
+  const rating = station.rating ?? (is_promoted ? 4.8 : null);
+  const minutes = estimateMinutes(station.distance_km);
 
   return (
     <TouchableOpacity
       onPress={onPress}
-      activeOpacity={0.8}
+      activeOpacity={0.85}
       style={[styles.card, { backgroundColor: '#FFFFFF' }]}
     >
-      {/* Row 1: Operator + Name + Distance */}
+      {/* Row 1: Operator icon + Name + Distance */}
       <View style={styles.row1}>
         <LinearGradient
-          colors={[colors.gradientStart, colors.gradientEnd]}
+          colors={[gradStart, gradEnd]}
           style={styles.operatorCircle}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
         >
-          <Text style={styles.operatorInitial}>{getOperatorInitial()}</Text>
+          <Text style={styles.operatorInitial}>{initial}</Text>
         </LinearGradient>
-        
-        <View style={styles.nameDistanceBlock}>
-          <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
-            {station.name}
+
+        <View style={styles.namePart}>
+          <View style={styles.nameRow}>
+            <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
+              {station.name}
+            </Text>
+            {is_promoted && (
+              <Feather name="star" size={13} color="#F59E0B" style={{ marginLeft: 4 }} />
+            )}
+          </View>
+          <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
+            {chargeType === 'DC' ? 'Быстрая зарядка' : 'Медленная зарядка'} · {chargeType} · {connType}
           </Text>
+        </View>
+
+        <View style={styles.distancePart}>
           {station.distance_km != null && (
-            <View style={[styles.distanceBadge, { backgroundColor: colors.muted }]}>
-              <Text style={[styles.distanceText, { color: colors.text }]}>{station.distance_km.toFixed(1)} км</Text>
-            </View>
+            <Text style={[styles.distanceText, { color: colors.mutedForeground }]}>
+              {station.distance_km < 1
+                ? `${Math.round(station.distance_km * 1000)} м`
+                : `${station.distance_km.toFixed(1)} км`}
+            </Text>
           )}
         </View>
       </View>
 
-      {/* Row 2: Subtitle */}
-      <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-        Быстрая зарядка · DC · {connectors.length > 0 ? connectors[0].type : 'Неизвестно'}
-      </Text>
-
-      {/* Row 3: Power + Availability + Price */}
-      <View style={styles.row3}>
-        <View style={styles.powerBadge}>
+      {/* Row 2: Power + Availability + Price */}
+      <View style={styles.row2}>
+        {/* Power */}
+        <View style={[styles.powerBadge, { backgroundColor: '#EFF6FF' }]}>
+          <Feather name="zap" size={10} color="#2563EB" />
           <Text style={styles.powerText}>{station.power_kw} кВт</Text>
         </View>
-        
-        {availableConnectors > 0 && (
-          <Text style={styles.availabilityText}>{availableConnectors}/{totalConnectors} доступно</Text>
-        )}
-        
-        <View style={{ flex: 1 }} />
-        
-        <View style={styles.priceBlock}>
-          {discount_pct > 0 && (
-            <>
-              <View style={styles.discountBadge}>
-                <Text style={styles.discountText}>-{discount_pct}%</Text>
-              </View>
-              <Text style={[styles.oldPrice, { color: colors.mutedForeground }]}>
-                {oldPrice.toLocaleString()}
-              </Text>
-            </>
-          )}
-          <Text style={[styles.priceText, { color: colors.text }]}>
-            {station.price_per_kwh.toLocaleString()} сум/кВт·ч
+
+        {/* Status dot + availability */}
+        <View style={styles.availRow}>
+          <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+          <Text style={[styles.availText, { color: statusColor }]}>
+            {availableConnectors}/{totalConnectors} доступно
           </Text>
+        </View>
+
+        <View style={{ flex: 1 }} />
+
+        {/* Price */}
+        <View style={styles.priceBlock}>
+          {originalPrice && (
+            <Text style={[styles.oldPrice, { color: colors.mutedForeground }]}>
+              {originalPrice.toLocaleString('ru-RU')}
+            </Text>
+          )}
+          <Text style={[styles.price, { color: colors.text }]}>
+            {station.price_per_kwh.toLocaleString('ru-RU')}
+          </Text>
+          {discount_pct > 0 && (
+            <View style={styles.discountBadge}>
+              <Text style={styles.discountText}>-{discount_pct}%</Text>
+            </View>
+          )}
         </View>
       </View>
 
-      {/* Row 4: Amenities */}
-      {amenities && amenities.length > 0 && (
-        <View style={styles.amenitiesRow}>
-          {amenities.map((am, idx) => (
-            <Feather key={idx} name={mapAmenityIcon(am)} size={14} color={colors.mutedForeground} />
-          ))}
+      {/* Rating row (for promoted) */}
+      {rating && (
+        <View style={styles.ratingRow}>
+          <Feather name="star" size={11} color="#F59E0B" />
+          <Text style={[styles.ratingText, { color: colors.mutedForeground }]}>{rating}</Text>
+          <View style={styles.ratingDot} />
+          <Text style={[styles.priceLabel, { color: colors.mutedForeground }]}>
+            {station.price_per_kwh.toLocaleString('ru-RU')} сум/кВт·ч
+          </Text>
         </View>
       )}
 
-      {/* Row 5: Connector badges */}
-      {!compact && connectors.length > 0 && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.connectorsScroll} contentContainerStyle={styles.connectors}>
-          {connectors.map((c, i) => (
-            <View key={i} style={[styles.connectorChip, { backgroundColor: colors.muted }]}>
-              <Text style={[styles.connectorChipType, { color: colors.text }]}>{c.type}</Text>
-              <Text style={[styles.connectorChipPower, { color: colors.mutedForeground }]}>{c.power_kw} кВт</Text>
-            </View>
-          ))}
-        </ScrollView>
-      )}
-
-      {/* Footer */}
+      {/* Footer: Donut + Маршрут button + time chip */}
       <View style={styles.footer}>
-        <View style={styles.donutWrapper}>
-          <Svg width={32} height={32} viewBox="0 0 32 32">
-            <Circle cx={16} cy={16} r={14} stroke={colors.muted} strokeWidth={4} fill="none" />
-            {totalConnectors > 0 && availableConnectors > 0 && (
-              <Circle 
-                cx={16} cy={16} r={14} 
-                stroke={colors.free} 
-                strokeWidth={4} 
-                fill="none" 
-                strokeDasharray={2 * Math.PI * 14} 
-                strokeDashoffset={(2 * Math.PI * 14) * (1 - (availableConnectors / totalConnectors))} 
-                strokeLinecap="round" 
-                transform="rotate(-90 16 16)" 
-              />
-            )}
-          </Svg>
-          <View style={styles.donutCenter}>
-            <Text style={[styles.donutText, { color: colors.text }]}>
-              {availableConnectors}/{totalConnectors}
-            </Text>
+        {!compact && totalConnectors > 0 && (
+          <View style={styles.donutWrapper}>
+            <Svg width={28} height={28} viewBox="0 0 28 28">
+              <Circle cx={14} cy={14} r={12} stroke={colors.muted} strokeWidth={3.5} fill="none" />
+              {availableConnectors > 0 && (
+                <Circle
+                  cx={14}
+                  cy={14}
+                  r={12}
+                  stroke={statusColor}
+                  strokeWidth={3.5}
+                  fill="none"
+                  strokeDasharray={2 * Math.PI * 12}
+                  strokeDashoffset={
+                    (2 * Math.PI * 12) * (1 - availableConnectors / totalConnectors)
+                  }
+                  strokeLinecap="round"
+                  transform="rotate(-90 14 14)"
+                />
+              )}
+            </Svg>
+            <View style={styles.donutCenter}>
+              <Text style={[styles.donutText, { color: colors.text }]}>
+                {availableConnectors}/{totalConnectors}
+              </Text>
+            </View>
           </View>
-        </View>
+        )}
 
-        <TouchableOpacity onPress={onRoute ? onRoute : () => {}} activeOpacity={0.8}>
+        <View style={{ flex: 1 }} />
+
+        <TouchableOpacity onPress={onRoute ?? onPress} activeOpacity={0.85}>
           <LinearGradient
-            colors={[colors.gradientStart, colors.gradientEnd]}
+            colors={['#2563EB', '#7C3AED']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.routeBtn}
@@ -181,6 +235,12 @@ export function StationCard({ station, onPress, compact = false, discount_pct = 
             <Text style={styles.routeBtnText}>Маршрут</Text>
           </LinearGradient>
         </TouchableOpacity>
+
+        {minutes != null && (
+          <View style={[styles.timeChip, { backgroundColor: colors.muted }]}>
+            <Text style={[styles.timeText, { color: colors.mutedForeground }]}>{minutes} мин</Text>
+          </View>
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -189,165 +249,177 @@ export function StationCard({ station, onPress, compact = false, discount_pct = 
 const styles = StyleSheet.create({
   card: {
     borderRadius: 16,
-    padding: 16,
+    padding: 14,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
+    shadowOpacity: 0.07,
+    shadowRadius: 10,
     elevation: 3,
     marginBottom: 12,
   },
   row1: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 6,
+    alignItems: 'flex-start',
+    gap: 10,
+    marginBottom: 10,
   },
   operatorCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   operatorInitial: {
     color: '#FFF',
     fontSize: 18,
     fontFamily: 'Inter_700Bold',
   },
-  nameDistanceBlock: {
+  namePart: {
     flex: 1,
+    gap: 3,
+  },
+  nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
   },
   name: {
     fontSize: 15,
     fontFamily: 'Inter_700Bold',
-    flex: 1,
-  },
-  distanceBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginLeft: 8,
-  },
-  distanceText: {
-    fontSize: 11,
-    fontFamily: 'Inter_500Medium',
+    flexShrink: 1,
   },
   subtitle: {
     fontSize: 12,
     fontFamily: 'Inter_400Regular',
-    marginBottom: 12,
   },
-  row3: {
+  distancePart: {
+    alignItems: 'flex-end',
+    flexShrink: 0,
+  },
+  distanceText: {
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+  },
+  row2: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
+    gap: 6,
+    marginBottom: 8,
+    flexWrap: 'wrap',
   },
   powerBadge: {
-    backgroundColor: '#EFF6FF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
     paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingVertical: 3,
+    borderRadius: 10,
   },
   powerText: {
     color: '#2563EB',
     fontSize: 12,
     fontFamily: 'Inter_600SemiBold',
   },
-  availabilityText: {
-    color: '#10B981',
+  availRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  availText: {
     fontSize: 12,
     fontFamily: 'Inter_500Medium',
   },
   priceBlock: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-  },
-  discountBadge: {
-    backgroundColor: '#FEF2F2',
-    paddingHorizontal: 4,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  discountText: {
-    color: '#EF4444',
-    fontSize: 10,
-    fontFamily: 'Inter_600SemiBold',
+    gap: 4,
   },
   oldPrice: {
     fontSize: 11,
     fontFamily: 'Inter_400Regular',
     textDecorationLine: 'line-through',
   },
-  priceText: {
+  price: {
     fontSize: 13,
     fontFamily: 'Inter_600SemiBold',
   },
-  amenitiesRow: {
+  discountBadge: {
+    backgroundColor: '#FEF2F2',
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 5,
+  },
+  discountText: {
+    color: '#EF4444',
+    fontSize: 10,
+    fontFamily: 'Inter_700Bold',
+  },
+  ratingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
-  },
-  connectorsScroll: {
-    marginBottom: 16,
-  },
-  connectors: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  connectorChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
     gap: 4,
+    marginBottom: 10,
   },
-  connectorChipType: {
+  ratingText: {
     fontSize: 12,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_500Medium',
   },
-  connectorChipPower: {
+  ratingDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: '#CBD5E1',
+  },
+  priceLabel: {
     fontSize: 12,
     fontFamily: 'Inter_400Regular',
   },
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 4,
+    gap: 8,
+    marginTop: 4,
   },
   donutWrapper: {
-    position: 'relative',
-    width: 32,
-    height: 32,
+    width: 28,
+    height: 28,
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
   },
   donutCenter: {
     position: 'absolute',
-    ...StyleSheet.absoluteFillObject,
+    inset: 0,
     alignItems: 'center',
     justifyContent: 'center',
   },
   donutText: {
-    fontSize: 9,
-    fontFamily: 'Inter_600SemiBold',
+    fontSize: 7,
+    fontFamily: 'Inter_700Bold',
   },
   routeBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 9,
     borderRadius: 100,
   },
   routeBtnText: {
     color: '#FFF',
     fontSize: 13,
     fontFamily: 'Inter_600SemiBold',
+  },
+  timeChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 100,
+  },
+  timeText: {
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
   },
 });

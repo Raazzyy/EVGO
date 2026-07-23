@@ -21,6 +21,7 @@ import { useColors } from '@/hooks/useColors';
 import { useApp } from '@/contexts/AppContext';
 import { CircularProgress } from '@/components/CircularProgress';
 import { GradientButton } from '@/components/GradientButton';
+import { LinearGradient } from 'expo-linear-gradient';
 
 function formatDuration(startedAt: string) {
   const diffMs = Date.now() - new Date(startedAt).getTime();
@@ -71,22 +72,28 @@ export default function ChargeScreen() {
     ]);
   }
 
-  // Compute live energy estimate
-  const liveEnergyKwh = activeSession
-    ? parseFloat(
-        (
-          ((Date.now() - new Date(activeSession.started_at).getTime()) / 3600000) *
-          ((activeSession.station as { power_kw?: number } | null)?.power_kw ?? 50)
-        ).toFixed(2)
-      )
-    : 0;
-
   const stationPrice = (activeSession?.station as { price_per_kwh?: number } | null)?.price_per_kwh ?? 2450;
-  const stationPower = (activeSession?.station as { power_kw?: number } | null)?.power_kw ?? 50;
+  const stationPower = (activeSession?.station as { power_kw?: number } | null)?.power_kw ?? 150;
 
-  const liveCost = activeSession ? Math.round(liveEnergyKwh * stationPrice) : 0;
-  const batteryPct = activeSession ? Math.min(95, 20 + (liveEnergyKwh / 60) * 100) : 0;
-  const timeToEighty = activeSession ? Math.max(0, ((0.8 * 60 - liveEnergyKwh) / stationPower) * 60) : 0;
+  // Simulate a realistic 28-minute session (ticks up live with 1s interval)
+  const SIM_DURATION_S = 28 * 60; // 28 min in seconds
+  const simElapsedS = Math.min(tick, SIM_DURATION_S);
+  const simElapsedH = simElapsedS / 3600;
+
+  const liveEnergyKwh = parseFloat((simElapsedH * stationPower).toFixed(1));
+  const liveCost = Math.round(liveEnergyKwh * stationPrice);
+  const batteryPct = Math.min(95, 45 + (simElapsedS / SIM_DURATION_S) * 30);
+  const CAR_BATTERY_KWH = 77.4; // IONIQ 5 battery
+  const timeToEighty = Math.max(
+    -99,
+    Math.round(((0.8 * CAR_BATTERY_KWH - liveEnergyKwh) / stationPower) * 60)
+  );
+
+  // Format simulated HH:MM:SS
+  const simH = Math.floor(simElapsedS / 3600);
+  const simM = Math.floor((simElapsedS % 3600) / 60);
+  const simS = simElapsedS % 60;
+  const simTime = `${String(simH).padStart(2, '0')}:${String(simM).padStart(2, '0')}:${String(simS).padStart(2, '0')}`;
 
   if (!activeSession) {
     return (
@@ -145,16 +152,21 @@ export default function ChargeScreen() {
             <Text style={[styles.statValue, { color: colors.text }]}>{stationPower} кВт</Text>
             <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Мощность</Text>
           </View>
+          <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
           <View style={styles.statBlock}>
             <Text style={[styles.statValue, { color: colors.text }]}>{liveEnergyKwh.toFixed(1)} кВт·ч</Text>
             <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Энергия</Text>
           </View>
+          <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
           <View style={styles.statBlock}>
-            <Text style={[styles.statValue, { color: colors.text }]}>{formatDuration(activeSession.started_at)}</Text>
+            <Text style={[styles.statValue, { color: colors.text }]}>{simTime}</Text>
             <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Время</Text>
           </View>
+          <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
           <View style={styles.statBlock}>
-            <Text style={[styles.statValue, { color: colors.text }]}>~{Math.round(timeToEighty)} мин</Text>
+            <Text style={[styles.statValue, { color: timeToEighty < 0 ? '#10B981' : colors.text }]}>
+              {timeToEighty < 0 ? `+${Math.abs(timeToEighty)}` : `~${timeToEighty}`} мин
+            </Text>
             <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>До 80%</Text>
           </View>
         </View>
@@ -174,15 +186,21 @@ export default function ChargeScreen() {
           <TouchableOpacity
             onPress={handleStop}
             disabled={stopMutation.isPending}
-            style={[styles.stopBtn, { borderColor: '#EF4444', backgroundColor: '#EF44440D' }]}
             activeOpacity={0.8}
+            style={{ borderRadius: 16, overflow: 'hidden' }}
           >
-            <Text style={[styles.stopText, { color: '#EF4444' }]}>
-              {stopMutation.isPending ? 'Остановка...' : 'Остановить сессию'}
-            </Text>
+            <LinearGradient
+              colors={['#F472B6', '#EF4444']}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+              style={[styles.stopBtn, { opacity: stopMutation.isPending ? 0.6 : 1 }]}
+            >
+              <Text style={styles.stopText}>
+                {stopMutation.isPending ? 'Остановка...' : 'Остановить сессию'}
+              </Text>
+            </LinearGradient>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.detailsLink} onPress={() => router.push('/sessions')}>
+          <TouchableOpacity style={styles.detailsLink} onPress={() => router.push(`/payment/${activeSession.id}`)}>
             <Text style={[styles.detailsText, { color: colors.primary }]}>Детали сессии</Text>
           </TouchableOpacity>
         </View>
@@ -285,14 +303,18 @@ const styles = StyleSheet.create({
     marginTop: 8,
     gap: 16,
   },
+  statDivider: {
+    width: 1,
+    height: 40,
+    marginHorizontal: 4,
+  },
   stopBtn: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 16,
     borderRadius: 14,
-    borderWidth: 1.5,
   },
-  stopText: { fontSize: 16, fontFamily: 'Inter_600SemiBold' },
+  stopText: { fontSize: 16, fontFamily: 'Inter_600SemiBold', color: '#FFFFFF' },
   detailsLink: {
     alignItems: 'center',
     paddingVertical: 8,

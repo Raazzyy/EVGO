@@ -42,12 +42,12 @@ export default function ProfileScreen() {
   const bottomPad = Platform.OS === 'web' ? 34 : insets.bottom;
 
   const menuItems: MenuItem[] = [
-    { icon: 'activity', label: 'История сессий', desc: `${completedSessions.length} сессий` },
-    { icon: 'map-pin', label: 'Избранные станции', desc: 'Сохраненные локации' },
+    { icon: 'activity', label: 'История сессий', desc: `${completedSessions.length} сессий`, onPress: () => router.push('/sessions') },
+    { icon: 'map-pin', label: 'Избранные станции', desc: 'Сохраненные локации', onPress: () => router.push('/notifications') },
     { icon: 'cpu', label: 'Мои автомобили', desc: 'Управление электромобилями', onPress: () => router.push('/cars') },
-    { icon: 'settings', label: 'Настройки', desc: 'Предпочтения приложения' },
-    { icon: 'headphones', label: 'Поддержка', desc: 'Служба заботы', onPress: () => router.push('/support-placeholder') },
-    { icon: 'info', label: 'О приложении', desc: 'Версия и правовая информация' },
+    { icon: 'settings', label: 'Настройки', desc: 'Предпочтения приложения', onPress: () => router.push('/cars') },
+    { icon: 'headphones', label: 'Поддержка', desc: 'Служба заботы', onPress: () => router.push('/notifications') },
+    { icon: 'info', label: 'О приложении', desc: 'iON v1.0.0' },
   ];
 
   if (isLoading) {
