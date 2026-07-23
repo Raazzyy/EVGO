@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike } from "drizzle-orm";
+import { eq, ilike, and } from "drizzle-orm";
 import { db, vehiclesTable } from "@workspace/db";
 import {
   CreateVehicleBody,
@@ -185,9 +185,144 @@ router.get("/vehicles/popular", (_req, res): void => {
   res.json(sorted);
 });
 
+// ── Search helpers ────────────────────────────────────────────────────────
+
+/**
+ * Search local DB with AND logic: every word in the query must appear
+ * somewhere in the vehicle name (case-insensitive).
+ */
+async function searchLocalDB(words: string[]) {
+  if (words.length === 0) return [];
+  const conditions = words.map(w => ilike(vehiclesTable.name, `%${w}%`));
+  return db
+    .select()
+    .from(vehiclesTable)
+    .where(conditions.length === 1 ? conditions[0] : and(...conditions));
+}
+
+/**
+ * Search VEHICLE_OVERRIDES (openev-quality in-memory data).
+ * Returns synthetic vehicle objects for any pattern where every query word
+ * appears in the pattern, OR where the pattern appears as a substring of the query.
+ */
+function searchOverrides(words: string[]): Array<{
+  name: string; battery_kwh: number; range_km: number;
+  connector_type: string; current_battery_pct: null;
+}> {
+  const results = [];
+  for (const [pattern, specs] of Object.entries(VEHICLE_OVERRIDES)) {
+    // Every word must appear in the pattern, OR the whole query is a substring of pattern
+    const allWordsInPattern = words.every(w => pattern.includes(w));
+    if (!allWordsInPattern) continue;
+    // Build display name from pattern
+    const pw = pattern.split(" ");
+    const make0 = pw[0][0].toUpperCase() + pw[0].slice(1);
+    const makeDisplay =
+      make0 === "Byd" ? "BYD" : make0 === "Mercedes-benz" ? "Mercedes-Benz" : make0;
+    const model = pw.slice(1).map(w => w[0].toUpperCase() + w.slice(1)).join(" ");
+    results.push({
+      name: `${makeDisplay} ${model}`,
+      battery_kwh: specs.battery_kwh,
+      range_km: specs.range_km ?? 300,
+      connector_type: specs.connector_type,
+      current_battery_pct: null as null,
+    });
+  }
+  return results;
+}
+
+/**
+ * Fetch from API Ninjas /v1/electricvehicle.
+ * For a multi-word query like "BYD Han" we try:
+ *   - make=BYD  model=Han   (first word / rest split)
+ *   - make=BYD Han           (whole string as make)
+ *   - model=BYD Han          (whole string as model)
+ * Returns raw de-duped ApiNinjasEV records (not yet mapped or persisted).
+ */
+async function fetchApiNinjas(q: string, words: string[]): Promise<ApiNinjasEV[]> {
+  const apiKey = process.env.EV_API_KEY;
+  if (!apiKey) {
+    console.warn("[vehicles/search] EV_API_KEY not set — skipping API Ninjas");
+    return [];
+  }
+  const base = "https://api.api-ninjas.com/v1/electricvehicle";
+  const hdrs = { "X-Api-Key": apiKey };
+  const timeout = { signal: AbortSignal.timeout(5000) };
+
+  // Build request URLs
+  const urls: string[] = [
+    `${base}?make=${encodeURIComponent(q)}&limit=30`,
+    `${base}?model=${encodeURIComponent(q)}&limit=30`,
+  ];
+  if (words.length >= 2) {
+    const make  = words[0];
+    const model = words.slice(1).join(" ");
+    urls.push(`${base}?make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}&limit=30`);
+  }
+
+  const results = await Promise.allSettled(
+    urls.map(url => fetch(url, { ...timeout, headers: hdrs }))
+  );
+
+  const raw: ApiNinjasEV[] = [];
+  for (const r of results) {
+    if (r.status === "fulfilled" && r.value.ok) {
+      const json = await r.value.json() as ApiNinjasEV[];
+      if (Array.isArray(json)) raw.push(...json);
+    }
+  }
+
+  // Deduplicate by "make model" (ignore year)
+  const seen = new Set<string>();
+  return raw.filter(v => {
+    const key = `${v.make} ${v.model}`.toLowerCase().trim();
+    return seen.has(key) ? false : (seen.add(key), true);
+  });
+}
+
+/**
+ * Upsert a list of API Ninjas records into the DB cache.
+ * Returns the persisted rows (either newly inserted or updated).
+ */
+async function upsertApiRows(
+  mapped: Array<{ name: string; battery_kwh: number; range_km: number; connector_type: "CCS2" | "CHAdeMO" | "Type2" | "GB-T"; current_battery_pct: number | null }>
+): Promise<(typeof vehiclesTable.$inferSelect)[]> {
+  const rows: (typeof vehiclesTable.$inferSelect)[] = [];
+  for (const v of mapped) {
+    const existing = await db
+      .select()
+      .from(vehiclesTable)
+      .where(ilike(vehiclesTable.name, v.name));
+    if (existing.length === 0) {
+      const [row] = await db.insert(vehiclesTable).values(v).returning();
+      rows.push(row);
+    } else {
+      const cur = existing[0];
+      if (cur.battery_kwh !== v.battery_kwh || cur.connector_type !== v.connector_type) {
+        const [updated] = await db
+          .update(vehiclesTable)
+          .set({ battery_kwh: v.battery_kwh, connector_type: v.connector_type, range_km: v.range_km })
+          .where(eq(vehiclesTable.id, cur.id))
+          .returning();
+        rows.push(updated);
+      } else {
+        rows.push(cur);
+      }
+    }
+  }
+  return rows;
+}
+
 // ── Search endpoint ───────────────────────────────────────────────────────
 // GET /vehicles/search?q=
-// Always calls API Ninjas, merges with DB cache, deduplicates by make+model.
+//
+// Priority of data sources (highest quality first):
+//   1. VEHICLE_OVERRIDES (in-memory, openev-quality — exact battery/connector data)
+//   2. Local DB cache   (previously fetched from API Ninjas and persisted)
+//   3. Live API Ninjas  (only called when local sources return nothing)
+//
+// Multi-word queries ("BYD Han") are split so each word must appear in the name
+// AND the API is called with a proper make/model split, not the full string as make.
 router.get("/vehicles/search", async (req, res): Promise<void> => {
   const q = (req.query.q as string | undefined)?.trim();
   if (!q || q.length < 2) {
@@ -195,99 +330,79 @@ router.get("/vehicles/search", async (req, res): Promise<void> => {
     return;
   }
 
-  // 1. Pull DB cache matching the query (no early return — always continues to API)
-  const cached = await db
-    .select()
-    .from(vehiclesTable)
-    .where(ilike(vehiclesTable.name, `%${q}%`));
-  console.log(`[vehicles/search] q="${q}" — cache hit: ${cached.length} rows`);
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
 
-  // 2. Always hit /v1/electricvehicle — two parallel requests: by make AND by model
-  //    limit=30 (API Ninjas max per request) so wide brands don't get truncated
-  const apiKey = process.env.EV_API_KEY;
-  const apiRows: (typeof vehiclesTable.$inferSelect)[] = [];
+  try {
+    // ── 1. Local sources (parallel) ────────────────────────────────────────
+    const [localRows, overrideHits] = await Promise.all([
+      searchLocalDB(words),
+      Promise.resolve(searchOverrides(words)),
+    ]);
+    console.log(`[vehicles/search] q="${q}" — local DB: ${localRows.length}, overrides: ${overrideHits.length}`);
 
-  if (apiKey) {
-    try {
-      const evBase = "https://api.api-ninjas.com/v1/electricvehicle";
-      const headers = { "X-Api-Key": apiKey };
+    // ── 2. Live API — only if both local sources are empty ─────────────────
+    let apiPersistedRows: (typeof vehiclesTable.$inferSelect)[] = [];
+    if (localRows.length === 0 && overrideHits.length === 0) {
+      const rawApi = await fetchApiNinjas(q, words);
+      console.log(`[vehicles/search] API Ninjas raw: ${rawApi.length} records`);
 
-      const [byMake, byModel] = await Promise.allSettled([
-        fetch(`${evBase}?make=${encodeURIComponent(q)}&limit=30`,  { headers, signal: AbortSignal.timeout(5000) }),
-        fetch(`${evBase}?model=${encodeURIComponent(q)}&limit=30`, { headers, signal: AbortSignal.timeout(5000) }),
-      ]);
-
-      const raw: ApiNinjasEV[] = [];
-      for (const result of [byMake, byModel]) {
-        if (result.status === "fulfilled" && result.value.ok) {
-          const json = await result.value.json() as ApiNinjasEV[];
-          if (Array.isArray(json)) raw.push(...json);
-        }
+      if (rawApi.length > 0) {
+        const mapped = rawApi.map(v => {
+          const name = `${v.make} ${v.model}`;
+          const { kwh } = parseBatteryCapacity(v.battery_capacity, name);
+          const base = {
+            name,
+            battery_kwh:         kwh,
+            range_km:            Math.round((v.range ?? 300) * 1.609),
+            connector_type:      "CCS2" as "CCS2" | "CHAdeMO" | "Type2" | "GB-T",
+            current_battery_pct: null as number | null,
+          };
+          return applyOverride(base);
+        });
+        apiPersistedRows = await upsertApiRows(mapped);
+        console.log(`[vehicles/search] persisted ${apiPersistedRows.length} rows from API`);
       }
-      console.log(`[vehicles/search] API Ninjas returned: ${raw.length} raw records`);
-
-      // Dedupe by "make model" (year excluded — same car, different years)
-      const seen = new Set<string>();
-      const deduped = raw.filter(v => {
-        const key = `${v.make} ${v.model}`.toLowerCase().trim();
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
-      console.log(`[vehicles/search] after dedup: ${deduped.length} unique models`);
-
-      const mapped = deduped.map(v => {
-        const name = `${v.make} ${v.model}`;
-        const { kwh } = parseBatteryCapacity(v.battery_capacity, name);
-        const base = {
-          name,
-          battery_kwh:         kwh,
-          range_km:            Math.round((v.range ?? 300) * 1.609),
-          connector_type:      "CCS2" as const,
-          current_battery_pct: null as number | null,
-        };
-        return applyOverride(base);
-      });
-
-      // Upsert into cache (insert new; update specs if override gives better data)
-      for (const v of mapped) {
-        const existing = await db
-          .select()
-          .from(vehiclesTable)
-          .where(ilike(vehiclesTable.name, v.name));
-
-        if (existing.length === 0) {
-          const [row] = await db.insert(vehiclesTable).values(v).returning();
-          apiRows.push(row);
-        } else {
-          const cur = existing[0];
-          if (cur.battery_kwh !== v.battery_kwh || cur.connector_type !== v.connector_type) {
-            const [updated] = await db
-              .update(vehiclesTable)
-              .set({ battery_kwh: v.battery_kwh, connector_type: v.connector_type, range_km: v.range_km })
-              .where(eq(vehiclesTable.id, cur.id))
-              .returning();
-            apiRows.push(updated);
-          } else {
-            apiRows.push(cur);
-          }
-        }
-      }
-    } catch (err: any) {
-      console.error("[vehicles/search] API Ninjas error:", err?.message ?? err);
+    } else {
+      console.log(`[vehicles/search] local data found — skipping API Ninjas`);
     }
-  } else {
-    console.warn("[vehicles/search] EV_API_KEY not set — returning cache only");
+
+    // ── 3. Merge: overrides > localDB > liveAPI; deduplicate by name ───────
+    // Convert override hits to the same shape as DB rows for uniform handling
+    const overrideAsRows = overrideHits.map(o => ({
+      id:                  -1 as unknown as number,
+      name:                o.name,
+      battery_kwh:         o.battery_kwh,
+      range_km:            o.range_km,
+      connector_type:      o.connector_type as "CCS2" | "CHAdeMO" | "Type2" | "GB-T",
+      current_battery_pct: null as number | null,
+    }));
+
+    const seen = new Set<string>();
+    const merged: typeof overrideAsRows = [];
+
+    for (const v of [...overrideAsRows, ...localRows, ...apiPersistedRows]) {
+      const key = v.name.toLowerCase().trim();
+      if (!seen.has(key)) {
+        seen.add(key);
+        merged.push(v);
+      }
+    }
+
+    // Apply overrides one final time to ensure connector/battery are correct
+    const result = merged.map(v =>
+      applyOverride({ ...v, range_km: v.range_km ?? 300 })
+    );
+
+    console.log(
+      `[vehicles/search] final: ${result.length} unique ` +
+      `(${overrideHits.length} overrides, ${localRows.length} local DB, ${apiPersistedRows.length} live API)`
+    );
+
+    res.json(result);
+  } catch (err: any) {
+    console.error("[vehicles/search] unexpected error:", err?.message ?? err);
+    res.status(500).json({ error: "Search failed" });
   }
-
-  // 3. Merge API rows + cache rows not already covered; apply overrides to all
-  const apiNames = new Set(apiRows.map(v => v.name.toLowerCase()));
-  const cacheOnly = cached.filter(v => !apiNames.has(v.name.toLowerCase()));
-  const merged = [...apiRows, ...cacheOnly];
-  const result = merged.map(v => applyOverride({ ...v, range_km: v.range_km ?? 300 }));
-  console.log(`[vehicles/search] final result: ${result.length} (${apiRows.length} from API, ${cacheOnly.length} cache-only)`);
-
-  res.json(result);
 });
 
 // ── CRUD ──────────────────────────────────────────────────────────────────
