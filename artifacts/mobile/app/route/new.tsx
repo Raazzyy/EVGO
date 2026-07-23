@@ -198,7 +198,7 @@ export default function NewRouteScreen() {
     }, 0);
   }, [activeResult]);
 
-  const rangeKm = Math.round((parseFloat(batteryPct) / 100) * (selectedVehicle?.range_km ?? 450));
+  const rangeKm = Math.round(((parseFloat(batteryPct) || 0) / 100) * (selectedVehicle?.range_km ?? 450));
   const speedKmPerMin = routeMode === 'eco' ? 0.85 : 0.9;
 
   // ── Render ───────────────────────────────────────────────────────────────
@@ -296,6 +296,21 @@ export default function NewRouteScreen() {
             )}
           </TouchableOpacity>
         </Animated.View>
+
+        {/* ── Insufficient charge warning ──────────────────────────── */}
+        {routeResult?.insufficient_charge && (
+          <Animated.View entering={FadeInDown.delay(50).springify()}>
+            <View style={[styles.warnCard, { backgroundColor: '#FEF3C7', borderColor: '#FCD34D' }]}>
+              <Feather name="alert-triangle" size={20} color="#92400E" />
+              <View style={{ flex: 1, gap: 3 }}>
+                <Text style={styles.warnTitle}>Недостаточно заряда</Text>
+                <Text style={styles.warnText}>
+                  {routeResult.message ?? 'Зарядитесь перед выездом или выберите более близкий пункт назначения.'}
+                </Text>
+              </View>
+            </View>
+          </Animated.View>
+        )}
 
         {/* ── Route result ────────────────────────────────────────────── */}
         {routeResult && activeResult && (
@@ -714,6 +729,13 @@ const styles = StyleSheet.create({
   savingsTitle: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#065F46' },
   savingsAmount: { fontSize: 18, fontFamily: 'Inter_700Bold', color: '#10B981' },
   savingsSub: { fontSize: 11, fontFamily: 'Inter_400Regular', color: '#059669' },
+  // Insufficient-charge warning
+  warnCard: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 12,
+    borderRadius: 16, borderWidth: 1.5, padding: 14,
+  },
+  warnTitle: { fontSize: 14, fontFamily: 'Inter_700Bold', color: '#92400E' },
+  warnText: { fontSize: 12, fontFamily: 'Inter_400Regular', color: '#92400E', lineHeight: 17 },
   tlSegText: { fontSize: 11, fontFamily: 'Inter_400Regular' },
 
   // Footer

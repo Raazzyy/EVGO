@@ -206,6 +206,62 @@ function planRoute(
     currentLng = best.lng;
   }
 
+  // ── Safety net ────────────────────────────────────────────────────────────
+  // The while loop exited without adding any stops despite the trip needing them.
+  // This happens when all stations are filtered by the d > 5 guard (dense city area,
+  // very low battery, or short trip where origin ≈ nearest station).
+  if (stops.length === 0) {
+    // Relax the minimum-distance guard to 0.5 km and search from the origin.
+    const safeOriginRange = (batteryPct / 100) * vehicle.range_km * 0.75;
+    const fromOrigin = stations
+      .filter(s => {
+        const d = dist2d(originLat, originLng, s.lat, s.lng);
+        return d <= safeOriginRange && d > 0.5;
+      })
+      .sort((a, b) => dist2d(a.lat, a.lng, destLat, destLng) - dist2d(b.lat, b.lng, destLat, destLng));
+
+    if (fromOrigin.length === 0) {
+      // No station reachable at all → caller must inform the user.
+      return {
+        stops: [],
+        total_distance_km: parseFloat(totalDistKm.toFixed(1)),
+        total_time_min: Math.round(totalDistKm / speedKmPerMin),
+        final_battery_pct: 0,
+        insufficient_charge: true,
+        message: "Недостаточно заряда для этой поездки. Зарядитесь перед выездом или выберите более близкий пункт назначения.",
+      };
+    }
+
+    // Add the best reachable station as a mandatory first stop.
+    const best = fromOrigin[0];
+    const distToStation = dist2d(originLat, originLng, best.lat, best.lng);
+    const arrivalBattery = Math.max(5, batteryPct - (distToStation / vehicle.range_km) * 100);
+    const energyNeeded = ((targetBattery - arrivalBattery) / 100) * vehicle.battery_kwh;
+    const chargeTimeMin = Math.round((energyNeeded / best.power_kw) * 60);
+    const eta = new Date(Date.now() + Math.round(distToStation / speedKmPerMin) * 60_000);
+    const connectors = best.connectors ?? [];
+    const primary = [...connectors].sort((a, b) => b.power_kw - a.power_kw)[0];
+
+    stops.push({
+      station_id: best.id,
+      station_name: best.name,
+      address: best.address,
+      lat: best.lat,
+      lng: best.lng,
+      arrival_battery_pct: Math.round(arrivalBattery),
+      departure_battery_pct: targetBattery,
+      charge_time_min: chargeTimeMin,
+      distance_from_prev_km: parseFloat(distToStation.toFixed(1)),
+      connector_type: primary?.type ?? "CCS2",
+      connector_power_kw: primary?.power_kw ?? best.power_kw,
+      eta: eta.toTimeString().slice(0, 5),
+      is_promoted: best.is_promoted,
+      discount_pct: best.discount_pct,
+      price_per_kwh: best.price_per_kwh,
+      promo_ends_at: best.promo_ends_at ? best.promo_ends_at.toISOString() : null,
+    });
+  }
+
   const distToDestFromLast = dist2d(currentLat, currentLng, destLat, destLng);
   const finalBattery = Math.round(Math.max(5, currentBattery - (distToDestFromLast / vehicle.range_km) * 100));
   const totalTimeMin = Math.round(totalDistKm / speedKmPerMin) + stops.reduce((acc, s) => acc + s.charge_time_min, 0);
