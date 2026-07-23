@@ -9,6 +9,92 @@ import {
 
 const router: IRouter = Router();
 
+// ── Polyline simplification (Ramer–Douglas–Peucker) ──────────────────────
+/**
+ * Perpendicular distance from point P to line segment AB (in coordinate units).
+ */
+function perpDist(
+  px: number, py: number,
+  ax: number, ay: number,
+  bx: number, by: number,
+): number {
+  const dx = bx - ax, dy = by - ay;
+  if (dx === 0 && dy === 0) return Math.hypot(px - ax, py - ay);
+  const t = ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy);
+  return Math.hypot(px - ax - t * dx, py - ay - t * dy);
+}
+
+/**
+ * Iterative Ramer–Douglas–Peucker using an explicit stack.
+ * Avoids call-stack overflow that recursive RDP causes on 40 000-point routes.
+ */
+function rdp(pts: Array<[number, number]>, epsilon: number): Array<[number, number]> {
+  if (pts.length <= 2) return pts.slice();
+  const keep = new Uint8Array(pts.length);
+  keep[0] = 1;
+  keep[pts.length - 1] = 1;
+
+  // Stack stores [startIdx, endIdx] ranges to process
+  const stack: Array<[number, number]> = [[0, pts.length - 1]];
+  while (stack.length) {
+    const [start, end] = stack.pop()!;
+    if (end - start <= 1) continue;
+    let maxDist = 0, maxIdx = start;
+    const [ax, ay] = pts[start], [bx, by] = pts[end];
+    for (let i = start + 1; i < end; i++) {
+      const d = perpDist(pts[i][0], pts[i][1], ax, ay, bx, by);
+      if (d > maxDist) { maxDist = d; maxIdx = i; }
+    }
+    if (maxDist > epsilon) {
+      keep[maxIdx] = 1;
+      stack.push([start, maxIdx], [maxIdx, end]);
+    }
+  }
+  return pts.filter((_, i) => keep[i]);
+}
+
+/**
+ * Simplify a road polyline for transmission to the client.
+ *
+ * Strategy:
+ *   1. Pre-decimate uniformly to 5 000 pts (avoids RDP slow-path on huge inputs).
+ *   2. Apply iterative RDP with an adaptive epsilon that scales with the route's
+ *      bounding-box diagonal:
+ *        • city  (< 0.2°, ≈ 22 km): ε = 0.000_02 (≈ 2 m)
+ *        • long  (> 2.0°, ≈ 220 km): ε = 0.000_30 (≈ 30 m)
+ *        • linear interpolation between the two extremes
+ *   3. Hard-cap at maxPts with a final uniform pass if RDP still leaves too many.
+ *
+ * Result: 300–1 500 points for any real-world route — visually indistinguishable
+ * from the raw polyline at any zoom level used in navigation.
+ */
+function simplifyPolyline(pts: Array<[number, number]>, maxPts = 1500): Array<[number, number]> {
+  if (pts.length <= maxPts) return pts;
+
+  // Step 1: uniform pre-decimation to avoid quadratic RDP on huge arrays
+  const PRE = 5000;
+  let working = pts;
+  if (pts.length > PRE) {
+    const step = Math.ceil(pts.length / PRE);
+    working = pts.filter((_, i) => i % step === 0 || i === pts.length - 1);
+  }
+
+  // Step 2: adaptive RDP
+  const lats = working.map(p => p[0]);
+  const lngs = working.map(p => p[1]);
+  const spanLat = Math.max(...lats) - Math.min(...lats);
+  const spanLng = Math.max(...lngs) - Math.min(...lngs);
+  const span = Math.hypot(spanLat, spanLng); // degrees
+  const t = Math.max(0, Math.min(1, (span - 0.2) / 1.8));
+  const epsilon = 0.00002 + t * (0.0003 - 0.00002);
+  const simplified = rdp(working, epsilon);
+
+  // Step 3: hard cap
+  if (simplified.length <= maxPts) return simplified;
+  const step = Math.ceil(simplified.length / maxPts);
+  return simplified.filter((_, i) => i % step === 0 || i === simplified.length - 1);
+}
+
 // ── Google Directions API: real road polyline + turn-by-turn steps ────────
 function decodePolyline(encoded: string): Array<[number, number]> {
   const coords: Array<[number, number]> = [];
@@ -89,11 +175,10 @@ async function fetchRoadPolyline(
         });
       }
     }
-    console.log(`[google-directions] OK — ${coords.length} points, ${google_steps.length} steps`);
-    return {
-      polyline: coords.length >= 2 ? coords : buildStraightPolyline(waypoints),
-      google_steps,
-    };
+    const raw = coords.length >= 2 ? coords : buildStraightPolyline(waypoints);
+    const poly = simplifyPolyline(raw);
+    console.log(`[google-directions] OK — raw ${raw.length} pts → simplified ${poly.length} pts, ${google_steps.length} steps`);
+    return { polyline: poly, google_steps };
   } catch (err: any) {
     console.error(`[google-directions] fetch exception:`, err?.message ?? err);
     return fallback;

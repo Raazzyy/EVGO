@@ -12,7 +12,7 @@
  * - locate → animateToRegion on userLocation
  * - projectPoint → pointForCoordinate (used by StationQuickView overlay in index.tsx)
  */
-import React, { forwardRef, useImperativeHandle, useRef, useEffect } from 'react';
+import React, { forwardRef, useImperativeHandle, useRef, useEffect, useState, useMemo } from 'react';
 import { StyleSheet, View, Text } from 'react-native';
 import MapView, { Marker, Polyline, Callout, Region } from 'react-native-maps';
 import { Feather } from '@expo/vector-icons';
@@ -97,6 +97,8 @@ export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
   ) => {
     const mapRef          = useRef<MapView>(null);
     const regionRef       = useRef<Region>(TASHKENT);
+    // Visible region for marker culling (updated in onRegionChangeComplete)
+    const [visibleRegion, setVisibleRegion] = useState<Region>(TASHKENT);
     // Prevent MapView.onPress from clearing selection right after a Marker press.
     // react-native-maps fires both Marker.onPress AND MapView.onPress on the same tap.
     const markerJustPressed = useRef(false);
@@ -178,14 +180,17 @@ export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
       },
     }), [userLocation]);
 
-    // ── Fit camera to route when routePoints change ─────────────────────
+    // ── Fit camera when route changes (stable key → no re-render loop) ──
+    // Dependency is a stable string derived from the first/last waypoint, not
+    // the array reference. A new array with the same endpoints won't re-fire.
+    const routeKey = routePoints && routePoints.length >= 2
+      ? `${routePoints[0].lat},${routePoints[0].lng}|${routePoints[routePoints.length - 1].lat},${routePoints[routePoints.length - 1].lng}`
+      : null;
+
     useEffect(() => {
-      if (!routePoints || routePoints.length < 2) return;
-      const coords = routePoints.map(p => ({
-        latitude:  p.lat,
-        longitude: p.lng,
-      }));
-      // Delay slightly so MapView has finished its own layout
+      if (!routeKey || !routePoints || routePoints.length < 2) return;
+      const coords = routePoints.map(p => ({ latitude: p.lat, longitude: p.lng }));
+      // Delay slightly so MapView finishes layout before fitting
       const t = setTimeout(() => {
         mapRef.current?.fitToCoordinates(coords, {
           edgePadding: { top: 80, right: 40, bottom: 200, left: 40 },
@@ -193,25 +198,44 @@ export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
         });
       }, 200);
       return () => clearTimeout(t);
-    }, [routePoints]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [routeKey]); // ← stable string, never causes an infinite loop
 
-    // ── Derived route geometry ──────────────────────────────────────────
-    // Decimate to ≤ 4 000 points so react-native-maps doesn't crash
-    // with RangeError: Property storage exceeds 196607 properties
-    function decimatePath<T>(arr: T[], maxPts = 4000): T[] {
-      if (arr.length <= maxPts) return arr;
-      const step = Math.ceil(arr.length / maxPts);
-      return arr.filter((_, i) => i % step === 0 || i === arr.length - 1);
-    }
+    // ── Derive polyline path (memoised; hard-capped at 1 500 points) ────
+    // The backend already runs RDP simplification, so this is purely a
+    // client-side safety net for any residual points above the bridge limit.
+    const polylinePath = useMemo(() => {
+      const HARD_CAP = 1500;
+      function cap<T>(arr: T[]): T[] {
+        if (arr.length <= HARD_CAP) return arr;
+        const step = Math.ceil(arr.length / HARD_CAP);
+        return arr.filter((_, i) => i % step === 0 || i === arr.length - 1);
+      }
 
-    const rawPath =
-      polylineCoords && polylineCoords.length >= 2
-        ? polylineCoords.map(([lat, lng]) => ({ latitude: lat, longitude: lng }))
-        : routePoints && routePoints.length >= 2
-          ? routePoints.map(p => ({ latitude: p.lat, longitude: p.lng }))
-          : null;
+      if (polylineCoords && polylineCoords.length >= 2) {
+        // п.1 — диагностика: залогировать сколько точек пришло с сервера
+        console.log('[map] polyline points (raw from server):', polylineCoords.length);
+        const pts = cap(polylineCoords.map(([lat, lng]) => ({ latitude: lat, longitude: lng })));
+        console.log('[map] polyline points (after cap):', pts.length);
+        return pts;
+      }
+      if (routePoints && routePoints.length >= 2) {
+        return cap(routePoints.map(p => ({ latitude: p.lat, longitude: p.lng })));
+      }
+      return null;
+    }, [polylineCoords, routePoints]);
 
-    const polylinePath = rawPath ? decimatePath(rawPath) : null;
+    // ── Marker culling — only render stations inside the visible region ──
+    // Adds a 50 % buffer around the viewport to avoid pop-in on fast pans.
+    const visibleStations = useMemo(() => {
+      const { latitude: cLat, longitude: cLng, latitudeDelta, longitudeDelta } = visibleRegion;
+      const latPad = latitudeDelta  * 0.75;
+      const lngPad = longitudeDelta * 0.75;
+      return stations.filter(s =>
+        s.lat >= cLat - latPad && s.lat <= cLat + latPad &&
+        s.lng >= cLng - lngPad && s.lng <= cLng + lngPad
+      );
+    }, [stations, visibleRegion]);
 
     // ── Render ──────────────────────────────────────────────────────────
     return (
@@ -223,7 +247,10 @@ export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
           regionRef.current = r;
           onRegionChange?.();
         }}
-        onRegionChangeComplete={(r) => { regionRef.current = r; }}
+        onRegionChangeComplete={(r) => {
+          regionRef.current = r;
+          setVisibleRegion(r); // triggers marker culling re-memoisation
+        }}
         onPress={() => {
           if (markerJustPressed.current) return; // swallow map-tap that piggybacks a marker tap
           onMapPress?.();
@@ -231,8 +258,8 @@ export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
         showsUserLocation
         showsMyLocationButton={false}
       >
-        {/* ── Station markers ─────────────────────────────────────────── */}
-        {stations.map((s) => {
+        {/* ── Station markers (culled to visible viewport) ────────────── */}
+        {visibleStations.map((s) => {
           const statusColor =
             s.status === 'free'     ? '#10B981' :
             s.status === 'occupied' ? '#F59E0B' : '#94A3B8';
