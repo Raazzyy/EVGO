@@ -118,6 +118,9 @@ function buildStraightPolyline(
 }
 
 // ── Internal route planner (charging stops) ───────────────────────────────
+/** Warn if predicted arrival battery is below this — recommend a charging stop */
+const ARRIVAL_THRESHOLD_PCT = 20;
+
 function planRoute(
   originLat: number, originLng: number,
   destLat: number, destLng: number,
@@ -147,12 +150,15 @@ function planRoute(
       stops: [], total_distance_km: totalDistKm,
       total_time_min: Math.round(totalDistKm / speedKmPerMin),
       final_battery_pct: finalBattery,
+      // Warn if arrival is risky even though we technically make it
+      arrival_below_threshold: finalBattery < ARRIVAL_THRESHOLD_PCT,
     };
   }
 
   const stops: any[] = [];
   let coveredKm = 0, currentBattery = batteryPct, currentLat = originLat, currentLng = originLng;
   let accumulatedTimeMin = 0;
+  let no_stations_along_route = false;
 
   while (coveredKm < totalDistKm - vehicle.range_km * 0.2) {
     const rangeFromHere = (currentBattery / 100) * vehicle.range_km * 0.8;
@@ -160,7 +166,7 @@ function planRoute(
       const d = dist2d(currentLat, currentLng, s.lat, s.lng);
       return d <= rangeFromHere && d > 5;
     });
-    if (reachable.length === 0) break;
+    if (reachable.length === 0) { no_stations_along_route = true; break; }
 
     const best = reachable.sort((a, b) =>
       dist2d(a.lat, a.lng, destLat, destLng) - dist2d(b.lat, b.lng, destLat, destLng)
@@ -270,6 +276,8 @@ function planRoute(
     total_distance_km: parseFloat(totalDistKm.toFixed(1)),
     total_time_min: totalTimeMin,
     final_battery_pct: finalBattery,
+    arrival_below_threshold: finalBattery < ARRIVAL_THRESHOLD_PCT,
+    no_stations_along_route: no_stations_along_route && stops.length === 0,
   };
 }
 
@@ -359,7 +367,17 @@ router.post("/routes", async (req, res): Promise<void> => {
     ? await db.select().from(vehiclesTable).where(eq(vehiclesTable.id, vehicle_id))
     : [undefined];
 
-  res.status(201).json({ ...route, vehicle: v ?? undefined, polyline, google_steps });
+  res.status(201).json({
+    ...route,
+    vehicle: v ?? undefined,
+    polyline,
+    google_steps,
+    final_battery_pct: plan.final_battery_pct,
+    arrival_below_threshold: plan.arrival_below_threshold ?? false,
+    no_stations_along_route: plan.no_stations_along_route ?? false,
+    insufficient_charge: (plan as any).insufficient_charge ?? false,
+    message: (plan as any).message,
+  });
 });
 
 // ── GET /routes/:id ───────────────────────────────────────────────────────

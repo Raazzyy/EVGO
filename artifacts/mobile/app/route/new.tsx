@@ -374,7 +374,7 @@ export default function NewRouteScreen() {
           </View>
         </Modal>
 
-        {/* ── Insufficient charge warning ──────────────────────────── */}
+        {/* ── Insufficient charge / no stations warning ─────────────── */}
         {routeResult?.insufficient_charge && (
           <Animated.View entering={FadeInDown.delay(50).springify()}>
             <View style={[styles.warnCard, { backgroundColor: '#FEF3C7', borderColor: '#FCD34D' }]}>
@@ -383,6 +383,34 @@ export default function NewRouteScreen() {
                 <Text style={styles.warnTitle}>Недостаточно заряда</Text>
                 <Text style={styles.warnText}>
                   {routeResult.message ?? 'Зарядитесь перед выездом или выберите более близкий пункт назначения.'}
+                </Text>
+              </View>
+            </View>
+          </Animated.View>
+        )}
+
+        {routeResult?.no_stations_along_route && !routeResult?.insufficient_charge && (
+          <Animated.View entering={FadeInDown.delay(50).springify()}>
+            <View style={[styles.warnCard, { backgroundColor: '#FFF7ED', borderColor: '#FDBA74' }]}>
+              <Feather name="map-pin" size={20} color="#C2410C" />
+              <View style={{ flex: 1, gap: 3 }}>
+                <Text style={[styles.warnTitle, { color: '#C2410C' }]}>Зарядных станций не найдено</Text>
+                <Text style={styles.warnText}>
+                  По этому маршруту нет доступных станций. Заряда может не хватить — зарядитесь перед выездом.
+                </Text>
+              </View>
+            </View>
+          </Animated.View>
+        )}
+
+        {routeResult?.arrival_below_threshold && !routeResult?.insufficient_charge && !routeResult?.no_stations_along_route && (
+          <Animated.View entering={FadeInDown.delay(50).springify()}>
+            <View style={[styles.warnCard, { backgroundColor: '#FFF7ED', borderColor: '#FDBA74' }]}>
+              <Feather name="battery" size={20} color="#D97706" />
+              <View style={{ flex: 1, gap: 3 }}>
+                <Text style={[styles.warnTitle, { color: '#D97706' }]}>Низкий заряд при прибытии</Text>
+                <Text style={styles.warnText}>
+                  Вы доберётесь, но заряда останется менее 20%. Рекомендуем зарядиться по пути.
                 </Text>
               </View>
             </View>
@@ -438,22 +466,28 @@ export default function NewRouteScreen() {
             </View>
 
             {/* Summary stats strip */}
-            <View style={[styles.statsRow, { backgroundColor: colors.card }]}>
-              {[
-                { value: `${Math.round(activeResult.total_distance_km)}`, unit: 'км' },
-                { value: formatTime(activeResult.total_time_min - totalChargeMins), unit: 'в пути' },
-                { value: formatTime(totalChargeMins), unit: 'на зарядки' },
-                { value: `${activeResult.final_battery_pct ?? 15}%`, unit: 'прибыв.' },
-              ].map((s, i) => (
-                <React.Fragment key={i}>
-                  {i > 0 && <View style={[styles.statsDivider, { backgroundColor: colors.border }]} />}
-                  <View style={styles.statItem}>
-                    <Text style={[styles.statValue, { color: colors.text }]}>{s.value}</Text>
-                    <Text style={[styles.statUnit, { color: colors.mutedForeground }]}>{s.unit}</Text>
-                  </View>
-                </React.Fragment>
-              ))}
-            </View>
+            {(() => {
+              const finalBatt = activeResult.final_battery_pct ?? 15;
+              const battColor = finalBatt >= 40 ? '#10B981' : finalBatt >= 20 ? '#F59E0B' : '#EF4444';
+              return (
+                <View style={[styles.statsRow, { backgroundColor: colors.card }]}>
+                  {[
+                    { value: `${Math.round(activeResult.total_distance_km)}`, unit: 'км', color: colors.text },
+                    { value: formatTime(activeResult.total_time_min - totalChargeMins), unit: 'в пути', color: colors.text },
+                    { value: formatTime(totalChargeMins), unit: 'на зарядки', color: colors.text },
+                    { value: `${finalBatt}%`, unit: 'прибытие', color: battColor },
+                  ].map((s, i) => (
+                    <React.Fragment key={i}>
+                      {i > 0 && <View style={[styles.statsDivider, { backgroundColor: colors.border }]} />}
+                      <View style={styles.statItem}>
+                        <Text style={[styles.statValue, { color: s.color }]}>{s.value}</Text>
+                        <Text style={[styles.statUnit, { color: colors.mutedForeground }]}>{s.unit}</Text>
+                      </View>
+                    </React.Fragment>
+                  ))}
+                </View>
+              );
+            })()}
 
             {/* Mini-map */}
             {showMap && routePoints && (
@@ -560,14 +594,23 @@ export default function NewRouteScreen() {
               })()}
 
               {/* ARRIVAL */}
-              <TLNode
-                dot={<View style={[styles.tlDotPurple, { backgroundColor: '#7C3AED' }]} />}
-                title={destination}
-                subtitle={`Прибытие · ${activeResult.final_battery_pct ?? 15}%`}
-                time={formatHHMM(arrivalTime)}
-                colors={colors}
-                showLine={false}
-              />
+              {(() => {
+                const finalBatt = activeResult.final_battery_pct ?? 15;
+                const battColor = finalBatt >= 40 ? '#10B981' : finalBatt >= 20 ? '#F59E0B' : '#EF4444';
+                const battEmoji = finalBatt >= 40 ? '✅' : finalBatt >= 20 ? '⚡' : '⚠️';
+                return (
+                  <TLNode
+                    dot={<View style={[styles.tlDotPurple, { backgroundColor: '#7C3AED' }]} />}
+                    title={destination}
+                    subtitle={`${battEmoji} Прибытие · `}
+                    subtitleBold={`${finalBatt}%`}
+                    subtitleBoldColor={battColor}
+                    time={formatHHMM(arrivalTime)}
+                    colors={colors}
+                    showLine={false}
+                  />
+                );
+              })()}
             </View>
           </Animated.View>
         )}
@@ -620,6 +663,8 @@ interface TLNodeProps {
   dot: React.ReactNode;
   title: string;
   subtitle: string;
+  subtitleBold?: string;
+  subtitleBoldColor?: string;
   detail?: string;
   time: string;
   colors: any;
@@ -627,7 +672,7 @@ interface TLNodeProps {
   promo?: { oldPrice: number; newPrice: number; discountPct: number; savingsSum: number; endsAt?: string | null };
 }
 
-function TLNode({ dot, title, subtitle, detail, time, colors, showLine, promo }: TLNodeProps) {
+function TLNode({ dot, title, subtitle, subtitleBold, subtitleBoldColor, detail, time, colors, showLine, promo }: TLNodeProps) {
   return (
     <View style={styles.tlRow}>
       {/* Left: dot + vertical line */}
@@ -640,7 +685,11 @@ function TLNode({ dot, title, subtitle, detail, time, colors, showLine, promo }:
         <View style={styles.tlContentRow}>
           <View style={{ flex: 1, gap: 2 }}>
             <Text style={[styles.tlTitle, { color: colors.text }]} numberOfLines={1}>{title}</Text>
-            <Text style={[styles.tlSubtitle, { color: colors.mutedForeground }]}>{subtitle}</Text>
+            <Text style={[styles.tlSubtitle, { color: colors.mutedForeground }]}>
+              {subtitle}{subtitleBold
+                ? <Text style={{ fontWeight: '700', color: subtitleBoldColor ?? colors.text }}>{subtitleBold}</Text>
+                : null}
+            </Text>
             {detail && <Text style={[styles.tlDetail, { color: colors.primary }]}>{detail}</Text>}
             {/* Promo pricing inline */}
             {promo && (

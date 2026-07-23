@@ -28,6 +28,7 @@ export default function Stations() {
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [sourceFilter, setSourceFilter] = useState<string>("all");
   
   const { data: stationsResponse, isLoading } = useGetStations();
   const stations: Station[] = [
@@ -60,7 +61,8 @@ export default function Stations() {
     const matchesSearch = s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           s.address.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === "all" || s.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    const matchesSource = sourceFilter === "all" || (s as any).source === sourceFilter;
+    return matchesSearch && matchesStatus && matchesSource;
   });
 
   const handleStatusToggle = (id: number, newStatus: StationStatusUpdateStatus) => {
@@ -182,7 +184,7 @@ export default function Stations() {
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[180px] bg-white dark:bg-card border-none shadow-sm">
+          <SelectTrigger className="w-[160px] bg-white dark:bg-card border-none shadow-sm">
             <SelectValue placeholder="Filter Status" />
           </SelectTrigger>
           <SelectContent>
@@ -190,6 +192,17 @@ export default function Stations() {
             <SelectItem value="free">Available</SelectItem>
             <SelectItem value="occupied">In Use</SelectItem>
             <SelectItem value="offline">Offline</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={sourceFilter} onValueChange={setSourceFilter}>
+          <SelectTrigger className="w-[160px] bg-white dark:bg-card border-none shadow-sm">
+            <SelectValue placeholder="Filter Source" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Sources</SelectItem>
+            <SelectItem value="manual">Manual</SelectItem>
+            <SelectItem value="api">API (OCM)</SelectItem>
+            <SelectItem value="mock">Mock (Demo)</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -202,6 +215,7 @@ export default function Stations() {
                 <TableRow className="border-none">
                   <TableHead className="font-semibold">Station Name</TableHead>
                   <TableHead className="font-semibold">Operator</TableHead>
+                  <TableHead className="font-semibold">Source</TableHead>
                   <TableHead className="font-semibold text-right">Power</TableHead>
                   <TableHead className="font-semibold text-right">Price</TableHead>
                   <TableHead className="font-semibold text-center">Status</TableHead>
@@ -236,6 +250,14 @@ export default function Stations() {
                         ) : (
                           <span className="text-sm text-muted-foreground">Independent</span>
                         )}
+                      </TableCell>
+                      <TableCell>
+                        {(() => {
+                          const src = (station as any).source ?? "manual";
+                          if (src === "mock") return <Badge className="bg-amber-100 text-amber-800 border-0 shadow-none hover:bg-amber-200">Демо</Badge>;
+                          if (src === "api") return <Badge className="bg-blue-100 text-blue-800 border-0 shadow-none hover:bg-blue-200">OCM API</Badge>;
+                          return <Badge className="bg-slate-100 text-slate-700 border-0 shadow-none hover:bg-slate-200">Manual</Badge>;
+                        })()}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1 font-medium text-sm">

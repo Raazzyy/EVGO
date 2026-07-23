@@ -29,6 +29,7 @@ interface StationCardProps {
     distance_km?: number | null;
     operator?: { name: string } | null;
     rating?: number | null;
+    source?: string | null;
   };
   onPress: () => void;
   compact?: boolean;
@@ -126,6 +127,11 @@ export function StationCard({
             </Text>
             {is_promoted && (
               <Feather name="star" size={13} color="#F59E0B" style={{ marginLeft: 4 }} />
+            )}
+            {station.source === 'mock' && (
+              <View style={styles.demoBadge}>
+                <Text style={styles.demoBadgeText}>демо</Text>
+              </View>
             )}
           </View>
           <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
@@ -421,5 +427,17 @@ const styles = StyleSheet.create({
   timeText: {
     fontSize: 12,
     fontFamily: 'Inter_500Medium',
+  },
+  demoBadge: {
+    backgroundColor: '#FEF3C7',
+    borderRadius: 5,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    marginLeft: 5,
+  },
+  demoBadgeText: {
+    color: '#92400E',
+    fontSize: 10,
+    fontFamily: 'Inter_600SemiBold',
   },
 });
