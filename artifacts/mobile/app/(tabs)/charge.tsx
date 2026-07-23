@@ -8,7 +8,8 @@ import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  useGetSessions, useGetSession, useStopSession, getGetSessionsQueryKey,
+  useGetSessions, useGetSession, useStopSession,
+  getGetSessionsQueryKey, getGetSessionQueryKey,
 } from '@workspace/api-client-react';
 import { useColors } from '@/hooks/useColors';
 import { useApp } from '@/contexts/AppContext';
@@ -38,9 +39,16 @@ export default function ChargeScreen() {
 
   const stopMutation = useStopSession({
     mutation: {
-      onSuccess: () => {
+      onSuccess: (stoppedSession) => {
         setConfirmStop(false);
+        // Populate the individual session cache immediately with the stop response
+        // (which already contains energy_kwh, cost, and station).
+        // This prevents the receipt screen from reading a stale cache with zeros.
+        if (activeSession?.id) {
+          qc.setQueryData(getGetSessionQueryKey(activeSession.id), stoppedSession);
+        }
         qc.invalidateQueries({ queryKey: getGetSessionsQueryKey() });
+        qc.invalidateQueries({ queryKey: getGetSessionQueryKey(activeSession?.id ?? 0) });
         // Navigate to receipt with session id and payment card
         const card = encodeURIComponent((activeSession as any)?._selectedCard ?? 'Uzcard');
         router.push(`/payment/receipt?id=${activeSession?.id}&card=${card}` as any);

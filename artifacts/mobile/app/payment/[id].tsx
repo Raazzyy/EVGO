@@ -27,9 +27,11 @@ export default function PaymentScreen() {
     );
   }
 
-  const energyKwh = session.energy_kwh ?? 22.1;
-  const cost = session.cost ?? 54145;
-  const tariff = 2450; // Mock tariff
+  const energyKwh = session.energy_kwh ?? 0;
+  // Используем cost из БД, а не пересчитываем
+  const cost = session.cost ?? 0;
+  // Реальный тариф из связанной станции; fallback на 0 если станция не приложена
+  const tariff = (session as any)?.station?.price_per_kwh ?? 0;
   const fee = 0;
 
   return (

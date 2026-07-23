@@ -27,22 +27,53 @@ export default function ReceiptScreen() {
   const { id, card } = useLocalSearchParams<{ id: string; card?: string }>();
 
   const sessionId = id ? Number(id) : 0;
-  const { data: session } = useGetSession(sessionId, { query: { enabled: sessionId > 0 } });
+  // staleTime: 0 + refetchOnMount: 'always' — всегда читаем свежие данные,
+  // но если charge.tsx уже положил ответ PATCH /stop через setQueryData,
+  // первый рендер получит актуальные energy_kwh и cost без лишнего запроса.
+  const { data: session } = useGetSession(sessionId, {
+    query: {
+      enabled: sessionId > 0,
+      staleTime: 0,
+      refetchOnMount: 'always',
+    },
+  });
 
   const topPad = Platform.OS === 'web' ? 20 : insets.top;
   const bottomPad = Platform.OS === 'web' ? 34 : insets.bottom;
 
-  const stationName = (session as any)?.station?.name ?? 'Зарядная станция';
-  const energyKwh = parseFloat(((session as any)?.energy_kwh ?? 0).toFixed(2));
-  const pricePerKwh = (session as any)?.station?.price_per_kwh ?? 2000;
-  const totalCost = Math.round(energyKwh * pricePerKwh);
-  const duration = session?.created_at ? formatDuration(session.created_at as string) : '—';
+  const stationName  = (session as any)?.station?.name ?? 'Зарядная станция';
+  const rawEnergy    = parseFloat(String((session as any)?.energy_kwh ?? 0));
+  const energyKwh    = parseFloat(rawEnergy.toFixed(2));
+  const pricePerKwh  = (session as any)?.station?.price_per_kwh ?? 2000;
+  // Используем cost из БД (посчитан бэкендом при PATCH /stop), а не пересчитываем.
+  // Пересчёт расходился с БД и ломался, если station не присоединена к ответу.
+  const totalCost    = Math.round((session as any)?.cost ?? rawEnergy * pricePerKwh);
+  const duration     = (session as any)?.started_at
+    ? formatDuration((session as any).started_at as string)
+    : '—';
   const payCard = card ? decodeURIComponent(card) : 'Uzcard';
 
+  // Защита от нуля: сессия остановлена через несколько секунд после старта
+  const isNearZero   = energyKwh < 0.05;
+  const energyLabel  = isNearZero ? 'менее 0,1 кВт·ч' : `${energyKwh} кВт·ч`;
+  const costLabel    = isNearZero && totalCost === 0
+    ? `мин. ${pricePerKwh.toLocaleString('ru-RU')} сум`
+    : `${totalCost.toLocaleString('ru-RU')} сум`;
+
+  // Временное логирование для диагностики нулей (только DEV)
+  if (__DEV__) {
+    console.log('[Receipt] session data:', JSON.stringify({
+      id: (session as any)?.id,
+      energy_kwh: (session as any)?.energy_kwh,
+      cost: (session as any)?.cost,
+      station_price_per_kwh: (session as any)?.station?.price_per_kwh,
+    }));
+  }
+
   const items = [
-    { label: 'Станция', value: stationName },
-    { label: 'Энергия', value: `${energyKwh} кВт·ч` },
-    { label: 'Тариф', value: `${pricePerKwh.toLocaleString('ru-RU')} сум/кВт·ч` },
+    { label: 'Станция',       value: stationName },
+    { label: 'Энергия',       value: energyLabel },
+    { label: 'Тариф',         value: `${pricePerKwh.toLocaleString('ru-RU')} сум/кВт·ч` },
     { label: 'Время зарядки', value: duration },
     { label: 'Способ оплаты', value: payCard },
   ];
@@ -74,7 +105,7 @@ export default function ReceiptScreen() {
         <Animated.View entering={FadeInDown.delay(60).duration(300).easing(IOS_EASE)} style={[styles.totalCard, { backgroundColor: colors.card }]}>
           <LinearGradient colors={['#2563EB', '#7C3AED']} style={styles.totalGradient}>
             <Text style={styles.totalLabel}>Итого</Text>
-            <Text style={styles.totalAmount}>{totalCost.toLocaleString('ru-RU')} сум</Text>
+            <Text style={styles.totalAmount}>{costLabel}</Text>
           </LinearGradient>
         </Animated.View>
 
