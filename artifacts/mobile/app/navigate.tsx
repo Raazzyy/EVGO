@@ -230,6 +230,8 @@ export default function NavigateScreen() {
     if (Platform.OS === 'web') return;
     let cancelled = false;
 
+    // .catch() on the IIFE so any rejection (permission denied, device error)
+    // is handled without crashing the navigation screen
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted' || cancelled) return;
@@ -241,72 +243,82 @@ export default function NavigateScreen() {
           distanceInterval: 5,
         },
         (loc) => {
-          const { latitude: lat, longitude: lng, speed, heading } = loc.coords;
+          // Each individual GPS update is wrapped so a single bad reading
+          // doesn't kill the watch subscription
+          try {
+            const { latitude: lat, longitude: lng, speed, heading } = loc.coords;
 
-          // Camera follow — update heading ref and animate
-          if (heading != null && heading >= 0) headingRef.current = heading;
-          mapRef.current?.followUser(lat, lng, headingRef.current);
+            // Camera follow — update heading ref and animate
+            if (heading != null && heading >= 0) headingRef.current = heading;
+            mapRef.current?.followUser(lat, lng, headingRef.current);
 
-          // Live speed
-          setSpeedKmh(speed != null && speed >= 0 ? Math.round(speed * 3.6) : 0);
+            // Live speed
+            setSpeedKmh(speed != null && speed >= 0 ? Math.round(speed * 3.6) : 0);
 
-          const idx    = stepIdxRef.current;
-          const gSteps = googleStepsRef.current;
-          if (idx >= gSteps.length) return;
+            const idx    = stepIdxRef.current;
+            const gSteps = googleStepsRef.current;
+            if (idx >= gSteps.length) return;
 
-          const curStep   = gSteps[idx];
-          const distToEnd = haversineM(lat, lng, curStep.end_lat, curStep.end_lng);
+            const curStep   = gSteps[idx];
+            const distToEnd = haversineM(lat, lng, curStep.end_lat, curStep.end_lng);
 
-          // ── Voice announcements ────────────────────────────────────────
-          const announced = announcedRef.current[idx] ?? { far: false, near: false };
-          const nextStep  = gSteps[idx + 1];
+            // ── Voice announcements ──────────────────────────────────────
+            const announced = announcedRef.current[idx] ?? { far: false, near: false };
+            const nextStep  = gSteps[idx + 1];
 
-          if (!announced.far && distToEnd < ANNOUNCE_FAR_M && nextStep) {
-            announcedRef.current[idx] = { ...announced, far: true };
-            announce(`Через 150 метров, ${nextStep.instruction}`);
-          }
-
-          if (!announced.near && distToEnd < ANNOUNCE_NEAR_M && distToEnd >= STEP_ADVANCE_M && nextStep) {
-            announcedRef.current[idx] = { ...announcedRef.current[idx]!, near: true };
-            announce(nextStep.instruction);
-          }
-
-          // ── Step advance ───────────────────────────────────────────────
-          if (distToEnd < STEP_ADVANCE_M && idx < gSteps.length - 1) {
-            const next = idx + 1;
-            stepIdxRef.current = next;
-            setCurrentStepIdx(next);
-            if (!announcedRef.current[idx]?.near) {
-              announce(gSteps[next].instruction);
+            if (!announced.far && distToEnd < ANNOUNCE_FAR_M && nextStep) {
+              announcedRef.current[idx] = { ...announced, far: true };
+              announce(`Через 150 метров, ${nextStep.instruction}`);
             }
-            if (!announcedRef.current[next]) {
-              announcedRef.current[next] = { far: false, near: false };
-            }
-          }
 
-          // ── Off-route detection ────────────────────────────────────────
-          const poly = polylineRef.current;
-          if (!isReroutingRef.current && poly.length >= 2) {
-            const dToRoute = distToPolylineM(lat, lng, poly);
-            if (dToRoute > OFF_ROUTE_M) {
-              offRouteCountRef.current += 1;
-              if (offRouteCountRef.current >= OFF_ROUTE_COUNT) {
-                const now = Date.now();
-                if (now - lastRerouteTimeRef.current > REROUTE_COOLDOWN_MS) {
-                  offRouteCountRef.current = 0;
-                  lastRerouteTimeRef.current = now;
-                  rerouteFnRef.current?.(lat, lng);
-                }
-                // if still in cooldown — keep counter capped, don't reset,
-                // so we reroute immediately once cooldown expires
+            if (!announced.near && distToEnd < ANNOUNCE_NEAR_M && distToEnd >= STEP_ADVANCE_M && nextStep) {
+              announcedRef.current[idx] = { ...announcedRef.current[idx]!, near: true };
+              announce(nextStep.instruction);
+            }
+
+            // ── Step advance ─────────────────────────────────────────────
+            if (distToEnd < STEP_ADVANCE_M && idx < gSteps.length - 1) {
+              const next = idx + 1;
+              stepIdxRef.current = next;
+              setCurrentStepIdx(next);
+              if (!announcedRef.current[idx]?.near) {
+                announce(gSteps[next].instruction);
               }
-            } else {
-              offRouteCountRef.current = 0; // back on route — reset streak
+              if (!announcedRef.current[next]) {
+                announcedRef.current[next] = { far: false, near: false };
+              }
             }
+
+            // ── Off-route detection ───────────────────────────────────────
+            const poly = polylineRef.current;
+            if (!isReroutingRef.current && poly.length >= 2) {
+              const dToRoute = distToPolylineM(lat, lng, poly);
+              if (dToRoute > OFF_ROUTE_M) {
+                offRouteCountRef.current += 1;
+                if (offRouteCountRef.current >= OFF_ROUTE_COUNT) {
+                  const now = Date.now();
+                  if (now - lastRerouteTimeRef.current > REROUTE_COOLDOWN_MS) {
+                    offRouteCountRef.current = 0;
+                    lastRerouteTimeRef.current = now;
+                    rerouteFnRef.current?.(lat, lng);
+                  }
+                  // if still in cooldown — keep counter capped, don't reset,
+                  // so we reroute immediately once cooldown expires
+                }
+              } else {
+                offRouteCountRef.current = 0; // back on route — reset streak
+              }
+            }
+          } catch (updateErr) {
+            // Single GPS update failed — keep the watch alive
+            console.warn('[navigate] GPS update error (skipped):', updateErr);
           }
         },
       );
-    })();
+    })().catch(err => {
+      // watchPositionAsync setup failed (e.g. permissions revoked mid-session)
+      console.warn('[navigate] GPS watch failed:', err);
+    });
 
     return () => {
       cancelled = true;

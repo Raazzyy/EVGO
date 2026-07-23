@@ -161,7 +161,18 @@ export default function NewRouteScreen() {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== 'granted') { setOrigin('Ташкент, Узбекистан'); setLocating(false); return; }
-        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+
+        // 8-second timeout; on failure try cached position, then Tashkent
+        let loc: Location.LocationObject | null = null;
+        try {
+          loc = await Promise.race<Location.LocationObject>([
+            Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+            new Promise<never>((_, rej) => setTimeout(() => rej(new Error('gps_timeout')), 8_000)),
+          ]);
+        } catch {
+          loc = await Location.getLastKnownPositionAsync().catch(() => null);
+        }
+        if (!loc) { setOrigin('Ташкент, Узбекистан'); setLocating(false); return; }
         const { latitude: lat, longitude: lng } = loc.coords;
         setOriginCoords({ lat, lng });
         const domain = process.env.EXPO_PUBLIC_DOMAIN;

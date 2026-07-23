@@ -1,7 +1,7 @@
 import React, { useRef, useState, useMemo, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput,
-  TouchableOpacity, Pressable, Platform, PanResponder, Dimensions,
+  TouchableOpacity, Pressable, Platform, PanResponder, Dimensions, Linking,
 } from 'react-native';
 import Animated, {
   useSharedValue, useAnimatedStyle, withTiming, Easing,
@@ -70,6 +70,7 @@ export default function MapScreen() {
   const [filtersVisible, setFiltersVisible] = useState(false);
   const [activeFilters, setActiveFilters] = useState<FiltersState>(DEFAULT_FILTERS);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
   // Drives pointerEvents on map controls (re-render needed when sheet is raised)
   const [sheetAtTop, setSheetAtTop] = useState(false);
   // Active tab inside the bottom sheet
@@ -136,13 +137,40 @@ export default function MapScreen() {
     })
   ).current;
 
-  // Geolocation on mount
+  // Geolocation on mount — wrapped fully so promise rejection never goes unhandled
   useEffect(() => {
+    const TASHKENT = { lat: 41.2995, lng: 69.2401 };
     (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') return;
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      setUserLocation({ lat: loc.coords.latitude, lng: loc.coords.longitude });
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          setLocationPermissionDenied(true);
+          setUserLocation(TASHKENT); // show map centred on Tashkent
+          return;
+        }
+        setLocationPermissionDenied(false);
+
+        // 8-second timeout so GPS freeze on weak signal doesn't block forever
+        let loc: Location.LocationObject | null = null;
+        try {
+          loc = await Promise.race<Location.LocationObject>([
+            Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+            new Promise<never>((_, rej) => setTimeout(() => rej(new Error('gps_timeout')), 8_000)),
+          ]);
+        } catch {
+          // Timeout or device error → try cached position
+          loc = await Location.getLastKnownPositionAsync().catch(() => null);
+        }
+
+        if (loc) {
+          setUserLocation({ lat: loc.coords.latitude, lng: loc.coords.longitude });
+        } else {
+          setUserLocation(TASHKENT);
+        }
+      } catch {
+        // Any unexpected error → fall back silently
+        setUserLocation(TASHKENT);
+      }
     })();
   }, []);
 
@@ -465,6 +493,17 @@ export default function MapScreen() {
       {TopBar}
       {FilterChips}
 
+      {/* Location permission denied banner */}
+      {locationPermissionDenied && (
+        <View style={[styles.permBanner, { top: topOffset + 112 }]}>
+          <Feather name="map-pin" size={14} color="#92400E" />
+          <Text style={styles.permBannerText}>Геолокация отключена — показываем Ташкент</Text>
+          <TouchableOpacity onPress={() => Linking.openSettings()}>
+            <Text style={styles.permBannerBtn}>Настройки</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Bottom sheet */}
       <Animated.View style={[styles.sheet, { backgroundColor: colors.card }, sheetStyle]}>
 
@@ -716,6 +755,16 @@ const styles = StyleSheet.create({
   emptySubtitle: { fontSize: 13, fontFamily: 'Inter_400Regular', textAlign: 'center' },
   resetBtn: { marginTop: 8, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12, borderWidth: 1.5 },
   resetBtnText: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
+  // ── Map controls ──────────────────────────────────────────────────────────
+  // ── Permission banner ─────────────────────────────────────────────────────
+  permBanner: {
+    position: 'absolute', left: 16, right: 16, zIndex: 25,
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#FEF3C7', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 6, elevation: 3,
+  },
+  permBannerText: { flex: 1, fontSize: 12, fontFamily: 'Inter_400Regular', color: '#92400E' },
+  permBannerBtn: { fontSize: 12, fontFamily: 'Inter_700Bold', color: '#2563EB' },
   // ── Map controls ──────────────────────────────────────────────────────────
   mapControls: { position: 'absolute', right: 12, alignItems: 'center', gap: 10, zIndex: 30 },
   mapBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 6, elevation: 4 },
