@@ -104,7 +104,7 @@ export default function NewRouteScreen() {
     return h > 0 ? `${h} ч ${m} мин` : `${m} мин`;
   }
 
-  const bottomPad = Platform.OS === 'web' ? 34 : insets.bottom;
+  const bottomPad = Platform.OS === 'web' ? 84 + 16 : insets.bottom;
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
 
   return (
