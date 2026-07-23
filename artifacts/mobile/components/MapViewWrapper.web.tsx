@@ -29,6 +29,7 @@ export interface StationMarker {
   id: number; lat: number; lng: number;
   name: string; status: string;
   power_kw: number; price_per_kwh: number;
+  is_promoted?: boolean;
 }
 
 interface Props {
@@ -143,13 +144,23 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
         const color =
           s.status === 'free'     ? '#10B981' :
           s.status === 'occupied' ? '#F59E0B' : '#94A3B8';
+        const promoted = !!s.is_promoted;
+        const size = promoted ? 50 : 36;
+        const border = promoted ? '3px solid #FCD34D' : '3px solid white';
+        const shadow = promoted
+          ? '0 2px 16px rgba(245,158,11,.45)'
+          : '0 2px 12px rgba(0,0,0,.28)';
+        const starBadge = promoted
+          ? `<div style="position:absolute;top:-6px;right:-6px;width:16px;height:16px;border-radius:50%;background:#F59E0B;border:1.5px solid #fff;display:flex;align-items:center;justify-content:center;font-size:9px;line-height:1;color:#fff;font-weight:700;">★</div>`
+          : '';
         const icon = L.divIcon({
-          html: `<div style="background:${color};width:36px;height:36px;border-radius:50%;border:3px solid white;box-shadow:0 2px 12px rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .15s">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          html: `<div style="position:relative;background:${color};width:${size}px;height:${size}px;border-radius:50%;border:${border};box-shadow:${shadow};display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .15s">
+            <svg width="${promoted ? 18 : 14}" height="${promoted ? 18 : 14}" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
             </svg>
+            ${starBadge}
           </div>`,
-          className: '', iconSize: [36, 36], iconAnchor: [18, 18],
+          className: '', iconSize: [size, size], iconAnchor: [size / 2, size / 2],
         });
         const marker = L.marker([s.lat, s.lng], { icon }).addTo(map);
         marker.on('click', (e: any) => {
