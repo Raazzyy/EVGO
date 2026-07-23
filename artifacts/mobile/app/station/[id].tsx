@@ -162,14 +162,23 @@ export default function StationDetailScreen() {
               </View>
               <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
               <View style={styles.statCol}>
-                <View style={styles.priceRow}>
+                {(station as any).discount_pct > 0 ? (
+                  <View style={styles.priceRow}>
+                    <Text style={[styles.statValueStrike, { color: colors.mutedForeground }]}>
+                      {station.price_per_kwh.toLocaleString('ru-RU')}
+                    </Text>
+                    <Text style={[styles.statValue, { color: '#10B981' }]}>
+                      {Math.round(station.price_per_kwh * (1 - (station as any).discount_pct / 100)).toLocaleString('ru-RU')}
+                    </Text>
+                    <View style={styles.discountBadge}>
+                      <Text style={styles.discountText}>-{(station as any).discount_pct}%</Text>
+                    </View>
+                  </View>
+                ) : (
                   <Text style={[styles.statValue, { color: colors.text }]}>
                     {station.price_per_kwh.toLocaleString('ru-RU')}
                   </Text>
-                  <View style={styles.discountBadge}>
-                    <Text style={styles.discountText}>-10%</Text>
-                  </View>
-                </View>
+                )}
                 <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>сум/кВт·ч</Text>
               </View>
             </View>

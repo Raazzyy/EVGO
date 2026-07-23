@@ -13,8 +13,9 @@ import {
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useGetStations } from '@workspace/api-client-react';
+import { useGetStations, useGetVehicles } from '@workspace/api-client-react';
 import { useColors } from '@/hooks/useColors';
+import { useApp } from '@/contexts/AppContext';
 import { StationCard } from '@/components/StationCard';
 import { MapViewWrapper } from '@/components/MapViewWrapper';
 import { FiltersSheet } from '@/components/FiltersSheet';
@@ -38,7 +39,14 @@ export default function MapScreen() {
   const [sheetExpanded, setSheetExpanded] = useState(false);
   const sheetAnim = useRef(new Animated.Value(SHEET_MIN)).current;
 
-  const { data: stations = [], isLoading } = useGetStations();
+  const { selectedVehicleId } = useApp();
+  const { data: vehicles = [] } = useGetVehicles();
+  const defaultVehicle = vehicles.find((v) => v.id === selectedVehicleId) ?? vehicles[0];
+
+  // Poll every 30 seconds while screen is active
+  const { data: stations = [], isLoading } = useGetStations(undefined, {
+    query: { refetchInterval: 30_000 },
+  });
 
   const filtered = useMemo(() => {
     let result = stations;
@@ -48,20 +56,33 @@ export default function MapScreen() {
         (s) => s.name.toLowerCase().includes(q) || s.address.toLowerCase().includes(q)
       );
     }
-    if (activeChip === 'free') result = result.filter(s => s.status === 'free');
-    // Mocks for other chips could go here, AC/DC depends on connector data
+    if (activeChip === 'free') {
+      result = result.filter((s) => s.status === 'free');
+    } else if (activeChip === 'my-cars' && defaultVehicle?.connector_type) {
+      // Filter by connectors compatible with the user's default vehicle
+      result = result.filter((s) => {
+        const conns: any[] = (s as any).connectors ?? [];
+        return conns.some((c) => c.type === defaultVehicle.connector_type);
+      });
+    } else if (activeChip === 'ac') {
+      result = result.filter((s) => {
+        const conns: any[] = (s as any).connectors ?? [];
+        return conns.some((c) => ['Type2', 'Type 2', 'AC'].includes(c.type));
+      });
+    } else if (activeChip === 'dc') {
+      result = result.filter((s) => {
+        const conns: any[] = (s as any).connectors ?? [];
+        return conns.some((c) => ['CCS2', 'CHAdeMO', 'GB/T', 'DC'].includes(c.type));
+      });
+    }
     return result;
-  }, [stations, search, activeChip]);
+  }, [stations, search, activeChip, defaultVehicle]);
 
   const promotedStations = useMemo(() => {
-    // Mock promoted stations for showcase by applying fake attributes
-    // Real implementation would use (s as any).is_promoted
-    return filtered.slice(0, 3).map((s, i) => ({
-      ...s,
-      is_promoted: true,
-      discount_pct: i === 0 ? 10 : 0,
-      amenities: ['cafe', 'wifi', '24h']
-    }));
+    // Real promoted stations from is_promoted field, sorted by discount_pct desc
+    return filtered
+      .filter((s) => (s as any).is_promoted)
+      .sort((a, b) => ((b as any).discount_pct ?? 0) - ((a as any).discount_pct ?? 0));
   }, [filtered]);
 
   const nearbyStations = useMemo(() => {
@@ -209,7 +230,7 @@ export default function MapScreen() {
              />
           ))}
         </ScrollView>
-        <FiltersSheet visible={filtersVisible} onClose={() => setFiltersVisible(false)} onApply={() => {}} stationCount={filtered.length} />
+        <FiltersSheet visible={filtersVisible} onClose={() => setFiltersVisible(false)} onApply={() => {}} />
       </View>
     );
   }
@@ -237,27 +258,31 @@ export default function MapScreen() {
         >
           {sheetExpanded ? (
             <>
-              <View style={styles.sectionHeader}>
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>Рекомендуем</Text>
-                <View style={[styles.adBadge, { backgroundColor: colors.muted }]}>
-                  <Text style={[styles.adBadgeText, { color: colors.mutedForeground }]}>Реклама</Text>
-                </View>
-              </View>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.promoScroll}>
-                {promotedStations.map((s) => (
-                  <View key={s.id} style={{ width: 280, marginRight: 12 }}>
-                    <StationCard
-                      station={s}
-                      onPress={() => router.push(`/station/${s.id}`)}
-                      onRoute={() => router.push(`/route/new?dest=${s.id}`)}
-                      compact={true}
-                      discount_pct={s.discount_pct}
-                      is_promoted={s.is_promoted}
-                      amenities={s.amenities}
-                    />
+              {promotedStations.length > 0 && (
+                <>
+                  <View style={styles.sectionHeader}>
+                    <Text style={[styles.sectionTitle, { color: colors.text }]}>Рекомендуем</Text>
+                    <View style={[styles.adBadge, { backgroundColor: colors.muted }]}>
+                      <Text style={[styles.adBadgeText, { color: colors.mutedForeground }]}>Реклама</Text>
+                    </View>
                   </View>
-                ))}
-              </ScrollView>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.promoScroll}>
+                    {promotedStations.map((s) => (
+                      <View key={s.id} style={{ width: 280, marginRight: 12 }}>
+                        <StationCard
+                          station={s}
+                          onPress={() => router.push(`/station/${s.id}`)}
+                          onRoute={() => router.push(`/route/new?dest=${s.id}`)}
+                          compact={true}
+                          discount_pct={(s as any).discount_pct}
+                          is_promoted={true}
+                          amenities={(s as any).amenities}
+                        />
+                      </View>
+                    ))}
+                  </ScrollView>
+                </>
+              )}
 
               <Text style={[styles.sectionTitle, { color: colors.text, marginTop: 16, marginBottom: 12 }]}>Рядом с вами</Text>
               {nearbyStations.map((s) => (
@@ -266,11 +291,12 @@ export default function MapScreen() {
                   station={s}
                   onPress={() => router.push(`/station/${s.id}`)}
                   onRoute={() => router.push(`/route/new?dest=${s.id}`)}
+                  discount_pct={(s as any).discount_pct}
                 />
               ))}
             </>
           ) : (
-            // Collapsed state: just show the nearest station
+            // Collapsed: nearest station
             nearbyStations[0] && (
               <StationCard
                 station={nearbyStations[0]}
@@ -282,7 +308,7 @@ export default function MapScreen() {
         </ScrollView>
       </Animated.View>
 
-      <FiltersSheet visible={filtersVisible} onClose={() => setFiltersVisible(false)} onApply={() => {}} stationCount={filtered.length} />
+      <FiltersSheet visible={filtersVisible} onClose={() => setFiltersVisible(false)} onApply={() => {}} />
     </View>
   );
 }

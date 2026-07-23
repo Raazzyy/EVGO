@@ -1,73 +1,151 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Animated,
   Modal,
-  SafeAreaView
+  SafeAreaView,
+  ActivityIndicator,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useGetVehicles, useGetStations } from '@workspace/api-client-react';
+import { useApp } from '@/contexts/AppContext';
+
+export interface FiltersState {
+  connectorTypes: string[];   // e.g. ['CCS2']
+  availability: 'all' | 'free' | 'busy';
+  amenities: string[];
+  minPowerKw: number;
+  maxPowerKw: number;
+  maxPriceSum: number;
+  vehicleId: number | null;
+}
+
+const DEFAULT_FILTERS: FiltersState = {
+  connectorTypes: [],
+  availability: 'all',
+  amenities: [],
+  minPowerKw: 3,
+  maxPowerKw: 350,
+  maxPriceSum: 5000,
+  vehicleId: null,
+};
 
 interface FiltersSheetProps {
   visible: boolean;
   onClose: () => void;
-  onApply: (filters: any) => void;
-  stationCount: number;
+  onApply: (filters: FiltersState) => void;
 }
 
-export function FiltersSheet({ visible, onClose, onApply, stationCount }: FiltersSheetProps) {
+export function FiltersSheet({ visible, onClose, onApply }: FiltersSheetProps) {
   const colors = useColors();
-  
-  const [chargingTypes, setChargingTypes] = useState<string[]>(['Все']);
-  const [availability, setAvailability] = useState('Все');
-  const [amenities, setAmenities] = useState<string[]>([]);
-  
-  const toggleChargingType = (type: string) => {
-    if (type === 'Все') {
-      setChargingTypes(['Все']);
-      return;
-    }
-    const newTypes = chargingTypes.filter(t => t !== 'Все');
-    if (newTypes.includes(type)) {
-      const filtered = newTypes.filter(t => t !== type);
-      setChargingTypes(filtered.length === 0 ? ['Все'] : filtered);
-    } else {
-      setChargingTypes([...newTypes, type]);
-    }
-  };
+  const { selectedVehicleId, setSelectedVehicleId } = useApp();
 
-  const toggleAmenity = (am: string) => {
-    if (amenities.includes(am)) {
-      setAmenities(amenities.filter(a => a !== am));
-    } else {
-      setAmenities([...amenities, am]);
-    }
-  };
+  const [filters, setFilters] = useState<FiltersState>({ ...DEFAULT_FILTERS });
+  const [liveCount, setLiveCount] = useState<number | null>(null);
+  const [counting, setCounting] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const renderSectionHeader = (title: string) => (
-    <Text style={[styles.sectionTitle, { color: colors.text }]}>{title}</Text>
+  const { data: vehicles = [] } = useGetVehicles();
+  const { data: allStations = [] } = useGetStations();
+
+  // Compute live count locally by filtering allStations — avoids extra API round-trips
+  const computeCount = useCallback(
+    (f: FiltersState) => {
+      setCounting(true);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        let result = allStations;
+        if (f.availability === 'free') result = result.filter((s) => s.status === 'free');
+        if (f.availability === 'busy') result = result.filter((s) => s.status === 'busy');
+        if (f.connectorTypes.length > 0) {
+          result = result.filter((s) => {
+            const conns: any[] = (s as any).connectors ?? [];
+            return conns.some((c) => f.connectorTypes.includes(c.type));
+          });
+        }
+        if (f.vehicleId) {
+          const vehicle = vehicles.find((v) => v.id === f.vehicleId);
+          if (vehicle?.connector_type) {
+            result = result.filter((s) => {
+              const conns: any[] = (s as any).connectors ?? [];
+              return conns.some((c) => c.type === vehicle.connector_type);
+            });
+          }
+        }
+        result = result.filter((s) => s.power_kw >= f.minPowerKw && s.power_kw <= f.maxPowerKw);
+        result = result.filter((s) => s.price_per_kwh <= f.maxPriceSum);
+        setLiveCount(result.length);
+        setCounting(false);
+      }, 300);
+    },
+    [allStations, vehicles]
   );
 
+  // Recompute whenever filters change
+  useEffect(() => {
+    if (visible) computeCount(filters);
+  }, [filters, visible, computeCount]);
+
+  // Reset when modal opens
+  useEffect(() => {
+    if (visible) {
+      setFilters({ ...DEFAULT_FILTERS });
+      setLiveCount(allStations.length);
+    }
+  }, [visible]);
+
+  function patchFilters(patch: Partial<FiltersState>) {
+    setFilters((prev) => ({ ...prev, ...patch }));
+  }
+
+  function toggleConnector(type: string) {
+    setFilters((prev) => {
+      const has = prev.connectorTypes.includes(type);
+      return {
+        ...prev,
+        connectorTypes: has
+          ? prev.connectorTypes.filter((t) => t !== type)
+          : [...prev.connectorTypes, type],
+      };
+    });
+  }
+
+  function toggleAmenity(a: string) {
+    setFilters((prev) => {
+      const has = prev.amenities.includes(a);
+      return { ...prev, amenities: has ? prev.amenities.filter((x) => x !== a) : [...prev.amenities, a] };
+    });
+  }
+
+  function selectVehicle(id: number) {
+    const vehicle = vehicles.find((v) => v.id === id);
+    setFilters((prev) => ({
+      ...prev,
+      vehicleId: prev.vehicleId === id ? null : id,
+      connectorTypes: vehicle && prev.vehicleId !== id ? [vehicle.connector_type] : [],
+    }));
+  }
+
+  const countLabel = counting ? '...' : (liveCount ?? allStations.length);
+
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent={true}
-      onRequestClose={onClose}
-    >
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={[styles.sheet, { backgroundColor: colors.card }]}>
           <SafeAreaView style={styles.safeArea}>
             {/* Header */}
-            <View style={styles.header}>
+            <View style={[styles.header, { borderBottomColor: colors.border }]}>
               <Text style={[styles.headerTitle, { color: colors.text }]}>Фильтры</Text>
               <View style={styles.headerRight}>
-                <TouchableOpacity onPress={() => { setChargingTypes(['Все']); setAvailability('Все'); setAmenities([]); }}>
+                <TouchableOpacity
+                  onPress={() => setFilters({ ...DEFAULT_FILTERS })}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
                   <Text style={[styles.resetText, { color: colors.primary }]}>Сбросить</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
@@ -76,40 +154,81 @@ export function FiltersSheet({ visible, onClose, onApply, stationCount }: Filter
               </View>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.scrollContent}
+            >
               {/* Мои автомобили */}
               <View style={styles.section}>
-                {renderSectionHeader('Мои автомобили')}
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hScroll}>
-                  <View style={[styles.carChip, { borderColor: colors.border, backgroundColor: colors.card }]}>
-                    <Feather name="zap" size={14} color={colors.primary} />
-                    <Text style={[styles.carChipText, { color: colors.text }]}>IONIQ 5 · 85% · 410 км</Text>
-                  </View>
-                  <TouchableOpacity style={[styles.carChip, { borderStyle: 'dashed', borderColor: colors.mutedForeground, backgroundColor: colors.card }]}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Мои автомобили</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.hScroll}
+                >
+                  {vehicles.map((car) => {
+                    const isActive = filters.vehicleId === car.id;
+                    return (
+                      <TouchableOpacity
+                        key={car.id}
+                        onPress={() => selectVehicle(car.id)}
+                        style={[
+                          styles.carChip,
+                          {
+                            borderColor: isActive ? colors.primary : colors.border,
+                            backgroundColor: isActive ? colors.primary + '15' : colors.card,
+                          },
+                        ]}
+                      >
+                        <Feather
+                          name="zap"
+                          size={14}
+                          color={isActive ? colors.primary : colors.mutedForeground}
+                        />
+                        <Text style={[styles.carChipText, { color: isActive ? colors.primary : colors.text }]}>
+                          {car.name}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                  <TouchableOpacity
+                    style={[
+                      styles.carChip,
+                      { borderStyle: 'dashed', borderColor: colors.mutedForeground, backgroundColor: colors.card },
+                    ]}
+                  >
                     <Feather name="plus" size={14} color={colors.mutedForeground} />
-                    <Text style={[styles.carChipText, { color: colors.mutedForeground }]}>Добавить авто</Text>
+                    <Text style={[styles.carChipText, { color: colors.mutedForeground }]}>
+                      Добавить авто
+                    </Text>
                   </TouchableOpacity>
                 </ScrollView>
               </View>
 
               {/* Тип зарядки */}
               <View style={styles.section}>
-                {renderSectionHeader('Тип зарядки')}
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Тип зарядки</Text>
                 <View style={styles.chipGroup}>
-                  {['Все', 'CCS2', 'CHAdeMO', 'Type 2', 'GB/T'].map(type => {
-                    const isActive = chargingTypes.includes(type);
+                  {['CCS2', 'CHAdeMO', 'Type 2', 'GB/T'].map((type) => {
+                    const isActive = filters.connectorTypes.includes(type);
                     return (
-                      <TouchableOpacity key={type} onPress={() => toggleChargingType(type)} activeOpacity={0.8}>
+                      <TouchableOpacity key={type} onPress={() => toggleConnector(type)} activeOpacity={0.8}>
                         {isActive ? (
                           <LinearGradient
                             colors={[colors.gradientStart, colors.gradientEnd]}
-                            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
                             style={[styles.filterChip, { borderWidth: 0 }]}
                           >
                             <Text style={[styles.filterChipText, { color: '#FFF' }]}>{type}</Text>
                           </LinearGradient>
                         ) : (
-                          <View style={[styles.filterChip, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                          <View
+                            style={[
+                              styles.filterChip,
+                              { backgroundColor: colors.card, borderColor: colors.border },
+                            ]}
+                          >
                             <Text style={[styles.filterChipText, { color: colors.text }]}>{type}</Text>
                           </View>
                         )}
@@ -119,88 +238,133 @@ export function FiltersSheet({ visible, onClose, onApply, stationCount }: Filter
                 </View>
               </View>
 
-              {/* Мощность, кВт */}
+              {/* Мощность, кВт — visual slider (non-interactive, decorative for MVP) */}
               <View style={styles.section}>
                 <View style={styles.rowBetween}>
-                  {renderSectionHeader('Мощность, кВт')}
-                  <Text style={[styles.rangeValue, { color: colors.primary }]}>3 — 350+</Text>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>Мощность, кВт</Text>
+                  <Text style={[styles.rangeValue, { color: colors.primary }]}>
+                    {filters.minPowerKw} — {filters.maxPowerKw}+
+                  </Text>
                 </View>
                 <View style={styles.sliderTrackContainer}>
                   <View style={[styles.sliderTrack, { backgroundColor: colors.muted }]} />
                   <LinearGradient
                     colors={[colors.gradientStart, colors.gradientEnd]}
-                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                    style={[styles.sliderActiveTrack, { left: '10%', right: '20%' }]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={[styles.sliderActiveTrack, { left: '5%', right: '10%' }]}
                   />
-                  <View style={[styles.sliderThumb, { left: '10%', borderColor: colors.primary, backgroundColor: colors.card }]} />
-                  <View style={[styles.sliderThumb, { left: '80%', borderColor: colors.primary, backgroundColor: colors.card }]} />
+                  <View
+                    style={[
+                      styles.sliderThumb,
+                      { left: '5%', borderColor: colors.primary, backgroundColor: colors.card },
+                    ]}
+                  />
+                  <View
+                    style={[
+                      styles.sliderThumb,
+                      { left: '90%', borderColor: colors.primary, backgroundColor: colors.card },
+                    ]}
+                  />
                 </View>
               </View>
 
               {/* Доступность */}
               <View style={styles.section}>
-                {renderSectionHeader('Доступность')}
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Доступность</Text>
                 <View style={[styles.segmentedControl, { backgroundColor: colors.muted }]}>
-                  {['Все', 'Свободные', 'Занятые'].map(status => {
-                    const isActive = availability === status;
+                  {[
+                    { label: 'Все', value: 'all' as const },
+                    { label: 'Свободные', value: 'free' as const },
+                    { label: 'Занятые', value: 'busy' as const },
+                  ].map(({ label, value }) => {
+                    const isActive = filters.availability === value;
                     return (
                       <TouchableOpacity
-                        key={status}
-                        style={[styles.segment, isActive && [styles.segmentActive, { backgroundColor: colors.card, shadowColor: '#000' }]]}
-                        onPress={() => setAvailability(status)}
+                        key={value}
+                        style={[
+                          styles.segment,
+                          isActive && [styles.segmentActive, { backgroundColor: colors.card }],
+                        ]}
+                        onPress={() => patchFilters({ availability: value })}
                       >
-                        <Text style={[styles.segmentText, { color: isActive ? colors.text : colors.mutedForeground }]}>{status}</Text>
+                        <Text
+                          style={[
+                            styles.segmentText,
+                            { color: isActive ? colors.text : colors.mutedForeground },
+                          ]}
+                        >
+                          {label}
+                        </Text>
                       </TouchableOpacity>
                     );
                   })}
                 </View>
               </View>
 
-              {/* Оператор */}
-              <View style={styles.section}>
-                {renderSectionHeader('Оператор')}
-                <TouchableOpacity style={[styles.dropdownBtn, { borderColor: colors.border, backgroundColor: colors.card }]}>
-                  <Text style={[styles.dropdownText, { color: colors.text }]}>Все операторы</Text>
-                  <Feather name="chevron-down" size={18} color={colors.mutedForeground} />
-                </TouchableOpacity>
-              </View>
-
-              {/* Цена */}
+              {/* Цена, сум/кВт·ч */}
               <View style={styles.section}>
                 <View style={styles.rowBetween}>
-                  {renderSectionHeader('Цена, сум/кВт·ч')}
-                  <Text style={[styles.rangeValue, { color: colors.primary }]}>0 — 5000+</Text>
+                  <Text style={[styles.sectionTitle, { color: colors.text }]}>Цена, сум/кВт·ч</Text>
+                  <Text style={[styles.rangeValue, { color: colors.primary }]}>
+                    0 — {filters.maxPriceSum.toLocaleString('ru-RU')}+
+                  </Text>
                 </View>
                 <View style={styles.sliderTrackContainer}>
                   <View style={[styles.sliderTrack, { backgroundColor: colors.muted }]} />
                   <LinearGradient
                     colors={[colors.gradientStart, colors.gradientEnd]}
-                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
                     style={[styles.sliderActiveTrack, { left: '0%', right: '0%' }]}
                   />
-                  <View style={[styles.sliderThumb, { left: '0%', borderColor: colors.primary, backgroundColor: colors.card }]} />
-                  <View style={[styles.sliderThumb, { left: '100%', borderColor: colors.primary, backgroundColor: colors.card }]} />
+                  <View
+                    style={[
+                      styles.sliderThumb,
+                      { left: '0%', borderColor: colors.primary, backgroundColor: colors.card },
+                    ]}
+                  />
+                  <View
+                    style={[
+                      styles.sliderThumb,
+                      { left: '100%', borderColor: colors.primary, backgroundColor: colors.card },
+                    ]}
+                  />
                 </View>
               </View>
 
-              {/* Дополнительно */}
+              {/* Удобства */}
               <View style={styles.section}>
-                {renderSectionHeader('Дополнительно')}
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Удобства</Text>
                 <View style={styles.amenityRow}>
                   {[
-                    { id: 'coffee', icon: 'coffee' },
-                    { id: 'users', icon: 'users' },
-                    { id: 'shop', icon: 'shopping-bag' },
-                    { id: 'wifi', icon: 'wifi' }
-                  ].map(item => {
-                    const isActive = amenities.includes(item.id);
+                    { id: 'cafe', icon: 'coffee', label: 'Кафе' },
+                    { id: 'toilet', icon: 'home', label: 'Туалет' },
+                    { id: 'shop', icon: 'shopping-bag', label: 'Магазин' },
+                    { id: 'wifi', icon: 'wifi', label: 'Wi-Fi' },
+                  ].map((item) => {
+                    const isActive = filters.amenities.includes(item.id);
                     return (
                       <TouchableOpacity
                         key={item.id}
-                        style={[styles.amenityBtn, { backgroundColor: isActive ? colors.primary : colors.muted }]}
                         onPress={() => toggleAmenity(item.id)}
+                        style={styles.amenityCol}
                       >
-                        <Feather name={item.icon as any} size={18} color={isActive ? '#FFF' : colors.text} />
+                        <View
+                          style={[
+                            styles.amenityBtn,
+                            { backgroundColor: isActive ? colors.primary : colors.muted },
+                          ]}
+                        >
+                          <Feather
+                            name={item.icon as any}
+                            size={18}
+                            color={isActive ? '#FFF' : colors.text}
+                          />
+                        </View>
+                        <Text style={[styles.amenityLabel, { color: colors.mutedForeground }]}>
+                          {item.label}
+                        </Text>
                       </TouchableOpacity>
                     );
                   })}
@@ -208,21 +372,27 @@ export function FiltersSheet({ visible, onClose, onApply, stationCount }: Filter
               </View>
             </ScrollView>
 
-            {/* Bottom Sticky Button */}
-            <View style={[styles.bottomSticky, { borderTopColor: colors.border, backgroundColor: colors.card }]}>
+            {/* Sticky CTA */}
+            <View style={[styles.bottomSticky, { borderTopColor: colors.border }]}>
               <TouchableOpacity
                 onPress={() => {
-                  onApply({ chargingTypes, availability, amenities });
+                  onApply(filters);
                   onClose();
                 }}
                 activeOpacity={0.8}
+                disabled={counting}
               >
                 <LinearGradient
                   colors={[colors.gradientStart, colors.gradientEnd]}
-                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
                   style={styles.applyBtn}
                 >
-                  <Text style={styles.applyBtnText}>Показать {stationCount} станций</Text>
+                  {counting ? (
+                    <ActivityIndicator color="#FFF" size="small" />
+                  ) : (
+                    <Text style={styles.applyBtnText}>Показать {countLabel} станций</Text>
+                  )}
                 </LinearGradient>
               </TouchableOpacity>
             </View>
@@ -244,9 +414,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     maxHeight: '90%',
   },
-  safeArea: {
-    flex: 1,
-  },
+  safeArea: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -254,49 +422,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
   },
-  headerTitle: {
-    fontSize: 18,
-    fontFamily: 'Inter_700Bold',
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  resetText: {
-    fontSize: 14,
-    fontFamily: 'Inter_500Medium',
-  },
-  closeBtn: {
-    padding: 4,
-  },
-  scrollContent: {
-    padding: 20,
-    gap: 24,
-    paddingBottom: 40,
-  },
-  section: {
-    gap: 12,
-  },
-  sectionTitle: {
-    fontSize: 15,
-    fontFamily: 'Inter_600SemiBold',
-  },
+  headerTitle: { fontSize: 18, fontFamily: 'Inter_700Bold' },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  resetText: { fontSize: 14, fontFamily: 'Inter_500Medium' },
+  closeBtn: { padding: 4 },
+  scrollContent: { padding: 20, gap: 24, paddingBottom: 32 },
+  section: { gap: 12 },
+  sectionTitle: { fontSize: 15, fontFamily: 'Inter_600SemiBold' },
   rowBetween: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  rangeValue: {
-    fontSize: 14,
-    fontFamily: 'Inter_600SemiBold',
-  },
-  hScroll: {
-    gap: 8,
-    paddingRight: 20,
-  },
+  rangeValue: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
+  hScroll: { gap: 8, paddingRight: 20 },
   carChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -306,41 +446,23 @@ const styles = StyleSheet.create({
     borderRadius: 100,
     borderWidth: 1,
   },
-  carChipText: {
-    fontSize: 13,
-    fontFamily: 'Inter_500Medium',
-  },
-  chipGroup: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
+  carChipText: { fontSize: 13, fontFamily: 'Inter_500Medium' },
+  chipGroup: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   filterChip: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 100,
     borderWidth: 1,
   },
-  filterChipText: {
-    fontSize: 13,
-    fontFamily: 'Inter_500Medium',
-  },
+  filterChipText: { fontSize: 13, fontFamily: 'Inter_500Medium' },
   sliderTrackContainer: {
     height: 30,
     justifyContent: 'center',
     position: 'relative',
     marginTop: 4,
   },
-  sliderTrack: {
-    height: 4,
-    borderRadius: 2,
-    width: '100%',
-  },
-  sliderActiveTrack: {
-    position: 'absolute',
-    height: 4,
-    borderRadius: 2,
-  },
+  sliderTrack: { height: 4, borderRadius: 2, width: '100%' },
+  sliderActiveTrack: { position: 'absolute', height: 4, borderRadius: 2 },
   sliderThumb: {
     position: 'absolute',
     width: 24,
@@ -371,34 +493,17 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
-  segmentText: {
-    fontSize: 13,
-    fontFamily: 'Inter_500Medium',
-  },
-  dropdownBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
-  dropdownText: {
-    fontSize: 14,
-    fontFamily: 'Inter_400Regular',
-  },
-  amenityRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
+  segmentText: { fontSize: 13, fontFamily: 'Inter_500Medium' },
+  amenityRow: { flexDirection: 'row', gap: 16 },
+  amenityCol: { alignItems: 'center', gap: 6 },
   amenityBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  amenityLabel: { fontSize: 11, fontFamily: 'Inter_400Regular' },
   bottomSticky: {
     padding: 20,
     borderTopWidth: StyleSheet.hairlineWidth,
@@ -409,10 +514,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 52,
   },
-  applyBtnText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontFamily: 'Inter_600SemiBold',
-  },
+  applyBtnText: { color: '#FFF', fontSize: 16, fontFamily: 'Inter_600SemiBold' },
 });
