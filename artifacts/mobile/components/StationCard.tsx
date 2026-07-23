@@ -8,7 +8,6 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Circle } from 'react-native-svg';
 
 interface Connector {
   type: string;
@@ -39,7 +38,7 @@ interface StationCardProps {
   onRoute?: () => void;
 }
 
-// Deterministic color based on operator initial
+// ── Operator avatar colours ───────────────────────────────────────────────
 const OPERATOR_COLORS: Record<string, [string, string]> = {
   I: ['#0EA5E9', '#0284C7'],
   K: ['#F59E0B', '#D97706'],
@@ -49,246 +48,309 @@ const OPERATOR_COLORS: Record<string, [string, string]> = {
   B: ['#EC4899', '#DB2777'],
   G: ['#14B8A6', '#0D9488'],
 };
-
-function getOperatorColors(name?: string | null): [string, string] {
-  const initial = name?.charAt(0).toUpperCase() ?? 'i';
-  return OPERATOR_COLORS[initial] ?? ['#6366F1', '#4F46E5'];
+function operatorColors(name?: string | null): [string, string] {
+  return OPERATOR_COLORS[name?.charAt(0).toUpperCase() ?? ''] ?? ['#6366F1', '#4F46E5'];
 }
 
-function getChargeType(connectors: Connector[]): string {
-  const dcTypes = ['CCS2', 'CHAdeMO', 'GB/T'];
-  const hasDC = connectors.some((c) => dcTypes.includes(c.type));
-  return hasDC ? 'DC' : 'AC';
+function chargeType(connectors: Connector[]): 'DC' | 'AC' {
+  const DC = ['CCS2', 'CHAdeMO', 'GB/T', 'Tesla'];
+  return connectors.some(c => DC.includes(c.type)) ? 'DC' : 'AC';
 }
 
-function getFirstConnectorType(connectors: Connector[]): string {
-  return connectors[0]?.type ?? 'CCS2';
+function formatDist(km?: number | null): string | null {
+  if (km == null || km <= 0) return null;
+  return km < 1 ? `${Math.round(km * 1000)} м` : `${km.toFixed(1)} км`;
 }
 
-function estimateMinutes(distanceKm?: number | null): number | null {
-  if (!distanceKm || distanceKm <= 0) return null;
-  return Math.max(1, Math.round((distanceKm / 30) * 60));
+// ── Amenity icon map ──────────────────────────────────────────────────────
+const AMENITY_ICONS: Record<string, { icon: string; label: string }> = {
+  wifi:          { icon: 'wifi',        label: 'Wi-Fi' },
+  '24/7':        { icon: 'clock',       label: '24/7' },
+  coffee:        { icon: 'coffee',      label: 'Кофе' },
+  toilet:        { icon: 'home',        label: 'Туалет' },
+  parking:       { icon: 'map-pin',     label: 'Парковка' },
+  shop:          { icon: 'shopping-bag',label: 'Магазин' },
+  clean:         { icon: 'star',        label: 'Чистая зона' },
+};
+
+function amenityInfo(key: string) {
+  return AMENITY_ICONS[key.toLowerCase()] ?? { icon: 'check-circle', label: key };
 }
 
+// ─────────────────────────────────────────────────────────────────────────
 export function StationCard({
   station,
   onPress,
   compact = false,
   discount_pct = 0,
-  is_promoted,
+  is_promoted = false,
+  amenities,
   onRoute,
 }: StationCardProps) {
   const colors = useColors();
   const connectors: Connector[] = (station.connectors as Connector[] | null) ?? [];
 
-  const totalConnectors = connectors.reduce((s, c) => s + c.total, 0);
-  const availableConnectors = connectors.reduce((s, c) => s + c.available, 0);
+  const totalSlots     = connectors.reduce((s, c) => s + (c.total ?? 1), 0) || 1;
+  const availableSlots = connectors.reduce((s, c) => s + (c.available ?? 0), 0);
+  const primaryType    = connectors[0]?.type ?? 'CCS2';
+  const ct             = chargeType(connectors);
 
-  const operatorName = station.operator?.name ?? null;
-  const [gradStart, gradEnd] = getOperatorColors(operatorName);
-  const initial = operatorName?.charAt(0).toUpperCase() ?? 'i';
+  const [grad1, grad2] = operatorColors(station.operator?.name);
+  const initial        = station.operator?.name?.charAt(0).toUpperCase() ?? 'i';
 
-  const chargeType = getChargeType(connectors);
-  const connType = getFirstConnectorType(connectors);
-
-  const originalPrice = discount_pct > 0
+  const originalPrice  = discount_pct > 0
     ? Math.round(station.price_per_kwh / (1 - discount_pct / 100))
     : null;
+  const savingsPerKwh  = originalPrice ? originalPrice - station.price_per_kwh : 0;
 
-  const statusColor =
-    station.status === 'free' ? '#10B981'
+  const statusColor    =
+    station.status === 'free'     ? '#10B981'
     : station.status === 'occupied' ? '#F59E0B'
     : '#94A3B8';
 
-  const rating = station.rating ?? (is_promoted ? 4.8 : null);
-  const minutes = estimateMinutes(station.distance_km);
+  const distLabel = formatDist(station.distance_km);
+  const rating    = station.rating ?? (is_promoted ? 4.8 : null);
+
+  // Amenities list (max 4 shown)
+  const amenityList: string[] = Array.isArray(amenities)
+    ? (amenities as any[]).map(a => typeof a === 'string' ? a : String(a)).slice(0, 4)
+    : [];
 
   return (
     <TouchableOpacity
       onPress={onPress}
-      activeOpacity={0.85}
-      style={[styles.card, { backgroundColor: '#FFFFFF' }]}
+      activeOpacity={0.88}
+      style={[
+        styles.card,
+        compact && styles.cardCompact,
+        is_promoted && styles.cardPromoted,
+      ]}
     >
-      {/* Row 1: Operator icon + Name + Distance */}
+      {/* ── TOP BADGE: ТОП СТАНЦИЯ ──────────────────────────────────── */}
+      {is_promoted && (
+        <View style={styles.topBadgeWrap} pointerEvents="none">
+          <LinearGradient
+            colors={['#F59E0B', '#D97706']}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+            style={styles.topBadge}
+          >
+            <Feather name="award" size={10} color="#fff" />
+            <Text style={styles.topBadgeText}>ТОП СТАНЦИЯ</Text>
+          </LinearGradient>
+        </View>
+      )}
+
+      {/* ── DISCOUNT corner badge ─────────────────────────────────────── */}
+      {discount_pct > 0 && (
+        <View style={styles.discCornerWrap} pointerEvents="none">
+          <View style={styles.discCorner}>
+            <Text style={styles.discCornerText}>-{discount_pct}%</Text>
+          </View>
+        </View>
+      )}
+
+      {/* ── ROW 1: avatar + name + favourite ─────────────────────────── */}
       <View style={styles.row1}>
-        <LinearGradient
-          colors={[gradStart, gradEnd]}
-          style={styles.operatorCircle}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <Text style={styles.operatorInitial}>{initial}</Text>
+        <LinearGradient colors={[grad1, grad2]} style={styles.avatar} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+          <Text style={styles.avatarText}>{initial}</Text>
         </LinearGradient>
 
-        <View style={styles.namePart}>
+        <View style={styles.nameBlock}>
           <View style={styles.nameRow}>
-            <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
-              {station.name}
-            </Text>
-            {is_promoted && (
-              <Feather name="star" size={13} color="#F59E0B" style={{ marginLeft: 4 }} />
-            )}
+            <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>{station.name}</Text>
             {station.source === 'mock' && (
-              <View style={styles.demoBadge}>
-                <Text style={styles.demoBadgeText}>демо</Text>
-              </View>
+              <View style={styles.demoBadge}><Text style={styles.demoBadgeText}>демо</Text></View>
             )}
           </View>
           <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-            {chargeType === 'DC' ? 'Быстрая зарядка' : 'Медленная зарядка'} · {chargeType} · {connType}
+            {ct === 'DC' ? 'Быстрая зарядка' : 'Медленная зарядка'} · {ct} · {primaryType}
           </Text>
         </View>
 
-        <View style={styles.distancePart}>
-          {station.distance_km != null && (
-            <Text style={[styles.distanceText, { color: colors.mutedForeground }]}>
-              {station.distance_km < 1
-                ? `${Math.round(station.distance_km * 1000)} м`
-                : `${station.distance_km.toFixed(1)} км`}
-            </Text>
-          )}
-        </View>
+        {/* Favourite icon */}
+        <TouchableOpacity onPress={onPress} hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }} style={styles.favBtn}>
+          <Feather name="heart" size={16} color={is_promoted ? '#F59E0B' : colors.mutedForeground} />
+        </TouchableOpacity>
       </View>
 
-      {/* Row 2: Power + Availability + Price */}
-      <View style={styles.row2}>
-        {/* Power */}
-        <View style={[styles.powerBadge, { backgroundColor: '#EFF6FF' }]}>
-          <Feather name="zap" size={10} color="#2563EB" />
-          <Text style={styles.powerText}>{station.power_kw} кВт</Text>
+      {/* ── ROW 2: chip row ──────────────────────────────────────────── */}
+      <View style={styles.chipRow}>
+        {/* Power chip */}
+        <View style={[styles.chip, { backgroundColor: '#EFF6FF' }]}>
+          <Feather name="zap" size={11} color="#2563EB" />
+          <Text style={[styles.chipText, { color: '#2563EB' }]}>{station.power_kw} кВт</Text>
         </View>
 
-        {/* Status dot + availability */}
-        <View style={styles.availRow}>
-          <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-          <Text style={[styles.availText, { color: statusColor }]}>
-            {availableConnectors}/{totalConnectors} доступно
+        {/* Availability chip */}
+        <View style={[styles.chip, { backgroundColor: `${statusColor}18` }]}>
+          <View style={[styles.chipDot, { backgroundColor: statusColor }]} />
+          <Text style={[styles.chipText, { color: statusColor }]}>
+            {availableSlots}/{totalSlots} свободно
           </Text>
         </View>
 
-        <View style={{ flex: 1 }} />
-
-        {/* Price */}
-        <View style={styles.priceBlock}>
-          {originalPrice && (
-            <Text style={[styles.oldPrice, { color: colors.mutedForeground }]}>
-              {originalPrice.toLocaleString('ru-RU')}
-            </Text>
-          )}
-          <Text style={[styles.price, { color: colors.text }]}>
-            {station.price_per_kwh.toLocaleString('ru-RU')}
-          </Text>
-          {discount_pct > 0 && (
-            <View style={styles.discountBadge}>
-              <Text style={styles.discountText}>-{discount_pct}%</Text>
-            </View>
-          )}
-        </View>
+        {/* Rating chip — only promoted */}
+        {rating && (
+          <View style={[styles.chip, { backgroundColor: '#FFFBEB' }]}>
+            <Feather name="star" size={11} color="#F59E0B" />
+            <Text style={[styles.chipText, { color: '#D97706' }]}>{rating}</Text>
+          </View>
+        )}
       </View>
 
-      {/* Rating row (for promoted) */}
-      {rating && (
-        <View style={styles.ratingRow}>
-          <Feather name="star" size={11} color="#F59E0B" />
-          <Text style={[styles.ratingText, { color: colors.mutedForeground }]}>{rating}</Text>
-          <View style={styles.ratingDot} />
-          <Text style={[styles.priceLabel, { color: colors.mutedForeground }]}>
-            {station.price_per_kwh.toLocaleString('ru-RU')} сум/кВт·ч
+      {/* ── PRICE BLOCK ──────────────────────────────────────────────── */}
+      <View style={styles.priceBlock}>
+        {originalPrice ? (
+          <>
+            <Text style={styles.oldPrice}>{originalPrice.toLocaleString('ru-RU')}</Text>
+            <Text style={styles.newPrice}>{station.price_per_kwh.toLocaleString('ru-RU')}</Text>
+            <Text style={styles.priceUnit}> сум/кВт·ч</Text>
+          </>
+        ) : (
+          <>
+            <Text style={[styles.price, { color: colors.text }]}>{station.price_per_kwh.toLocaleString('ru-RU')}</Text>
+            <Text style={[styles.priceUnit, { color: colors.mutedForeground }]}> сум/кВт·ч</Text>
+          </>
+        )}
+      </View>
+
+      {/* Savings strip — only when discount */}
+      {savingsPerKwh > 0 && (
+        <View style={styles.savingsStrip}>
+          <Feather name="tag" size={12} color="#92400E" />
+          <Text style={styles.savingsText}>
+            Экономия {savingsPerKwh.toLocaleString('ru-RU')} сум с кВт·ч
           </Text>
         </View>
       )}
 
-      {/* Footer: Donut + Маршрут button + time chip */}
-      <View style={styles.footer}>
-        {!compact && totalConnectors > 0 && (
-          <View style={styles.donutWrapper}>
-            <Svg width={28} height={28} viewBox="0 0 28 28">
-              <Circle cx={14} cy={14} r={12} stroke={colors.muted} strokeWidth={3.5} fill="none" />
-              {availableConnectors > 0 && (
-                <Circle
-                  cx={14}
-                  cy={14}
-                  r={12}
-                  stroke={statusColor}
-                  strokeWidth={3.5}
-                  fill="none"
-                  strokeDasharray={2 * Math.PI * 12}
-                  strokeDashoffset={
-                    (2 * Math.PI * 12) * (1 - availableConnectors / totalConnectors)
-                  }
-                  strokeLinecap="round"
-                  transform="rotate(-90 14 14)"
-                />
-              )}
-            </Svg>
-            <View style={styles.donutCenter}>
-              <Text style={[styles.donutText, { color: colors.text }]}>
-                {availableConnectors}/{totalConnectors}
-              </Text>
-            </View>
-          </View>
-        )}
+      {/* ── CTA: full-width route button ─────────────────────────────── */}
+      <TouchableOpacity onPress={onRoute ?? onPress} activeOpacity={0.85} style={styles.ctaWrap}>
+        <LinearGradient
+          colors={['#2563EB', '#7C3AED']}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+          style={styles.ctaBtn}
+        >
+          <Feather name="navigation" size={14} color="#fff" />
+          <Text style={styles.ctaText}>
+            Маршрут{distLabel ? `  ·  ${distLabel}` : ''}
+          </Text>
+        </LinearGradient>
+      </TouchableOpacity>
 
-        <View style={{ flex: 1 }} />
-
-        <TouchableOpacity onPress={onRoute ?? onPress} activeOpacity={0.85}>
-          <LinearGradient
-            colors={['#2563EB', '#7C3AED']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.routeBtn}
-          >
-            <Text style={styles.routeBtnText}>Маршрут</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-
-        {minutes != null && (
-          <View style={[styles.timeChip, { backgroundColor: colors.muted }]}>
-            <Text style={[styles.timeText, { color: colors.mutedForeground }]}>{minutes} мин</Text>
-          </View>
-        )}
-      </View>
+      {/* ── AMENITY chips row — full card only ───────────────────────── */}
+      {!compact && amenityList.length > 0 && (
+        <View style={styles.amenityRow}>
+          {amenityList.map((a) => {
+            const { icon, label } = amenityInfo(a);
+            return (
+              <View key={a} style={[styles.amenityChip, { backgroundColor: colors.muted }]}>
+                <Feather name={icon as any} size={10} color={colors.mutedForeground} />
+                <Text style={[styles.amenityText, { color: colors.mutedForeground }]}>{label}</Text>
+              </View>
+            );
+          })}
+        </View>
+      )}
     </TouchableOpacity>
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 16,
-    padding: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07,
-    shadowRadius: 10,
-    elevation: 3,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 15,
     marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+    overflow: 'hidden',
   },
+  cardCompact: {
+    // Compact for horizontal promo slider — fixed width handled by parent
+    marginBottom: 0,
+  },
+  cardPromoted: {
+    borderWidth: 1.5,
+    borderColor: '#FCD34D',
+    shadowColor: '#F59E0B',
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    elevation: 6,
+  },
+
+  // TOP BADGE
+  topBadgeWrap: {
+    marginBottom: 10,
+    alignSelf: 'flex-start',
+  },
+  topBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  topBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontFamily: 'Inter_700Bold',
+    letterSpacing: 0.5,
+  },
+
+  // DISCOUNT CORNER
+  discCornerWrap: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    zIndex: 10,
+  },
+  discCorner: {
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderBottomLeftRadius: 12,
+    borderTopRightRadius: 18,
+  },
+  discCornerText: {
+    color: '#fff',
+    fontSize: 11,
+    fontFamily: 'Inter_700Bold',
+  },
+
+  // ROW 1
   row1: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 10,
     marginBottom: 10,
   },
-  operatorCircle: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
-  operatorInitial: {
+  avatarText: {
     color: '#FFF',
     fontSize: 18,
     fontFamily: 'Inter_700Bold',
   },
-  namePart: {
+  nameBlock: {
     flex: 1,
     gap: 3,
   },
   nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
   },
   name: {
     fontSize: 15,
@@ -299,145 +361,128 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: 'Inter_400Regular',
   },
-  distancePart: {
-    alignItems: 'flex-end',
+  favBtn: {
+    padding: 4,
     flexShrink: 0,
-  },
-  distanceText: {
-    fontSize: 12,
-    fontFamily: 'Inter_500Medium',
-  },
-  row2: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 8,
-    flexWrap: 'wrap',
-  },
-  powerBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-  },
-  powerText: {
-    color: '#2563EB',
-    fontSize: 12,
-    fontFamily: 'Inter_600SemiBold',
-  },
-  availRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  availText: {
-    fontSize: 12,
-    fontFamily: 'Inter_500Medium',
-  },
-  priceBlock: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  oldPrice: {
-    fontSize: 11,
-    fontFamily: 'Inter_400Regular',
-    textDecorationLine: 'line-through',
-  },
-  price: {
-    fontSize: 13,
-    fontFamily: 'Inter_600SemiBold',
-  },
-  discountBadge: {
-    backgroundColor: '#FEF2F2',
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderRadius: 5,
-  },
-  discountText: {
-    color: '#EF4444',
-    fontSize: 10,
-    fontFamily: 'Inter_700Bold',
-  },
-  ratingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginBottom: 10,
-  },
-  ratingText: {
-    fontSize: 12,
-    fontFamily: 'Inter_500Medium',
-  },
-  ratingDot: {
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: '#CBD5E1',
-  },
-  priceLabel: {
-    fontSize: 12,
-    fontFamily: 'Inter_400Regular',
-  },
-  footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 4,
-  },
-  donutWrapper: {
-    width: 28,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  donutCenter: {
-    position: 'absolute',
-    inset: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  donutText: {
-    fontSize: 7,
-    fontFamily: 'Inter_700Bold',
-  },
-  routeBtn: {
-    paddingHorizontal: 18,
-    paddingVertical: 9,
-    borderRadius: 100,
-  },
-  routeBtnText: {
-    color: '#FFF',
-    fontSize: 13,
-    fontFamily: 'Inter_600SemiBold',
-  },
-  timeChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 100,
-  },
-  timeText: {
-    fontSize: 12,
-    fontFamily: 'Inter_500Medium',
   },
   demoBadge: {
     backgroundColor: '#FEF3C7',
     borderRadius: 5,
     paddingHorizontal: 5,
     paddingVertical: 1,
-    marginLeft: 5,
   },
   demoBadgeText: {
     color: '#92400E',
     fontSize: 10,
     fontFamily: 'Inter_600SemiBold',
+  },
+
+  // CHIP ROW
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 12,
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  chipDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  chipText: {
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+  },
+
+  // PRICE BLOCK
+  priceBlock: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginBottom: 10,
+    flexWrap: 'wrap',
+  },
+  oldPrice: {
+    fontSize: 13,
+    fontFamily: 'Inter_400Regular',
+    color: '#94A3B8',
+    textDecorationLine: 'line-through',
+    marginRight: 6,
+  },
+  newPrice: {
+    fontSize: 22,
+    fontFamily: 'Inter_700Bold',
+    color: '#10B981',
+  },
+  price: {
+    fontSize: 20,
+    fontFamily: 'Inter_700Bold',
+  },
+  priceUnit: {
+    fontSize: 12,
+    fontFamily: 'Inter_400Regular',
+    color: '#94A3B8',
+  },
+
+  // SAVINGS STRIP
+  savingsStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginBottom: 12,
+  },
+  savingsText: {
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#92400E',
+  },
+
+  // CTA
+  ctaWrap: {
+    marginBottom: 10,
+  },
+  ctaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  ctaText: {
+    color: '#fff',
+    fontSize: 14,
+    fontFamily: 'Inter_600SemiBold',
+  },
+
+  // AMENITY ROW
+  amenityRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 2,
+  },
+  amenityChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  amenityText: {
+    fontSize: 11,
+    fontFamily: 'Inter_500Medium',
   },
 });

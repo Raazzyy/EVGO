@@ -22,8 +22,19 @@ import { HotDealBanner } from '@/components/HotDealBanner';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-const SHEET_MIN = 190;
-const SHEET_MAX = SCREEN_HEIGHT * 0.65;
+
+// ── 3-snap system ──────────────────────────────────────────────────────────
+const SHEET_MIN  = 190;                        // collapsed
+const SHEET_MID  = SCREEN_HEIGHT * 0.42;       // half-open
+const SHEET_MAX  = SCREEN_HEIGHT * 0.68;       // fully open
+const SNAPS      = [SHEET_MIN, SHEET_MID, SHEET_MAX];
+
+function snapNearest(value: number): number {
+  return SNAPS.reduce((prev, cur) =>
+    Math.abs(cur - value) < Math.abs(prev - value) ? cur : prev
+  );
+}
+
 const IOS_EASE = Easing.bezier(0.25, 0.46, 0.45, 0.94);
 const STATUS_ORDER: Record<string, number> = { free: 0, occupied: 1, offline: 2 };
 type FilterStatus = 'all' | 'my-cars' | 'ac' | 'dc' | 'free';
@@ -45,29 +56,44 @@ export default function MapScreen() {
   const [filtersVisible, setFiltersVisible] = useState(false);
   const [activeFilters, setActiveFilters] = useState<FiltersState>(DEFAULT_FILTERS);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [isExpanded, setIsExpanded] = useState(false); // state not ref → triggers re-renders
+
+  // Track current snap level as a ref (no re-render needed)
+  const snapLevel = useRef<0 | 1 | 2>(0); // 0=min, 1=mid, 2=max
+
   const [selectedStationId, setSelectedStationId] = useState<number | null>(null);
   const [markerPos, setMarkerPos] = useState<{ x: number; y: number } | null>(null);
 
-  // Sheet animation — smooth iOS timing
+  // Sheet animation
   const sheetHeight = useSharedValue(SHEET_MIN);
   const sheetStyle = useAnimatedStyle(() => ({ height: sheetHeight.value }));
 
-  function openSheet() {
-    setIsExpanded(true);
-    sheetHeight.value = withTiming(SHEET_MAX, { duration: 380, easing: IOS_EASE });
-  }
-  function closeSheet() {
-    setIsExpanded(false);
-    sheetHeight.value = withTiming(SHEET_MIN, { duration: 320, easing: IOS_EASE });
+  function animateTo(target: number, dur = 350) {
+    sheetHeight.value = withTiming(target, { duration: dur, easing: IOS_EASE });
   }
 
-  // Swipe gesture
+  function openSheet() {
+    snapLevel.current = 2;
+    animateTo(SHEET_MAX);
+  }
+  function closeSheet() {
+    snapLevel.current = 0;
+    animateTo(SHEET_MIN, 300);
+  }
+  function snapTo(level: 0 | 1 | 2) {
+    snapLevel.current = level;
+    animateTo(SNAPS[level]);
+  }
+
+  // ── Pan gesture on handle area only ─────────────────────────────────────
+  // ScrollView handles its own scroll — PanResponder only activates on clearly
+  // vertical gestures and only from the handle zone (passed via panHandlers).
   const gestureStart = useRef(SHEET_MIN);
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dy) > 6,
+      // Only claim gesture if clearly more vertical than horizontal
+      onMoveShouldSetPanResponder: (_, gs) =>
+        Math.abs(gs.dy) > 6 && Math.abs(gs.dy) > Math.abs(gs.dx) * 1.5,
       onPanResponderGrant: () => {
         gestureStart.current = sheetHeight.value as number;
       },
@@ -76,8 +102,14 @@ export default function MapScreen() {
         sheetHeight.value = next;
       },
       onPanResponderRelease: (_, gs) => {
-        if (gs.dy < -50 || sheetHeight.value > (SHEET_MIN + SHEET_MAX) / 2) openSheet();
-        else closeSheet();
+        const current = sheetHeight.value as number;
+        // Velocity-based snap: fast flick up/down → jump to max/min
+        if (gs.vy < -0.5) { snapTo(2); return; }
+        if (gs.vy >  0.5) { snapTo(0); return; }
+        // Otherwise snap to nearest
+        const nearest = snapNearest(current);
+        const level = SNAPS.indexOf(nearest) as 0 | 1 | 2;
+        snapTo(level);
       },
     })
   ).current;
@@ -150,7 +182,6 @@ export default function MapScreen() {
     power_kw: s.power_kw, price_per_kwh: s.price_per_kwh,
   })), [filteredStations]);
 
-  // Quick view: first tap → open popup, second tap on same pin → full page
   const handleStationPress = useCallback((id: number) => {
     if (selectedStationId === id) {
       setSelectedStationId(null);
@@ -161,29 +192,24 @@ export default function MapScreen() {
     }
   }, [selectedStationId, router]);
 
-  // Find full station data (search both lists so filters don't lose it)
   const selectedStation = useMemo<QuickViewStation | null>(() => {
     if (selectedStationId == null) return null;
     return [...allStations, ...promotedFromApi].find(s => s.id === selectedStationId) as QuickViewStation ?? null;
   }, [selectedStationId, allStations, promotedFromApi]);
 
-  // Keep a ref so handleRegionChange doesn't capture a stale selectedStation
   const selectedStationRef = useRef(selectedStation);
   selectedStationRef.current = selectedStation;
 
-  // Compute pixel coords of the selected marker (called on select + every map move)
   const computeMarkerPos = useCallback(async (lat: number, lng: number) => {
     const pos = await mapRef.current?.projectPoint(lat, lng);
     if (pos) setMarkerPos(pos);
   }, []);
 
-  // Recompute when the selected station changes
   useEffect(() => {
     if (!selectedStation) { setMarkerPos(null); return; }
     computeMarkerPos(selectedStation.lat, selectedStation.lng);
   }, [selectedStation?.id]);
 
-  // Recompute every time the map moves / zooms (throttled inside MapViewWrapper)
   const handleRegionChange = useCallback(() => {
     const s = selectedStationRef.current;
     if (!s) return;
@@ -198,7 +224,10 @@ export default function MapScreen() {
   const routeFor = (s: any) =>
     `/route/new?stationId=${s.id}&stationName=${encodeURIComponent(s.name)}&lat=${s.lat}&lng=${s.lng}` as any;
 
-  // ── TOP BAR ────────────────────────────────────────────────────────────
+  // Helper: is the sheet at least half-open?
+  const isOpen = snapLevel.current >= 1;
+
+  // ── TOP BAR ──────────────────────────────────────────────────────────────
   const TopBar = (
     <View style={[styles.topBar, { top: topOffset + 8 }]}>
       <Text style={[styles.logo, { color: colors.primary }]}>iON</Text>
@@ -224,7 +253,7 @@ export default function MapScreen() {
     </View>
   );
 
-  // ── FILTER CHIPS (filter icon first) ──────────────────────────────────
+  // ── FILTER CHIPS ──────────────────────────────────────────────────────────
   const FilterChips = (
     <ScrollView
       horizontal showsHorizontalScrollIndicator={false}
@@ -239,7 +268,6 @@ export default function MapScreen() {
         <Feather name="sliders" size={14} color={hasActiveFilters ? '#fff' : colors.text} style={{ position: 'relative', zIndex: 1 }} />
         <Text style={[styles.filterText, { color: hasActiveFilters ? '#fff' : colors.text }]}>Фильтры{hasActiveFilters ? ' ●' : ''}</Text>
       </TouchableOpacity>
-
       {([
         { id: 'all', label: 'Все' }, { id: 'free', label: 'Свободные' },
         { id: 'my-cars', label: 'Мои машины' }, { id: 'ac', label: 'AC' }, { id: 'dc', label: 'DC' },
@@ -259,7 +287,7 @@ export default function MapScreen() {
     </ScrollView>
   );
 
-  // ── LIST VIEW ──────────────────────────────────────────────────────────
+  // ── LIST VIEW ─────────────────────────────────────────────────────────────
   if (viewMode === 'list') {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, paddingTop: topOffset }]}>
@@ -279,6 +307,7 @@ export default function MapScreen() {
         <ScrollView
           contentContainerStyle={{ padding: 16, paddingTop: 56, paddingBottom: bottomPad }}
           showsVerticalScrollIndicator={false}
+          nestedScrollEnabled
         >
           {filteredStations.map((s, i) => (
             <Animated.View
@@ -286,7 +315,14 @@ export default function MapScreen() {
               entering={FadeInDown.delay(i * 35).duration(300).easing(IOS_EASE)}
               layout={Layout.duration(250).easing(IOS_EASE)}
             >
-              <StationCard station={s} onPress={() => router.push(`/station/${s.id}`)} onRoute={() => router.push(routeFor(s))} />
+              <StationCard
+                station={s}
+                onPress={() => router.push(`/station/${s.id}`)}
+                onRoute={() => router.push(routeFor(s))}
+                discount_pct={(s as any).discount_pct}
+                is_promoted={(s as any).is_promoted}
+                amenities={(s as any).amenities}
+              />
             </Animated.View>
           ))}
         </ScrollView>
@@ -295,7 +331,7 @@ export default function MapScreen() {
     );
   }
 
-  // ── MAP VIEW ───────────────────────────────────────────────────────────
+  // ── MAP VIEW ──────────────────────────────────────────────────────────────
   return (
     <View style={styles.container}>
       <MapViewWrapper
@@ -307,86 +343,120 @@ export default function MapScreen() {
       {TopBar}
       {FilterChips}
 
-      {/* Bottom sheet with swipe */}
+      {/* Bottom sheet */}
       <Animated.View style={[styles.sheet, { backgroundColor: colors.card }, sheetStyle]}>
-        <View style={styles.handleArea} {...panResponder.panHandlers}>
-          <TouchableOpacity onPress={() => isExpanded ? closeSheet() : openSheet()} activeOpacity={1}>
-            <View style={[styles.handle, { backgroundColor: colors.mutedForeground, opacity: 0.3 }]} />
-          </TouchableOpacity>
-        </View>
 
+        {/* Handle area — full-width tap + drag zone (min 44px) */}
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => {
+            // Cycle through snap points on tap
+            const next = ((snapLevel.current + 1) % 3) as 0 | 1 | 2;
+            snapTo(next);
+          }}
+          style={styles.handleArea}
+          {...panResponder.panHandlers}
+        >
+          <View style={[styles.handle, { backgroundColor: colors.mutedForeground, opacity: 0.3 }]} />
+        </TouchableOpacity>
+
+        {/* Content — scroll always enabled, PanResponder only on handle */}
         <ScrollView
           style={styles.sheetScroll}
           contentContainerStyle={[styles.sheetContent, { paddingBottom: bottomPad }]}
           showsVerticalScrollIndicator={false}
-          scrollEnabled={isExpanded}
+          nestedScrollEnabled
+          // Always scrollable — no longer locked behind isExpanded
         >
-          {isExpanded ? (
-            <>
-              {/* HOT DEAL banner — first promo station with real discount */}
-              {(() => {
-                const hot = (promotedStations as any[]).find(s => s.discount_pct > 0 && s.promo_ends_at);
-                if (!hot) return null;
-                return (
-                  <HotDealBanner
-                    station={hot}
-                    onPress={() => router.push(`/station/${hot.id}`)}
-                    onRoute={() => router.push(routeFor(hot))}
-                  />
-                );
-              })()}
+          {/* HOT DEAL banner */}
+          {(() => {
+            const hot = (promotedStations as any[]).find(s => s.discount_pct > 0 && s.promo_ends_at);
+            if (!hot) return null;
+            return (
+              <HotDealBanner
+                station={hot}
+                onPress={() => router.push(`/station/${hot.id}`)}
+                onRoute={() => router.push(routeFor(hot))}
+              />
+            );
+          })()}
 
-              {promotedStations.length > 0 && (
-                <>
-                  <View style={styles.sectionHeader}>
-                    <Text style={[styles.sectionTitle, { color: colors.text }]}>Рекомендуем</Text>
-                    <View style={[styles.adBadge, { backgroundColor: colors.muted }]}>
-                      <Text style={[styles.adBadgeText, { color: colors.mutedForeground }]}>Реклама</Text>
-                    </View>
-                  </View>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.promoScroll}>
-                    {promotedStations.map((s, i) => (
-                      <Animated.View key={s.id} entering={FadeInRight.delay(i * 50).duration(280).easing(IOS_EASE)} style={{ width: 280, marginRight: 12 }}>
-                        <StationCard station={s} onPress={() => router.push(`/station/${s.id}`)} onRoute={() => router.push(routeFor(s))}
-                          compact={true} discount_pct={(s as any).discount_pct} is_promoted={true} amenities={(s as any).amenities} />
-                      </Animated.View>
-                    ))}
-                  </ScrollView>
-                </>
-              )}
-              <Text style={[styles.sectionTitle, { color: colors.text, marginTop: 16, marginBottom: 12 }]}>
-                {activeChip === 'free' ? 'Свободные станции' : activeChip === 'ac' ? 'AC станции' : activeChip === 'dc' ? 'DC станции' : 'Рядом с вами'}
-              </Text>
-              {filteredStations.map((s, i) => (
-                <Animated.View key={s.id} entering={FadeInDown.delay(i * 30).duration(280).easing(IOS_EASE)} layout={Layout.duration(220).easing(IOS_EASE)}>
-                  <StationCard station={s} onPress={() => router.push(`/station/${s.id}`)} onRoute={() => router.push(routeFor(s))} discount_pct={(s as any).discount_pct} />
-                </Animated.View>
-              ))}
+          {/* Promo slider — pagingEnabled so cards snap one-by-one */}
+          {promotedStations.length > 0 && (
+            <>
+              <View style={styles.sectionHeader}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Рекомендуем</Text>
+                <View style={[styles.adBadge, { backgroundColor: colors.muted }]}>
+                  <Text style={[styles.adBadgeText, { color: colors.mutedForeground }]}>Реклама</Text>
+                </View>
+              </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.promoScroll}
+                // Snap cards one at a time; card width 280 + 12 gap = 292
+                snapToInterval={292}
+                decelerationRate="fast"
+                disableIntervalMomentum
+              >
+                {promotedStations.map((s, i) => (
+                  <Animated.View key={s.id} entering={FadeInRight.delay(i * 50).duration(280).easing(IOS_EASE)} style={styles.promoCard}>
+                    <StationCard
+                      station={s}
+                      onPress={() => router.push(`/station/${s.id}`)}
+                      onRoute={() => router.push(routeFor(s))}
+                      compact
+                      discount_pct={(s as any).discount_pct}
+                      is_promoted
+                      amenities={(s as any).amenities}
+                    />
+                  </Animated.View>
+                ))}
+              </ScrollView>
             </>
+          )}
+
+          <Text style={[styles.sectionTitle, { color: colors.text, marginTop: 16, marginBottom: 12 }]}>
+            {activeChip === 'free' ? 'Свободные станции' : activeChip === 'ac' ? 'AC станции' : activeChip === 'dc' ? 'DC станции' : 'Рядом с вами'}
+          </Text>
+
+          {/* Collapsed: show first station + "show more" tap */}
+          {snapLevel.current === 0 && filteredStations.length > 0 ? (
+            <Animated.View entering={FadeInDown.duration(280).easing(IOS_EASE)}>
+              <StationCard
+                station={filteredStations[0]}
+                onPress={() => router.push(`/station/${filteredStations[0].id}`)}
+                onRoute={() => router.push(routeFor(filteredStations[0]))}
+                discount_pct={(filteredStations[0] as any).discount_pct}
+                is_promoted={(filteredStations[0] as any).is_promoted}
+              />
+              {filteredStations.length > 1 && (
+                <TouchableOpacity onPress={() => snapTo(1)} style={styles.showMoreBtn}>
+                  <Text style={[styles.showMoreText, { color: colors.primary }]}>
+                    + ещё {filteredStations.length - 1} станций
+                  </Text>
+                  <Feather name="chevron-up" size={14} color={colors.primary} />
+                </TouchableOpacity>
+              )}
+            </Animated.View>
           ) : (
-            // Collapsed: show ALL stations in a scroll, not just first one
-            filteredStations.length > 0 && (
-              <Animated.View entering={FadeInDown.duration(280).easing(IOS_EASE)}>
+            filteredStations.map((s, i) => (
+              <Animated.View key={s.id} entering={FadeInDown.delay(i * 30).duration(280).easing(IOS_EASE)} layout={Layout.duration(220).easing(IOS_EASE)}>
                 <StationCard
-                  station={filteredStations[0]}
-                  onPress={() => router.push(`/station/${filteredStations[0].id}`)}
-                  onRoute={() => router.push(routeFor(filteredStations[0]))}
+                  station={s}
+                  onPress={() => router.push(`/station/${s.id}`)}
+                  onRoute={() => router.push(routeFor(s))}
+                  discount_pct={(s as any).discount_pct}
+                  is_promoted={(s as any).is_promoted}
+                  amenities={(s as any).amenities}
                 />
-                {filteredStations.length > 1 && (
-                  <TouchableOpacity onPress={openSheet} style={styles.showMoreBtn}>
-                    <Text style={[styles.showMoreText, { color: colors.primary }]}>
-                      + ещё {filteredStations.length - 1} станций
-                    </Text>
-                    <Feather name="chevron-up" size={14} color={colors.primary} />
-                  </TouchableOpacity>
-                )}
               </Animated.View>
-            )
+            ))
           )}
         </ScrollView>
       </Animated.View>
 
-      {/* Map controls — after sheet in DOM */}
+      {/* Map controls */}
       <View style={styles.mapControls} pointerEvents="box-none">
         <TouchableOpacity style={styles.mapBtn} onPress={() => mapRef.current?.locate()} activeOpacity={0.8}>
           <Feather name="navigation" size={18} color="#1E293B" />
@@ -404,7 +474,6 @@ export default function MapScreen() {
 
       <FiltersSheet visible={filtersVisible} onClose={() => setFiltersVisible(false)} onApply={(f) => setActiveFilters(f)} />
 
-      {/* Station quick-view modal — tap pin once to open, tap again or header to open full page */}
       {selectedStation && (
         <StationQuickView
           station={selectedStation}
@@ -448,16 +517,26 @@ const styles = StyleSheet.create({
   searchWrap: { paddingHorizontal: 16, marginBottom: 8 },
   searchInput: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, borderWidth: 1 },
   searchText: { flex: 1, fontSize: 15, fontFamily: 'Inter_400Regular' },
-  sheet: { position: 'absolute', bottom: 0, left: 0, right: 0, borderTopLeftRadius: 24, borderTopRightRadius: 24, shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.1, shadowRadius: 16, elevation: 20 },
-  handleArea: { alignItems: 'center', paddingTop: 12, paddingBottom: 8, width: '100%' },
-  handle: { width: 36, height: 4, borderRadius: 2 },
+  sheet: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.12, shadowRadius: 20, elevation: 20,
+  },
+  handleArea: {
+    alignItems: 'center',
+    paddingTop: 12, paddingBottom: 12,
+    width: '100%',
+    minHeight: 44,  // accessible tap target
+  },
+  handle: { width: 40, height: 4, borderRadius: 2 },
   sheetScroll: { flex: 1 },
   sheetContent: { paddingHorizontal: 16, paddingTop: 4 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
   sectionTitle: { fontSize: 18, fontFamily: 'Inter_700Bold' },
   adBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   adBadgeText: { fontSize: 10, fontFamily: 'Inter_600SemiBold' },
-  promoScroll: { paddingBottom: 4 },
+  promoScroll: { paddingBottom: 8 },
+  promoCard: { width: 280, marginRight: 12 },
   showMoreBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12 },
   showMoreText: { fontSize: 14, fontFamily: 'Inter_500Medium' },
   mapControls: { position: 'absolute', right: 12, bottom: SHEET_MIN + 16, alignItems: 'center', gap: 10, zIndex: 30 },
