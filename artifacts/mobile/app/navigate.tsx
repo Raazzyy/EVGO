@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
+import * as Location from 'expo-location';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -7,6 +8,18 @@ import { useColors } from '@/hooks/useColors';
 import { useApp } from '@/contexts/AppContext';
 import { useGetRoute } from '@workspace/api-client-react';
 import { MapViewWrapper } from '@/components/MapViewWrapper';
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6_371_000;
+  const toRad = (x: number) => (x * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 function formatTime(totalMin: number) {
   const h = Math.floor(totalMin / 60), m = totalMin % 60;
@@ -18,6 +31,19 @@ function arrivalTime(totalMin: number) {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+function maneuverIcon(maneuver: string): string {
+  if (!maneuver || maneuver === 'straight' || maneuver === 'merge' ||
+      maneuver === 'keep-right' || maneuver === 'keep-left') return 'arrow-up';
+  if (maneuver.includes('left')) return 'corner-down-left';
+  if (maneuver.includes('right')) return 'corner-down-right';
+  if (maneuver.startsWith('uturn')) return 'rotate-cw';
+  if (maneuver === 'ferry' || maneuver === 'ferry-train') return 'anchor';
+  return 'arrow-up';
+}
+
+const STEP_ADVANCE_M = 40; // metres from step end_location → advance
+
+// ── Screen ────────────────────────────────────────────────────────────────
 export default function NavigateScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -31,41 +57,98 @@ export default function NavigateScreen() {
   const topPad = Platform.OS === 'web' ? 20 : insets.top;
   const bottomPad = Platform.OS === 'web' ? 34 : insets.bottom;
 
-  // Build semantic waypoints for the map
+  // ── Navigation state ───────────────────────────────────────────────────
+  const [currentStepIdx, setCurrentStepIdx] = useState(0);
+  const [speedKmh, setSpeedKmh] = useState(0);
+
+  // Refs so location callback always reads current values without stale closure
+  const stepIdxRef = useRef(0);
+  const googleStepsRef = useRef<any[]>([]);
+  const locationSubRef = useRef<Location.LocationSubscription | null>(null);
+
+  // Keep refs in sync
+  useEffect(() => { stepIdxRef.current = currentStepIdx; }, [currentStepIdx]);
+  useEffect(() => {
+    googleStepsRef.current = (route as any)?.google_steps ?? [];
+  }, [route]);
+
+  // Reset step index when a new route loads
+  useEffect(() => {
+    setCurrentStepIdx(0);
+    stepIdxRef.current = 0;
+  }, [activeRouteId]);
+
+  // ── GPS watch ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (Platform.OS === 'web') return; // expo-location watch works on native
+    let cancelled = false;
+
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted' || cancelled) return;
+
+      locationSubRef.current = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.BestForNavigation,
+          timeInterval: 1_000,   // 1 second
+          distanceInterval: 10,  // or 10 metres, whichever comes first
+        },
+        (loc) => {
+          const { latitude: lat, longitude: lng, speed } = loc.coords;
+
+          // Live speed (m/s → km/h; negative/null → 0)
+          setSpeedKmh(speed != null && speed >= 0 ? Math.round(speed * 3.6) : 0);
+
+          // Step advance logic
+          const idx = stepIdxRef.current;
+          const gSteps = googleStepsRef.current;
+          if (idx >= gSteps.length) return;
+
+          const curStep = gSteps[idx];
+          const distToEnd = haversineM(lat, lng, curStep.end_lat, curStep.end_lng);
+
+          if (distToEnd < STEP_ADVANCE_M && idx < gSteps.length - 1) {
+            const next = idx + 1;
+            stepIdxRef.current = next;
+            setCurrentStepIdx(next);
+          }
+        },
+      );
+    })();
+
+    return () => {
+      cancelled = true;
+      locationSubRef.current?.remove();
+      locationSubRef.current = null;
+    };
+  }, []); // mount once; refs carry fresh values
+
+  // ── Derived data ───────────────────────────────────────────────────────
   const routePoints = useMemo(() => {
     if (!route) return undefined;
     const stops: any[] = (route as any).stops ?? [];
     return [
-      { lat: (route as any).origin_lat, lng: (route as any).origin_lng, label: (route as any).origin?.split(',')[0] ?? 'Начало', type: 'origin' as const },
+      { lat: (route as any).origin_lat, lng: (route as any).origin_lng,
+        label: (route as any).origin?.split(',')[0] ?? 'Начало', type: 'origin' as const },
       ...stops.filter((s: any) => s.lat && s.lng).map((s: any) => ({
         lat: s.lat, lng: s.lng, label: s.station_name, type: 'stop' as const,
       })),
-      { lat: (route as any).dest_lat, lng: (route as any).dest_lng, label: (route as any).destination?.split(',')[0] ?? 'Конец', type: 'dest' as const },
+      { lat: (route as any).dest_lat, lng: (route as any).dest_lng,
+        label: (route as any).destination?.split(',')[0] ?? 'Конец', type: 'dest' as const },
     ];
   }, [route]);
 
-  // Road polyline from Yandex Router (already returned by backend)
   const polylineCoords = useMemo(() => {
     const p = (route as any)?.polyline;
     return Array.isArray(p) && p.length >= 2 ? (p as Array<[number, number]>) : undefined;
   }, [route]);
 
-  // Map Google maneuver string → Feather icon name
-  function maneuverIcon(maneuver: string): string {
-    if (!maneuver || maneuver === 'straight' || maneuver === 'merge' || maneuver === 'keep-right' || maneuver === 'keep-left') return 'arrow-up';
-    if (maneuver.includes('left')) return 'corner-down-left';
-    if (maneuver.includes('right')) return 'corner-down-right';
-    if (maneuver.startsWith('uturn')) return 'rotate-cw';
-    if (maneuver === 'ferry' || maneuver === 'ferry-train') return 'anchor';
-    return 'arrow-up';
-  }
-
-  // Real turn-by-turn steps from Google Directions; fallback to stop-list if not available
+  // Turn-by-turn steps
   const steps = useMemo(() => {
     if (!route) return [];
-    const googleSteps: any[] = (route as any).google_steps ?? [];
-    if (googleSteps.length > 0) {
-      return googleSteps.map((s: any) => ({
+    const gSteps: any[] = (route as any).google_steps ?? [];
+    if (gSteps.length > 0) {
+      return gSteps.map((s: any) => ({
         instruction: s.instruction,
         street: s.distance_m >= 1000
           ? `${(s.distance_m / 1000).toFixed(1)} км`
@@ -81,7 +164,7 @@ export default function NavigateScreen() {
     }
     return [
       { instruction: 'Следуйте до зарядной станции', street: stops[0].station_name, icon: 'arrow-up' },
-      ...stops.slice(0, -1).map((s: any, i: number) => ({
+      ...stops.slice(0, -1).map((_s: any, i: number) => ({
         instruction: 'После зарядки следуйте далее',
         street: stops[i + 1].station_name,
         icon: 'arrow-up',
@@ -90,15 +173,36 @@ export default function NavigateScreen() {
     ];
   }, [route]);
 
-  const [currentStepIdx, setCurrentStepIdx] = useState(0); // Stage B: advance via GPS
+  // Remaining distance & time from current step onwards (live)
+  const { remDistKm, remTimeMin } = useMemo(() => {
+    const gSteps: any[] = (route as any)?.google_steps ?? [];
+    if (gSteps.length === 0) {
+      return {
+        remDistKm: Math.round((route as any)?.total_distance_km ?? 0),
+        remTimeMin: (route as any)?.total_time_min ?? 0,
+      };
+    }
+    let distM = 0, durS = 0;
+    for (let i = currentStepIdx; i < gSteps.length; i++) {
+      distM += gSteps[i].distance_m ?? 0;
+      durS += gSteps[i].duration_s ?? 0;
+    }
+    return {
+      remDistKm: Math.round(distM / 1000),
+      remTimeMin: Math.round(durS / 60),
+    };
+  }, [route, currentStepIdx]);
+
   const step = steps[currentStepIdx] ?? steps[0];
 
   function handleEnd() {
+    locationSubRef.current?.remove();
+    locationSubRef.current = null;
     setActiveRouteId(null);
     router.back();
   }
 
-  // ── Loading state ─────────────────────────────────────────────────────
+  // ── Loading ────────────────────────────────────────────────────────────
   if (isLoading || !route) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -106,20 +210,19 @@ export default function NavigateScreen() {
         <View style={[styles.topOverlay, { paddingTop: topPad + 16 }]}>
           <View style={[styles.instructionCard, { backgroundColor: colors.card }]}>
             <ActivityIndicator color={colors.primary} />
-            <Text style={[styles.action, { color: colors.text, marginLeft: 12 }]}>Загрузка маршрута…</Text>
+            <Text style={[styles.action, { color: colors.text, marginLeft: 12 }]}>
+              Загрузка маршрута…
+            </Text>
           </View>
         </View>
       </View>
     );
   }
 
-  const distKm = Math.round((route as any).total_distance_km ?? 0);
-  const timeMin = (route as any).total_time_min ?? 0;
-  const eta = arrivalTime(timeMin);
-
+  // ── Render ─────────────────────────────────────────────────────────────
   return (
     <View style={styles.container}>
-      {/* Full-screen map with real route polyline */}
+      {/* Full-screen map */}
       <MapViewWrapper
         stations={[]}
         onStationPress={() => {}}
@@ -134,32 +237,50 @@ export default function NavigateScreen() {
             <Feather name={step?.icon as any} size={24} color="#FFFFFF" />
           </View>
           <View style={styles.instructionText}>
-            <Text style={[styles.action, { color: colors.text }]}>{step?.instruction}</Text>
+            <Text style={[styles.action, { color: colors.text }]} numberOfLines={2}>
+              {step?.instruction}
+            </Text>
             <Text style={[styles.street, { color: colors.mutedForeground }]} numberOfLines={1}>
               {step?.street}
             </Text>
           </View>
+          {/* Step counter badge */}
+          {steps.length > 1 && (
+            <View style={[styles.stepBadge, { backgroundColor: colors.border }]}>
+              <Text style={[styles.stepBadgeText, { color: colors.mutedForeground }]}>
+                {currentStepIdx + 1}/{steps.length}
+              </Text>
+            </View>
+          )}
         </View>
       </View>
 
       {/* Bottom stats + end button */}
       <View style={[styles.bottomBar, { backgroundColor: colors.card, paddingBottom: bottomPad + 16 }]}>
         <View style={styles.statsRow}>
+          {/* Arrival time */}
           <View style={styles.statCol}>
-            <Text style={[styles.statValue, { color: colors.text }]}>{eta}</Text>
+            <Text style={[styles.statValue, { color: colors.text }]}>{arrivalTime(remTimeMin)}</Text>
             <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>прибытие</Text>
           </View>
           <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
+          {/* Live speed */}
           <View style={styles.statCol}>
-            <Text style={[styles.statValue, { color: colors.text }]}>{formatTime(timeMin)}</Text>
-            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>в пути</Text>
+            <Text style={[styles.statValue, { color: colors.text }]}>{speedKmh}</Text>
+            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>км/ч</Text>
           </View>
           <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
+          {/* Remaining distance */}
           <View style={styles.statCol}>
-            <Text style={[styles.statValue, { color: colors.text }]}>{distKm} км</Text>
-            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>расстояние</Text>
+            <Text style={[styles.statValue, { color: colors.text }]}>{remDistKm} км</Text>
+            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>осталось</Text>
           </View>
         </View>
+
+        {/* Remaining time label */}
+        <Text style={[styles.remTime, { color: colors.mutedForeground }]}>
+          {formatTime(remTimeMin)} в пути
+        </Text>
 
         <TouchableOpacity
           style={[styles.endButton, { borderColor: '#EF4444' }]}
@@ -180,32 +301,39 @@ const styles = StyleSheet.create({
   },
   instructionCard: {
     flexDirection: 'row', alignItems: 'center',
-    padding: 16, borderRadius: 16, gap: 16,
+    padding: 16, borderRadius: 16, gap: 12,
     shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1, shadowRadius: 12, elevation: 5,
   },
   directionIcon: {
     width: 48, height: 48, borderRadius: 24,
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
   instructionText: { flex: 1 },
-  action: { fontSize: 16, fontFamily: 'Inter_600SemiBold', marginTop: 2 },
-  street: { fontSize: 14, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  action: { fontSize: 15, fontFamily: 'Inter_600SemiBold', marginTop: 2 },
+  street: { fontSize: 13, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  stepBadge: {
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10, flexShrink: 0,
+  },
+  stepBadgeText: { fontSize: 12, fontFamily: 'Inter_500Medium' },
   bottomBar: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    paddingTop: 24, paddingHorizontal: 20,
+    paddingTop: 20, paddingHorizontal: 20,
     shadowColor: '#000', shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.08, shadowRadius: 12, elevation: 10,
   },
   statsRow: {
     flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between', marginBottom: 24,
+    justifyContent: 'space-between', marginBottom: 8,
   },
   statCol: { flex: 1, alignItems: 'center' },
   statValue: { fontSize: 22, fontFamily: 'Inter_700Bold' },
-  statLabel: { fontSize: 12, fontFamily: 'Inter_500Medium', marginTop: 4, textTransform: 'uppercase' },
+  statLabel: { fontSize: 11, fontFamily: 'Inter_500Medium', marginTop: 4, textTransform: 'uppercase' },
   statDivider: { width: 1, height: 32 },
+  remTime: {
+    textAlign: 'center', fontSize: 13, fontFamily: 'Inter_400Regular', marginBottom: 20,
+  },
   endButton: {
     borderWidth: 1, borderRadius: 14,
     paddingVertical: 16, alignItems: 'center', justifyContent: 'center',
