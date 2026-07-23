@@ -24,7 +24,7 @@ import {
 } from '@workspace/api-client-react';
 import { useColors } from '@/hooks/useColors';
 import { useApp } from '@/contexts/AppContext';
-import { ConnectorBadge } from '@/components/ConnectorBadge';
+import { ConnectorBadge, ConnectorIcon } from '@/components/ConnectorBadge';
 import { GradientButton } from '@/components/GradientButton';
 
 interface Connector {
@@ -219,6 +219,7 @@ export default function StationDetailScreen() {
                 else if (a === 'shop') { iconName = 'shopping-bag'; label = 'Магазин'; }
                 else if (a === 'wifi') { iconName = 'wifi'; label = 'Wi-Fi'; }
                 else if (a === 'lounge') { iconName = 'star'; label = 'Зона отдыха'; }
+                else if (a === 'parking') { iconName = 'map-pin'; label = 'Парковка'; }
                 else if (a === '24/7') { iconName = 'clock'; label = '24/7'; }
 
                 return (
@@ -258,7 +259,14 @@ export default function StationDetailScreen() {
                       ]}
                     >
                       <View style={styles.connectorInfoLeft}>
-                        <Text style={[styles.connectorTypeName, { color: colors.text }]}>{c.type}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <ConnectorIcon
+                            type={c.type}
+                            size={17}
+                            color={isSelected ? colors.primary : colors.text}
+                          />
+                          <Text style={[styles.connectorTypeName, { color: colors.text }]}>{c.type}</Text>
+                        </View>
                         <Text style={[styles.connectorAvailText, { color: '#10B981' }]}>
                           {c.available}/{c.total}
                         </Text>
