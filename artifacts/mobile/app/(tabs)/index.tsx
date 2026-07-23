@@ -37,6 +37,17 @@ function snapNearest(value: number): number {
 
 const IOS_EASE = Easing.bezier(0.25, 0.46, 0.45, 0.94);
 const STATUS_ORDER: Record<string, number> = { free: 0, occupied: 1, offline: 2 };
+const COLLAPSED_LIMIT = 15; // stations shown without expanding
+
+// Haversine distance in km
+function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 type FilterStatus = 'all' | 'my-cars' | 'ac' | 'dc' | 'free';
 
 const DEFAULT_FILTERS: FiltersState = {
@@ -165,11 +176,24 @@ export default function MapScreen() {
     }
     r = applyChipFilter(r);
     r = applySheetFilter(r);
-    return [...r].sort((a, b) => {
+
+    // Attach distance_km when we have user location
+    const withDist = r.map(s => ({
+      ...s,
+      distance_km: userLocation
+        ? haversine(userLocation.lat, userLocation.lng, s.lat, s.lng)
+        : (s.distance_km ?? null),
+    }));
+
+    // Sort: by distance (nearest first) if location known, else status → name
+    return withDist.sort((a, b) => {
+      if (userLocation && a.distance_km != null && b.distance_km != null) {
+        return a.distance_km - b.distance_km;
+      }
       const d = (STATUS_ORDER[a.status] ?? 3) - (STATUS_ORDER[b.status] ?? 3);
       return d !== 0 ? d : a.name.localeCompare(b.name, 'ru');
     });
-  }, [allStations, search, applyChipFilter, applySheetFilter]);
+  }, [allStations, search, applyChipFilter, applySheetFilter, userLocation]);
 
   const promotedStations = useMemo(() => {
     if (!search.trim()) return promotedFromApi;
@@ -440,38 +464,26 @@ export default function MapScreen() {
             {activeChip === 'free' ? 'Свободные станции' : activeChip === 'ac' ? 'AC станции' : activeChip === 'dc' ? 'DC станции' : 'Рядом с вами'}
           </Text>
 
-          {/* Collapsed: show first station + "show more" tap */}
-          {snapLevel.current === 0 && filteredStations.length > 0 ? (
-            <Animated.View entering={FadeInDown.duration(280).easing(IOS_EASE)}>
+          {/* Show first COLLAPSED_LIMIT stations; "show more" if there are extras */}
+          {filteredStations.slice(0, COLLAPSED_LIMIT).map((s, i) => (
+            <Animated.View key={s.id} entering={FadeInDown.delay(i * 25).duration(280).easing(IOS_EASE)} layout={Layout.duration(220).easing(IOS_EASE)}>
               <StationCard
-                station={filteredStations[0]}
-                onPress={() => router.push(`/station/${filteredStations[0].id}`)}
-                onRoute={() => router.push(routeFor(filteredStations[0]))}
-                discount_pct={(filteredStations[0] as any).discount_pct}
-                is_promoted={(filteredStations[0] as any).is_promoted}
+                station={s}
+                onPress={() => router.push(`/station/${s.id}`)}
+                onRoute={() => router.push(routeFor(s))}
+                discount_pct={(s as any).discount_pct}
+                is_promoted={(s as any).is_promoted}
+                amenities={(s as any).amenities}
               />
-              {filteredStations.length > 1 && (
-                <TouchableOpacity onPress={() => snapTo(1)} style={styles.showMoreBtn}>
-                  <Text style={[styles.showMoreText, { color: colors.primary }]}>
-                    + ещё {filteredStations.length - 1} станций
-                  </Text>
-                  <Feather name="chevron-up" size={14} color={colors.primary} />
-                </TouchableOpacity>
-              )}
             </Animated.View>
-          ) : (
-            filteredStations.map((s, i) => (
-              <Animated.View key={s.id} entering={FadeInDown.delay(i * 30).duration(280).easing(IOS_EASE)} layout={Layout.duration(220).easing(IOS_EASE)}>
-                <StationCard
-                  station={s}
-                  onPress={() => router.push(`/station/${s.id}`)}
-                  onRoute={() => router.push(routeFor(s))}
-                  discount_pct={(s as any).discount_pct}
-                  is_promoted={(s as any).is_promoted}
-                  amenities={(s as any).amenities}
-                />
-              </Animated.View>
-            ))
+          ))}
+          {filteredStations.length > COLLAPSED_LIMIT && (
+            <TouchableOpacity onPress={() => snapTo(2)} style={styles.showMoreBtn}>
+              <Text style={[styles.showMoreText, { color: colors.primary }]}>
+                + ещё {filteredStations.length - COLLAPSED_LIMIT} станций
+              </Text>
+              <Feather name="chevron-up" size={14} color={colors.primary} />
+            </TouchableOpacity>
           )}
         </ScrollView>
       </Animated.View>

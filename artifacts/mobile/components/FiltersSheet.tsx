@@ -43,6 +43,7 @@ interface FiltersSheetProps {
 
 export function FiltersSheet({ visible, onClose, onApply }: FiltersSheetProps) {
   const colors = useColors();
+  const insets = useSafeAreaInsets();
   const { selectedVehicleId, setSelectedVehicleId } = useApp();
 
   const [filters, setFilters] = useState<FiltersState>({ ...DEFAULT_FILTERS });
@@ -139,7 +140,7 @@ export function FiltersSheet({ visible, onClose, onApply }: FiltersSheetProps) {
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={[styles.sheet, { backgroundColor: colors.card }]}>
-          <SafeAreaView style={styles.safeArea}>
+          <View style={[styles.safeArea, { paddingBottom: insets.bottom }]}>
             {/* Header */}
             <View style={[styles.header, { borderBottomColor: colors.border }]}>
               <Text style={[styles.headerTitle, { color: colors.text }]}>Фильтры</Text>
@@ -398,7 +399,7 @@ export function FiltersSheet({ visible, onClose, onApply }: FiltersSheetProps) {
                 </LinearGradient>
               </TouchableOpacity>
             </View>
-          </SafeAreaView>
+          </View>
         </View>
       </View>
     </Modal>
