@@ -150,9 +150,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Station"
+                $ref: "#/components/schemas/StationsResponse"
     post:
       operationId: createStation
       summary: Create station (admin)
@@ -471,6 +469,140 @@ paths:
               schema:
                 $ref: "#/components/schemas/Session"
 
+  /sessions/{id}/pay:
+    post:
+      operationId: paySession
+      summary: Pay for a completed session (mock MVP)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+
+  # ── Notifications ────────────────────────────────────────────
+  /notifications:
+    get:
+      operationId: getNotifications
+      summary: List notifications for a user
+      parameters:
+        - in: query
+          name: user_id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+    post:
+      operationId: createNotification
+      summary: Create a notification (admin/internal)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notification"
+
+  /notifications/{id}/read:
+    patch:
+      operationId: markNotificationRead
+      summary: Mark notification as read
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notification"
+
+  /notifications/broadcast:
+    post:
+      operationId: broadcastNotification
+      summary: Broadcast a notification to all users (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationInput"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sent:
+                    type: integer
+
+  # ── Push Tokens ───────────────────────────────────────────────
+  /push-tokens:
+    post:
+      operationId: registerPushToken
+      summary: Register a push token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PushTokenInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PushToken"
+
+  # ── Vehicles Search ───────────────────────────────────────────
+  /vehicles/search:
+    get:
+      operationId: searchVehicles
+      summary: Search vehicles via API Ninjas (cached)
+      parameters:
+        - in: query
+          name: q
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Vehicle"
+
   # ── Users ────────────────────────────────────────────────────
   /users:
     get:
@@ -765,6 +897,23 @@ components:
           format: date-time
         distance_km:
           type: ["number", "null"]
+        is_promoted:
+          type: boolean
+        discount_pct:
+          type: integer
+
+    StationsResponse:
+      type: object
+      required: [promoted, nearby]
+      properties:
+        promoted:
+          type: array
+          items:
+            $ref: "#/components/schemas/Station"
+        nearby:
+          type: array
+          items:
+            $ref: "#/components/schemas/Station"
 
     StationInput:
       type: object
@@ -959,6 +1108,8 @@ components:
           type: ["string", "null"]
         payment_method_id:
           type: ["integer", "null"]
+        progress_pct:
+          type: ["number", "null"]
 
     SessionInput:
       type: object
@@ -1051,6 +1202,72 @@ components:
           type: string
         is_default:
           type: boolean
+
+    # ── Notification ─────────────────────────────────────────
+    Notification:
+      type: object
+      required: [id, user_id, type, title, body, read, created_at]
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: string
+        type:
+          type: string
+          enum: [session_ended, discount_nearby, station_available, low_battery]
+        title:
+          type: string
+        body:
+          type: string
+        read:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    NotificationInput:
+      type: object
+      required: [user_id, type, title, body]
+      properties:
+        user_id:
+          type: string
+        type:
+          type: string
+          enum: [session_ended, discount_nearby, station_available, low_battery]
+        title:
+          type: string
+        body:
+          type: string
+
+    # ── PushToken ─────────────────────────────────────────────
+    PushToken:
+      type: object
+      required: [id, user_id, platform, token, created_at]
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: string
+        platform:
+          type: string
+          enum: [ios, android, web]
+        token:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    PushTokenInput:
+      type: object
+      required: [user_id, platform, token]
+      properties:
+        user_id:
+          type: string
+        platform:
+          type: string
+          enum: [ios, android, web]
+        token:
+          type: string
 
     # ── Admin ─────────────────────────────────────────────────
     AdminLoginInput:

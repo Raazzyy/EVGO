@@ -67,7 +67,13 @@ router.get("/stations", async (req, res): Promise<void> => {
     }
   }
 
-  res.json(result);
+  // Return {promoted, nearby} — backend owns the split
+  const promoted = result
+    .filter(s => (s as any).is_promoted === 1 || (s as any).is_promoted === true)
+    .sort((a, b) => ((b as any).discount_pct ?? 0) - ((a as any).discount_pct ?? 0));
+  const nearby = result; // all stations sorted by distance; promoted appear at natural position too
+
+  res.json({ promoted, nearby });
 });
 
 router.post("/stations", async (req, res): Promise<void> => {

@@ -27,4 +27,6 @@ export interface Station {
   updated_at?: Date;
   /** @nullable */
   distance_km?: number | null;
+  is_promoted?: boolean;
+  discount_pct?: number;
 }

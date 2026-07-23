@@ -43,53 +43,65 @@ export default function MapScreen() {
   const { data: vehicles = [] } = useGetVehicles();
   const defaultVehicle = vehicles.find((v) => v.id === selectedVehicleId) ?? vehicles[0];
 
-  // Poll every 30 seconds while screen is active
-  const { data: stations = [], isLoading } = useGetStations(undefined, {
+  // Poll every 30 seconds — backend returns {promoted, nearby}
+  const { data: stationsData, isLoading } = useGetStations(undefined, {
     query: { refetchInterval: 30_000 },
   });
 
-  const filtered = useMemo(() => {
-    let result = stations;
+  // All stations sorted by distance (includes promoted at natural position)
+  const allStations = stationsData?.nearby ?? [];
+  // Promoted list from backend, sorted by discount_pct desc
+  const promotedFromApi = stationsData?.promoted ?? [];
+
+  function applyChipFilter<T extends { status: string; connectors?: unknown }>(list: T[]): T[] {
+    let result = list;
+    if (activeChip === 'free') {
+      result = result.filter((s) => s.status === 'free');
+    } else if (activeChip === 'my-cars' && defaultVehicle?.connector_type) {
+      result = result.filter((s) => {
+        const conns: any[] = (s.connectors as any[]) ?? [];
+        return conns.some((c) => c.type === defaultVehicle.connector_type);
+      });
+    } else if (activeChip === 'ac') {
+      result = result.filter((s) => {
+        const conns: any[] = (s.connectors as any[]) ?? [];
+        return conns.some((c) => ['Type2', 'Type 2', 'AC'].includes(c.type));
+      });
+    } else if (activeChip === 'dc') {
+      result = result.filter((s) => {
+        const conns: any[] = (s.connectors as any[]) ?? [];
+        return conns.some((c) => ['CCS2', 'CHAdeMO', 'GB/T', 'DC'].includes(c.type));
+      });
+    }
+    return result;
+  }
+
+  const nearbyStations = useMemo(() => {
+    let result = allStations;
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter(
         (s) => s.name.toLowerCase().includes(q) || s.address.toLowerCase().includes(q)
       );
     }
-    if (activeChip === 'free') {
-      result = result.filter((s) => s.status === 'free');
-    } else if (activeChip === 'my-cars' && defaultVehicle?.connector_type) {
-      // Filter by connectors compatible with the user's default vehicle
-      result = result.filter((s) => {
-        const conns: any[] = (s as any).connectors ?? [];
-        return conns.some((c) => c.type === defaultVehicle.connector_type);
-      });
-    } else if (activeChip === 'ac') {
-      result = result.filter((s) => {
-        const conns: any[] = (s as any).connectors ?? [];
-        return conns.some((c) => ['Type2', 'Type 2', 'AC'].includes(c.type));
-      });
-    } else if (activeChip === 'dc') {
-      result = result.filter((s) => {
-        const conns: any[] = (s as any).connectors ?? [];
-        return conns.some((c) => ['CCS2', 'CHAdeMO', 'GB/T', 'DC'].includes(c.type));
-      });
-    }
-    return result;
-  }, [stations, search, activeChip, defaultVehicle]);
+    return applyChipFilter(result as any) as typeof result;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allStations, search, activeChip, defaultVehicle]);
 
   const promotedStations = useMemo(() => {
-    // Real promoted stations from is_promoted field, sorted by discount_pct desc
-    return filtered
-      .filter((s) => (s as any).is_promoted)
-      .sort((a, b) => ((b as any).discount_pct ?? 0) - ((a as any).discount_pct ?? 0));
-  }, [filtered]);
+    // Filter promoted by search only (chip filter applies to nearby; promoted block stays clean)
+    let result = promotedFromApi;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter(
+        (s) => s.name.toLowerCase().includes(q) || s.address.toLowerCase().includes(q)
+      );
+    }
+    return result;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [promotedFromApi, search]);
 
-  const nearbyStations = useMemo(() => {
-    return [...filtered].sort((a, b) => ((a as any).distance_km || 0) - ((b as any).distance_km || 0));
-  }, [filtered]);
-
-  const markers = filtered.map((s) => ({
+  const markers = useMemo(() => allStations.map((s) => ({
     id: s.id,
     lat: s.lat,
     lng: s.lng,
@@ -97,7 +109,7 @@ export default function MapScreen() {
     status: s.status,
     power_kw: s.power_kw,
     price_per_kwh: s.price_per_kwh,
-  }));
+  })), [allStations]);
 
   function toggleSheet() {
     const toValue = sheetExpanded ? SHEET_MIN : SHEET_MAX;

@@ -17,6 +17,8 @@ export const stationsTable = pgTable("stations", {
   price_per_kwh: real("price_per_kwh").notNull(),
   status: stationStatusEnum("status").notNull().default("free"),
   source: stationSourceEnum("source").notNull().default("mock"),
+  is_promoted: integer("is_promoted").notNull().default(0), // 0=false, 1=true
+  discount_pct: integer("discount_pct").notNull().default(0),
   amenities: json("amenities").$type<string[]>().default([]),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

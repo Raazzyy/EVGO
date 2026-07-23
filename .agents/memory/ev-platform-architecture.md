@@ -32,6 +32,31 @@ description: Key decisions and patterns for the EV charging aggregator project (
 - Active session `started_at` is seeded in the past (>20h ago) — do NOT use real elapsed time
 - Simulated timer: cap at `SIM_DURATION_S = 28*60`, tick state from 0 each mount
 - **Why:** Shows realistic charging values (25-30 min session) instead of days of fake energy
+- `progress_pct` is computed server-side in `GET /api/sessions/:id` (capped at 30 min of charging); client polls every 5s and uses server value for the ring, local tick for the timer display
+
+## Stations API Format
+- `GET /api/stations` returns `{promoted: Station[], nearby: Station[]}` — not a flat array
+- Backend owns the split; frontend never re-splits
+- `promoted` sorted by `discount_pct` desc; `nearby` = all stations sorted by distance
+- `is_promoted` stored as integer (0/1) in DB (Drizzle doesn't have boolean in pg easily); filter uses `=== 1 || === true`
+- 9 stations marked promoted in seed data (IONITY=15%, Kapital Electro=10%)
+
+## Station Detail Bug Fix
+- `useGetStation(Number(id))` with `id=undefined` passes `NaN` to the query; `NaN !== null && NaN !== undefined` so enabled=true → 404 storm
+- Fix: `enabled: !isNaN(stationId) && stationId > 0`
+
+## New Backend Endpoints
+- `GET /api/config` — returns `{yandex_maps_key, google_maps_key}` from env; used by web map
+- `GET /api/notifications?user_id=` — reads from notifications table
+- `POST /api/sessions/:id/pay` — mock payment; marks session completed
+- `GET /api/vehicles/search?q=` — proxies API Ninjas (EV_API_KEY), caches in vehicles table
+- `POST /push-tokens` and `POST /notifications/broadcast` — push infrastructure
+
+## Yandex Maps (Web)
+- MapViewWrapper.web.tsx fetches key from `GET /api/config` (backend-gated, never in client bundle)
+- If key present → loads Yandex Maps 2.1 JS API dynamically, uses Placemark + circleDotIcon
+- If key absent → falls back to Leaflet + OpenStreetMap automatically
+- Both hooks always called (React rules); only one enabled at a time via `resolved && useYandex` flag
 
 ## API Routes
 - Routes file named `routes_route.ts` (not `routes.ts`) to avoid Node module shadowing

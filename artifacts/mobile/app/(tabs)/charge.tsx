@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useGetSessions,
+  useGetSession,
   useStopSession,
   getGetSessionsQueryKey,
 } from '@workspace/api-client-react';
@@ -43,6 +44,11 @@ export default function ChargeScreen() {
 
   const { data: sessions = [] } = useGetSessions({ status: 'active', user_id: userId });
   const activeSession = sessions[0] ?? null;
+
+  // Poll session every 5 s to get server-computed progress_pct
+  const { data: sessionDetail } = useGetSession(activeSession?.id ?? 0, {
+    query: { enabled: !!activeSession, refetchInterval: 5_000 },
+  });
 
   const stopMutation = useStopSession({
     mutation: {
@@ -82,7 +88,8 @@ export default function ChargeScreen() {
 
   const liveEnergyKwh = parseFloat((simElapsedH * stationPower).toFixed(1));
   const liveCost = Math.round(liveEnergyKwh * stationPrice);
-  const batteryPct = Math.min(95, 45 + (simElapsedS / SIM_DURATION_S) * 30);
+  // Prefer server-computed progress_pct for the ring; fallback to local simulation
+  const batteryPct = (sessionDetail as any)?.progress_pct ?? Math.min(95, 45 + (simElapsedS / SIM_DURATION_S) * 30);
   const CAR_BATTERY_KWH = 77.4; // IONIQ 5 battery
   const timeToEighty = Math.max(
     -99,

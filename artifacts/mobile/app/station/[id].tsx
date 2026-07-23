@@ -42,7 +42,10 @@ export default function StationDetailScreen() {
   const [selectedConnector, setSelectedConnector] = useState<string | null>(null);
   const [isFavorite, setIsFavorite] = useState(false);
 
-  const { data: station, isLoading } = useGetStation(Number(id));
+  const stationId = id ? Number(id) : NaN;
+  const { data: station, isLoading } = useGetStation(stationId, {
+    query: { enabled: !isNaN(stationId) && stationId > 0 },
+  });
 
   const startMutation = useStartSession({
     mutation: {

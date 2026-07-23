@@ -25,4 +25,6 @@ export interface Session {
   connector_type?: string | null;
   /** @nullable */
   payment_method_id?: number | null;
+  /** @nullable */
+  progress_pct?: number | null;
 }

@@ -75,6 +75,13 @@ export interface Station {
   updated_at?: string;
   /** @nullable */
   distance_km?: number | null;
+  is_promoted?: boolean;
+  discount_pct?: number;
+}
+
+export interface StationsResponse {
+  promoted: Station[];
+  nearby: Station[];
 }
 
 export type StationInputStatus = typeof StationInputStatus[keyof typeof StationInputStatus];
@@ -250,6 +257,8 @@ export interface Session {
   connector_type?: string | null;
   /** @nullable */
   payment_method_id?: number | null;
+  /** @nullable */
+  progress_pct?: number | null;
 }
 
 export interface SessionInput {
@@ -323,6 +332,75 @@ export interface PaymentMethodInput {
   type: string;
   last_four: string;
   is_default?: boolean;
+}
+
+export type NotificationType = typeof NotificationType[keyof typeof NotificationType];
+
+
+export const NotificationType = {
+  session_ended: 'session_ended',
+  discount_nearby: 'discount_nearby',
+  station_available: 'station_available',
+  low_battery: 'low_battery',
+} as const;
+
+export interface Notification {
+  id: number;
+  user_id: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  read: boolean;
+  created_at: string;
+}
+
+export type NotificationInputType = typeof NotificationInputType[keyof typeof NotificationInputType];
+
+
+export const NotificationInputType = {
+  session_ended: 'session_ended',
+  discount_nearby: 'discount_nearby',
+  station_available: 'station_available',
+  low_battery: 'low_battery',
+} as const;
+
+export interface NotificationInput {
+  user_id: string;
+  type: NotificationInputType;
+  title: string;
+  body: string;
+}
+
+export type PushTokenPlatform = typeof PushTokenPlatform[keyof typeof PushTokenPlatform];
+
+
+export const PushTokenPlatform = {
+  ios: 'ios',
+  android: 'android',
+  web: 'web',
+} as const;
+
+export interface PushToken {
+  id: number;
+  user_id: string;
+  platform: PushTokenPlatform;
+  token: string;
+  created_at: string;
+}
+
+export type PushTokenInputPlatform = typeof PushTokenInputPlatform[keyof typeof PushTokenInputPlatform];
+
+
+export const PushTokenInputPlatform = {
+  ios: 'ios',
+  android: 'android',
+  web: 'web',
+} as const;
+
+export interface PushTokenInput {
+  user_id: string;
+  platform: PushTokenInputPlatform;
+  token: string;
 }
 
 export interface AdminLoginInput {
@@ -431,4 +509,16 @@ export const GetSessionsStatus = {
   completed: 'completed',
   cancelled: 'cancelled',
 } as const;
+
+export type GetNotificationsParams = {
+user_id: string;
+};
+
+export type BroadcastNotification200 = {
+  sent?: number;
+};
+
+export type SearchVehiclesParams = {
+q: string;
+};
 

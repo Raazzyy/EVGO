@@ -74,6 +74,18 @@ router.post("/sessions", async (req, res): Promise<void> => {
   res.status(201).json({ ...session, station });
 });
 
+/** Compute progress_pct server-side: mock simulation based on elapsed time + station power */
+function computeProgressPct(session: typeof sessionsTable.$inferSelect, powerKw: number): number {
+  if (session.status !== "active") return 100;
+  const CAR_BATTERY_KWH = 77.4; // IONIQ 5 default
+  const startPct = 45; // assume starting at 45%
+  const elapsedH = (Date.now() - session.started_at.getTime()) / 3_600_000;
+  const cappedH = Math.min(elapsedH, 0.5); // cap at 30 min for demo realism
+  const addedKwh = cappedH * powerKw;
+  const currentKwh = (startPct / 100) * CAR_BATTERY_KWH + addedKwh;
+  return Math.min(95, Math.round((currentKwh / CAR_BATTERY_KWH) * 100));
+}
+
 router.get("/sessions/:id", async (req, res): Promise<void> => {
   const p = GetSessionParams.safeParse(req.params);
   if (!p.success) { res.status(400).json({ error: p.error.message }); return; }
@@ -87,14 +99,47 @@ router.get("/sessions/:id", async (req, res): Promise<void> => {
 
   if (!row) { res.status(404).json({ error: "Session not found" }); return; }
 
+  const powerKw = row.station?.power_kw ?? 50;
+  const progress_pct = computeProgressPct(row.session, powerKw);
+
   res.json({
     ...row.session,
+    progress_pct,
     station: row.station ? {
       ...row.station,
       operator: row.operator ? { id: row.operator.id, name: row.operator.name, logo_url: row.operator.logo_url, station_count: 0 } : undefined,
       distance_km: null,
     } : undefined,
   });
+});
+
+// POST /sessions/:id/pay — mock payment confirmation
+router.post("/sessions/:id/pay", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "invalid id" }); return; }
+
+  const [existing] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, id));
+  if (!existing) { res.status(404).json({ error: "Session not found" }); return; }
+
+  // Mock: mark session as paid by setting status to completed if still active
+  let session = existing;
+  if (existing.status === "active") {
+    const station = await getStationForSession(existing.station_id);
+    const powerKw = (station as { power_kw?: number })?.power_kw ?? 50;
+    const pricePerKwh = (station as { price_per_kwh?: number })?.price_per_kwh ?? 2000;
+    const durationH = Math.min((Date.now() - existing.started_at.getTime()) / 3_600_000, 0.5);
+    const energy = parseFloat((durationH * powerKw).toFixed(2));
+    const cost = parseFloat((energy * pricePerKwh).toFixed(2));
+    const [updated] = await db
+      .update(sessionsTable)
+      .set({ status: "completed", ended_at: new Date(), energy_kwh: energy, cost })
+      .where(eq(sessionsTable.id, id))
+      .returning();
+    await db.update(stationsTable).set({ status: "free", updated_at: new Date() }).where(eq(stationsTable.id, existing.station_id));
+    session = updated;
+  }
+
+  res.json({ ...session, progress_pct: 100 });
 });
 
 router.patch("/sessions/:id/stop", async (req, res): Promise<void> => {

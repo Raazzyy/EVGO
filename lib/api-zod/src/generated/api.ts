@@ -103,7 +103,8 @@ export const GetStationsQueryParams = zod.object({
   "amenities": zod.coerce.string().optional()
 })
 
-export const GetStationsResponseItem = zod.object({
+export const GetStationsResponse = zod.object({
+  "promoted": zod.array(zod.object({
   "id": zod.number(),
   "operator_id": zod.number().nullish(),
   "operator": zod.object({
@@ -128,9 +129,40 @@ export const GetStationsResponseItem = zod.object({
   "source": zod.enum(['manual', 'api', 'mock']),
   "amenities": zod.array(zod.string()).optional(),
   "updated_at": zod.coerce.date().optional(),
-  "distance_km": zod.number().nullish()
+  "distance_km": zod.number().nullish(),
+  "is_promoted": zod.boolean().optional(),
+  "discount_pct": zod.number().optional()
+})),
+  "nearby": zod.array(zod.object({
+  "id": zod.number(),
+  "operator_id": zod.number().nullish(),
+  "operator": zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "logo_url": zod.string().nullish(),
+  "station_count": zod.number().optional()
+}).optional(),
+  "name": zod.string(),
+  "address": zod.string(),
+  "lat": zod.number(),
+  "lng": zod.number(),
+  "connectors": zod.array(zod.object({
+  "type": zod.enum(['CCS2', 'CHAdeMO', 'Type2', 'GB-T']),
+  "power_kw": zod.number(),
+  "total": zod.number(),
+  "available": zod.number()
+})).optional(),
+  "power_kw": zod.number(),
+  "price_per_kwh": zod.number(),
+  "status": zod.enum(['free', 'occupied', 'offline']),
+  "source": zod.enum(['manual', 'api', 'mock']),
+  "amenities": zod.array(zod.string()).optional(),
+  "updated_at": zod.coerce.date().optional(),
+  "distance_km": zod.number().nullish(),
+  "is_promoted": zod.boolean().optional(),
+  "discount_pct": zod.number().optional()
+}))
 })
-export const GetStationsResponse = zod.array(GetStationsResponseItem)
 
 
 /**
@@ -180,7 +212,9 @@ export const CreateStationResponse = zod.object({
   "source": zod.enum(['manual', 'api', 'mock']),
   "amenities": zod.array(zod.string()).optional(),
   "updated_at": zod.coerce.date().optional(),
-  "distance_km": zod.number().nullish()
+  "distance_km": zod.number().nullish(),
+  "is_promoted": zod.boolean().optional(),
+  "discount_pct": zod.number().optional()
 })
 
 
@@ -216,7 +250,9 @@ export const GetStationResponse = zod.object({
   "source": zod.enum(['manual', 'api', 'mock']),
   "amenities": zod.array(zod.string()).optional(),
   "updated_at": zod.coerce.date().optional(),
-  "distance_km": zod.number().nullish()
+  "distance_km": zod.number().nullish(),
+  "is_promoted": zod.boolean().optional(),
+  "discount_pct": zod.number().optional()
 })
 
 
@@ -271,7 +307,9 @@ export const UpdateStationResponse = zod.object({
   "source": zod.enum(['manual', 'api', 'mock']),
   "amenities": zod.array(zod.string()).optional(),
   "updated_at": zod.coerce.date().optional(),
-  "distance_km": zod.number().nullish()
+  "distance_km": zod.number().nullish(),
+  "is_promoted": zod.boolean().optional(),
+  "discount_pct": zod.number().optional()
 })
 
 
@@ -321,7 +359,9 @@ export const UpdateStationStatusResponse = zod.object({
   "source": zod.enum(['manual', 'api', 'mock']),
   "amenities": zod.array(zod.string()).optional(),
   "updated_at": zod.coerce.date().optional(),
-  "distance_km": zod.number().nullish()
+  "distance_km": zod.number().nullish(),
+  "is_promoted": zod.boolean().optional(),
+  "discount_pct": zod.number().optional()
 })
 
 
@@ -595,7 +635,9 @@ export const GetSessionsResponseItem = zod.object({
   "source": zod.enum(['manual', 'api', 'mock']),
   "amenities": zod.array(zod.string()).optional(),
   "updated_at": zod.coerce.date().optional(),
-  "distance_km": zod.number().nullish()
+  "distance_km": zod.number().nullish(),
+  "is_promoted": zod.boolean().optional(),
+  "discount_pct": zod.number().optional()
 }).optional(),
   "user_id": zod.string().nullish(),
   "energy_kwh": zod.number().nullish(),
@@ -604,7 +646,8 @@ export const GetSessionsResponseItem = zod.object({
   "started_at": zod.coerce.date(),
   "ended_at": zod.coerce.date().nullish(),
   "connector_type": zod.string().nullish(),
-  "payment_method_id": zod.number().nullish()
+  "payment_method_id": zod.number().nullish(),
+  "progress_pct": zod.number().nullish()
 })
 export const GetSessionsResponse = zod.array(GetSessionsResponseItem)
 
@@ -647,7 +690,9 @@ export const StartSessionResponse = zod.object({
   "source": zod.enum(['manual', 'api', 'mock']),
   "amenities": zod.array(zod.string()).optional(),
   "updated_at": zod.coerce.date().optional(),
-  "distance_km": zod.number().nullish()
+  "distance_km": zod.number().nullish(),
+  "is_promoted": zod.boolean().optional(),
+  "discount_pct": zod.number().optional()
 }).optional(),
   "user_id": zod.string().nullish(),
   "energy_kwh": zod.number().nullish(),
@@ -656,7 +701,8 @@ export const StartSessionResponse = zod.object({
   "started_at": zod.coerce.date(),
   "ended_at": zod.coerce.date().nullish(),
   "connector_type": zod.string().nullish(),
-  "payment_method_id": zod.number().nullish()
+  "payment_method_id": zod.number().nullish(),
+  "progress_pct": zod.number().nullish()
 })
 
 
@@ -695,7 +741,9 @@ export const GetSessionResponse = zod.object({
   "source": zod.enum(['manual', 'api', 'mock']),
   "amenities": zod.array(zod.string()).optional(),
   "updated_at": zod.coerce.date().optional(),
-  "distance_km": zod.number().nullish()
+  "distance_km": zod.number().nullish(),
+  "is_promoted": zod.boolean().optional(),
+  "discount_pct": zod.number().optional()
 }).optional(),
   "user_id": zod.string().nullish(),
   "energy_kwh": zod.number().nullish(),
@@ -704,7 +752,8 @@ export const GetSessionResponse = zod.object({
   "started_at": zod.coerce.date(),
   "ended_at": zod.coerce.date().nullish(),
   "connector_type": zod.string().nullish(),
-  "payment_method_id": zod.number().nullish()
+  "payment_method_id": zod.number().nullish(),
+  "progress_pct": zod.number().nullish()
 })
 
 
@@ -743,7 +792,9 @@ export const StopSessionResponse = zod.object({
   "source": zod.enum(['manual', 'api', 'mock']),
   "amenities": zod.array(zod.string()).optional(),
   "updated_at": zod.coerce.date().optional(),
-  "distance_km": zod.number().nullish()
+  "distance_km": zod.number().nullish(),
+  "is_promoted": zod.boolean().optional(),
+  "discount_pct": zod.number().optional()
 }).optional(),
   "user_id": zod.string().nullish(),
   "energy_kwh": zod.number().nullish(),
@@ -752,8 +803,169 @@ export const StopSessionResponse = zod.object({
   "started_at": zod.coerce.date(),
   "ended_at": zod.coerce.date().nullish(),
   "connector_type": zod.string().nullish(),
-  "payment_method_id": zod.number().nullish()
+  "payment_method_id": zod.number().nullish(),
+  "progress_pct": zod.number().nullish()
 })
+
+
+/**
+ * @summary Pay for a completed session (mock MVP)
+ */
+export const PaySessionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const PaySessionResponse = zod.object({
+  "id": zod.number(),
+  "station_id": zod.number(),
+  "station": zod.object({
+  "id": zod.number(),
+  "operator_id": zod.number().nullish(),
+  "operator": zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "logo_url": zod.string().nullish(),
+  "station_count": zod.number().optional()
+}).optional(),
+  "name": zod.string(),
+  "address": zod.string(),
+  "lat": zod.number(),
+  "lng": zod.number(),
+  "connectors": zod.array(zod.object({
+  "type": zod.enum(['CCS2', 'CHAdeMO', 'Type2', 'GB-T']),
+  "power_kw": zod.number(),
+  "total": zod.number(),
+  "available": zod.number()
+})).optional(),
+  "power_kw": zod.number(),
+  "price_per_kwh": zod.number(),
+  "status": zod.enum(['free', 'occupied', 'offline']),
+  "source": zod.enum(['manual', 'api', 'mock']),
+  "amenities": zod.array(zod.string()).optional(),
+  "updated_at": zod.coerce.date().optional(),
+  "distance_km": zod.number().nullish(),
+  "is_promoted": zod.boolean().optional(),
+  "discount_pct": zod.number().optional()
+}).optional(),
+  "user_id": zod.string().nullish(),
+  "energy_kwh": zod.number().nullish(),
+  "cost": zod.number().nullish(),
+  "status": zod.enum(['active', 'completed', 'cancelled']),
+  "started_at": zod.coerce.date(),
+  "ended_at": zod.coerce.date().nullish(),
+  "connector_type": zod.string().nullish(),
+  "payment_method_id": zod.number().nullish(),
+  "progress_pct": zod.number().nullish()
+})
+
+
+/**
+ * @summary List notifications for a user
+ */
+export const GetNotificationsQueryParams = zod.object({
+  "user_id": zod.coerce.string()
+})
+
+export const GetNotificationsResponseItem = zod.object({
+  "id": zod.number(),
+  "user_id": zod.string(),
+  "type": zod.enum(['session_ended', 'discount_nearby', 'station_available', 'low_battery']),
+  "title": zod.string(),
+  "body": zod.string(),
+  "read": zod.boolean(),
+  "created_at": zod.coerce.date()
+})
+export const GetNotificationsResponse = zod.array(GetNotificationsResponseItem)
+
+
+/**
+ * @summary Create a notification (admin/internal)
+ */
+export const CreateNotificationBody = zod.object({
+  "user_id": zod.string(),
+  "type": zod.enum(['session_ended', 'discount_nearby', 'station_available', 'low_battery']),
+  "title": zod.string(),
+  "body": zod.string()
+})
+
+export const CreateNotificationResponse = zod.object({
+  "id": zod.number(),
+  "user_id": zod.string(),
+  "type": zod.enum(['session_ended', 'discount_nearby', 'station_available', 'low_battery']),
+  "title": zod.string(),
+  "body": zod.string(),
+  "read": zod.boolean(),
+  "created_at": zod.coerce.date()
+})
+
+
+/**
+ * @summary Mark notification as read
+ */
+export const MarkNotificationReadParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const MarkNotificationReadResponse = zod.object({
+  "id": zod.number(),
+  "user_id": zod.string(),
+  "type": zod.enum(['session_ended', 'discount_nearby', 'station_available', 'low_battery']),
+  "title": zod.string(),
+  "body": zod.string(),
+  "read": zod.boolean(),
+  "created_at": zod.coerce.date()
+})
+
+
+/**
+ * @summary Broadcast a notification to all users (admin)
+ */
+export const BroadcastNotificationBody = zod.object({
+  "user_id": zod.string(),
+  "type": zod.enum(['session_ended', 'discount_nearby', 'station_available', 'low_battery']),
+  "title": zod.string(),
+  "body": zod.string()
+})
+
+export const BroadcastNotificationResponse = zod.object({
+  "sent": zod.number().optional()
+})
+
+
+/**
+ * @summary Register a push token
+ */
+export const RegisterPushTokenBody = zod.object({
+  "user_id": zod.string(),
+  "platform": zod.enum(['ios', 'android', 'web']),
+  "token": zod.string()
+})
+
+export const RegisterPushTokenResponse = zod.object({
+  "id": zod.number(),
+  "user_id": zod.string(),
+  "platform": zod.enum(['ios', 'android', 'web']),
+  "token": zod.string(),
+  "created_at": zod.coerce.date()
+})
+
+
+/**
+ * @summary Search vehicles via API Ninjas (cached)
+ */
+export const SearchVehiclesQueryParams = zod.object({
+  "q": zod.coerce.string()
+})
+
+export const SearchVehiclesResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "battery_kwh": zod.number(),
+  "range_km": zod.number(),
+  "connector_type": zod.enum(['CCS2', 'CHAdeMO', 'Type2', 'GB-T']),
+  "current_battery_pct": zod.number().nullish()
+})
+export const SearchVehiclesResponse = zod.array(SearchVehiclesResponseItem)
 
 
 /**
