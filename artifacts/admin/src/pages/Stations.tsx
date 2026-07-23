@@ -29,7 +29,11 @@ export default function Stations() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   
-  const { data: stations, isLoading } = useGetStations();
+  const { data: stationsResponse, isLoading } = useGetStations();
+  const stations: Station[] = [
+    ...(stationsResponse?.promoted ?? []),
+    ...(stationsResponse?.nearby ?? []),
+  ];
   const { data: operators } = useGetOperators();
   
   const createMutation = useCreateStation();
