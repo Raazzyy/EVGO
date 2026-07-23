@@ -51,7 +51,7 @@ export default function Stations() {
     lat: "0",
     lng: "0",
     power_kw: "50",
-    price_per_kwh: "0.45",
+    price_per_kwh: "2000",
     status: "free" as StationStatusUpdateStatus,
     operator_id: ""
   });
@@ -92,7 +92,7 @@ export default function Stations() {
   const openNewForm = () => {
     setEditingStation(null);
     setFormData({
-      name: "", address: "", lat: "0", lng: "0", power_kw: "50", price_per_kwh: "0.45", status: "free", operator_id: ""
+      name: "", address: "", lat: "0", lng: "0", power_kw: "50", price_per_kwh: "2000", status: "free", operator_id: ""
     });
     setIsFormOpen(true);
   };
@@ -321,8 +321,8 @@ export default function Stations() {
                 <Input type="number" value={formData.power_kw} onChange={e => setFormData({...formData, power_kw: e.target.value})} />
               </div>
               <div className="space-y-2">
-                <Label>Price per kWh ($)</Label>
-                <Input type="number" step="0.01" value={formData.price_per_kwh} onChange={e => setFormData({...formData, price_per_kwh: e.target.value})} />
+                <Label>Цена (сум/кВт·ч)</Label>
+                <Input type="number" step="100" value={formData.price_per_kwh} onChange={e => setFormData({...formData, price_per_kwh: e.target.value})} />
               </div>
               <div className="space-y-2">
                 <Label>Operator</Label>
