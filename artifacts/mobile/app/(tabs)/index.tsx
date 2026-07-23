@@ -3,13 +3,15 @@ import React, {
 } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput,
-  TouchableOpacity, Pressable, Platform, PanResponder,
-  Dimensions, Linking, NativeSyntheticEvent, NativeScrollEvent,
+  TouchableOpacity, Pressable, Platform,
+  Dimensions, Linking,
 } from 'react-native';
 import Animated, {
   useSharedValue, useAnimatedStyle, withTiming, Easing,
   FadeInDown, FadeInRight, Layout, interpolate, Extrapolation,
+  runOnJS,
 } from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -247,7 +249,7 @@ function BannerCarousel({ banners, cardWidth, onPress }: {
     };
   }, [startAuto]);
 
-  const onScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+  const onScrollEnd = (e: { nativeEvent: { contentOffset: { x: number } } }) => {
     setCurrent(Math.round(e.nativeEvent.contentOffset.x / cardWidth));
   };
 
@@ -363,14 +365,21 @@ export default function MapScreen() {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
   const [sheetAtTop, setSheetAtTop] = useState(false);
+  const [scrollEnabled, setScrollEnabled] = useState(false);
   const snapLevel = useRef<0 | 1 | 2>(0);
 
   const [selectedStationId, setSelectedStationId] = useState<number | null>(null);
   const [markerPos, setMarkerPos] = useState<{ x: number; y: number } | null>(null);
 
   // ── Sheet animation ───────────────────────────────────────────────────────
-  const sheetHeight = useSharedValue(SHEET_MIN);
-  const sheetStyle  = useAnimatedStyle(() => ({ height: sheetHeight.value }));
+  const sheetHeight  = useSharedValue(SHEET_MIN);
+  const sheetStyle   = useAnimatedStyle(() => ({ height: sheetHeight.value }));
+  // Shared values for RNGH worklets (must be shared values, not JS refs)
+  const startHeight  = useSharedValue(SHEET_MIN);
+  const snapLevelSV  = useSharedValue<0|1|2>(0);
+  const sv_snapMin   = useSharedValue(SHEET_MIN);
+  const sv_snapMid   = useSharedValue(SHEET_MID);
+  const sv_snapMax   = useSharedValue(SHEET_MAX);
 
   const mapControlsStyle = useAnimatedStyle(() => {
     const h   = sheetHeight.value;
@@ -385,35 +394,78 @@ export default function MapScreen() {
   }
   function snapTo(level: 0 | 1 | 2) {
     snapLevel.current = level;
+    snapLevelSV.value = level;
     setSheetAtTop(level >= 1);
+    setScrollEnabled(level === 2);
     animateTo(snapsRef.current[level]);
   }
   snapToRef.current = snapTo;
 
-  // ── Pan gesture ───────────────────────────────────────────────────────────
-  const gestureStart = useRef(SHEET_MIN);
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gs) =>
-        Math.abs(gs.dy) > 6 && Math.abs(gs.dy) > Math.abs(gs.dx) * 1.5,
-      onPanResponderGrant: () => { gestureStart.current = sheetHeight.value as number; },
-      onPanResponderMove: (_, gs) => {
-        const [minH,, maxH] = snapsRef.current;
-        sheetHeight.value = Math.max(minH, Math.min(maxH, gestureStart.current - gs.dy));
-      },
-      onPanResponderRelease: (_, gs) => {
-        const current = sheetHeight.value as number;
-        if (gs.vy < -0.5) { snapToRef.current(2); return; }
-        if (gs.vy >  0.5) { snapToRef.current(0); return; }
-        const snaps = snapsRef.current;
-        const nearest = snaps.reduce((p, c) =>
-          Math.abs(c - current) < Math.abs(p - current) ? c : p
-        );
-        snapToRef.current(snaps.indexOf(nearest) as 0 | 1 | 2);
-      },
+  // ── RNGH Gesture.Pan (replaces PanResponder) ─────────────────────────────
+  // Keep snap-point shared values in sync with computed values
+  useEffect(() => {
+    sv_snapMid.value = SHEET_MID;
+    sv_snapMax.value = SHEET_MAX;
+  }, [SHEET_MID, SHEET_MAX]);
+
+  // Called via runOnJS — safe for React state updates
+  const doSnapJS = useCallback((level: 0|1|2) => {
+    snapLevel.current = level;
+    setSheetAtTop(level >= 1);
+    setScrollEnabled(level === 2);
+  }, []);
+
+  const panGesture = useMemo(() => Gesture.Pan()
+    .activeOffsetY([-10, 10])   // activate only on vertical intent
+    .failOffsetX([-15, 15])     // fail on horizontal → lets inner h-scrolls win
+    .onBegin(() => {
+      'worklet';
+      startHeight.value = sheetHeight.value;
     })
-  ).current;
+    .onUpdate((e) => {
+      'worklet';
+      const minH = sv_snapMin.value;
+      const maxH = sv_snapMax.value;
+      sheetHeight.value = Math.max(minH, Math.min(maxH, startHeight.value - e.translationY));
+    })
+    .onEnd((e) => {
+      'worklet';
+      const minH = sv_snapMin.value;
+      const midH = sv_snapMid.value;
+      const maxH = sv_snapMax.value;
+      const h   = sheetHeight.value;
+      const vy  = e.velocityY;
+      let level: 0|1|2;
+      let target: number;
+      if (vy < -500)      { level = 2; target = maxH; }
+      else if (vy > 500)  { level = 0; target = minH; }
+      else {
+        const snaps = [minH, midH, maxH];
+        const nearest = snaps.reduce((p, c) => Math.abs(c - h) < Math.abs(p - h) ? c : p);
+        level  = snaps.indexOf(nearest) as 0|1|2;
+        target = nearest;
+      }
+      sheetHeight.value = withTiming(target, { duration: 350, easing: IOS_EASE });
+      snapLevelSV.value = level;
+      runOnJS(doSnapJS)(level);
+    })
+  , [doSnapJS]);
+
+  const tapGesture = useMemo(() => Gesture.Tap()
+    .onEnd(() => {
+      'worklet';
+      const next   = ((snapLevelSV.value + 1) % 3) as 0|1|2;
+      const target = [sv_snapMin.value, sv_snapMid.value, sv_snapMax.value][next]!;
+      sheetHeight.value = withTiming(target, { duration: 350, easing: IOS_EASE });
+      snapLevelSV.value = next;
+      runOnJS(doSnapJS)(next);
+    })
+  , [doSnapJS]);
+
+  const handleGesture = useMemo(
+    () => Gesture.Simultaneous(panGesture, tapGesture),
+    [panGesture, tapGesture],
+  );
 
   // ── Geolocation ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -761,22 +813,19 @@ export default function MapScreen() {
       {/* ── Bottom sheet ──────────────────────────────────────────────────── */}
       <Animated.View style={[styles.sheet, { backgroundColor: colors.card }, sheetStyle]}>
 
-        {/* Handle — drag + tap to cycle snap points */}
-        <TouchableOpacity
-          activeOpacity={1}
-          onPress={() => snapTo(((snapLevel.current + 1) % 3) as 0 | 1 | 2)}
-          style={styles.handleArea}
-          {...panResponder.panHandlers}
-        >
-          <View style={[styles.handle, { backgroundColor: colors.mutedForeground, opacity: 0.3 }]} />
-        </TouchableOpacity>
+        {/* Handle — 60px drag zone: ручка + заголовок */}
+        <GestureDetector gesture={handleGesture}>
+          <Animated.View style={styles.handleArea}>
+            <View style={[styles.handle, { backgroundColor: colors.mutedForeground, opacity: 0.3 }]} />
+          </Animated.View>
+        </GestureDetector>
 
         {/* ── Scrollable sections ─────────────────────────────────────────── */}
         <ScrollView
           style={styles.sheetScroll}
           contentContainerStyle={[styles.sheetContent, { paddingBottom: bottomPad }]}
           showsVerticalScrollIndicator={false}
-          nestedScrollEnabled
+          scrollEnabled={scrollEnabled}
         >
           {/* 1. Banner carousel — breaks out of horizontal padding */}
           <BannerCarousel
@@ -912,7 +961,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.12, shadowRadius: 20, elevation: 20,
   },
-  handleArea: { alignItems: 'center', paddingTop: 12, paddingBottom: 8, width: '100%', minHeight: 44 },
+  handleArea: { alignItems: 'center', paddingTop: 14, paddingBottom: 10, width: '100%', minHeight: 60 },
   handle: { width: 40, height: 4, borderRadius: 2 },
   sheetScroll: { flex: 1 },
   sheetContent: { paddingHorizontal: 16, paddingTop: 4 },

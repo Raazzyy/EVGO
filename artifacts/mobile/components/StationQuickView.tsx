@@ -3,16 +3,19 @@
  * Rendered as an absolutely-positioned overlay inside the map container.
  * No Modal / bottom sheet — touches outside the card pass through to the map.
  */
-import React, { useEffect, useRef, useMemo } from 'react';
+import React, { useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  Animated,
   Dimensions,
   Platform,
 } from 'react-native';
+import Animated, {
+  useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS,
+} from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useColors } from '@/hooks/useColors';
@@ -96,21 +99,46 @@ export function StationQuickView({
   onCharge,
 }: StationQuickViewProps) {
   const colors = useColors();
-  const scaleAnim   = useRef(new Animated.Value(0.88)).current;
-  const opacityAnim = useRef(new Animated.Value(0)).current;
+  const popScale      = useSharedValue(0.88);
+  const popOpacity    = useSharedValue(0);
+  const panY          = useSharedValue(0);
   const cardHeightRef = useRef(280);
 
   // Pop-in when station or position appears
   useEffect(() => {
     if (station && position) {
-      scaleAnim.setValue(0.88);
-      opacityAnim.setValue(0);
-      Animated.parallel([
-        Animated.spring(scaleAnim,   { toValue: 1,   useNativeDriver: true, tension: 80, friction: 10 }),
-        Animated.timing(opacityAnim, { toValue: 1, duration: 130, useNativeDriver: true }),
-      ]).start();
+      popScale.value   = 0.88;
+      popOpacity.value = 0;
+      panY.value       = 0;
+      popScale.value   = withSpring(1, { damping: 12, stiffness: 150 });
+      popOpacity.value = withTiming(1, { duration: 130 });
     }
   }, [station?.id]);
+
+  const cardAnimStyle = useAnimatedStyle(() => ({
+    opacity:   popOpacity.value,
+    transform: [{ scale: popScale.value }, { translateY: panY.value }],
+  }));
+
+  // Swipe-down to close
+  const handleClose = useCallback(onClose, [onClose]);
+  const swipeGesture = useMemo(() => Gesture.Pan()
+    .activeOffsetY([0, 8])
+    .failOffsetX([-25, 25])
+    .onUpdate((e) => {
+      'worklet';
+      if (e.translationY > 0) panY.value = e.translationY;
+    })
+    .onEnd((e) => {
+      'worklet';
+      if (e.translationY > 60 || e.velocityY > 600) {
+        panY.value = withTiming(300, { duration: 180 });
+        runOnJS(handleClose)();
+      } else {
+        panY.value = withSpring(0, { damping: 15, stiffness: 120 });
+      }
+    })
+  , [handleClose]);
 
   // ── Derived data ──────────────────────────────────────────────────────
   const connectors: Connector[] = (station?.connectors as Connector[] | null) ?? [];
@@ -178,12 +206,14 @@ export function StationQuickView({
   return (
     // Wrapper: fills the container, passes touches through in empty areas
     <View style={[StyleSheet.absoluteFillObject, { pointerEvents: 'box-none' }]}>
+      <GestureDetector gesture={swipeGesture}>
       <Animated.View
         onLayout={(e) => { cardHeightRef.current = e.nativeEvent.layout.height; }}
         style={[
           styles.card,
           { backgroundColor: colors.card, left: cardLeft, top: cardTop, width: CARD_W },
-          { opacity: opacityAnim, transform: [{ scale: scaleAnim }], pointerEvents: 'auto' },
+          cardAnimStyle,
+          { pointerEvents: 'auto' },
         ]}
       >
         {/* Upward tail (when card is below the pin) */}
@@ -298,6 +328,7 @@ export function StationQuickView({
           <View style={[styles.tailDown, { left: tailLeft, borderTopColor: colors.card }]} />
         )}
       </Animated.View>
+      </GestureDetector>
     </View>
   );
 }

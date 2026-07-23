@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,10 @@ import {
   Modal,
   ActivityIndicator,
 } from 'react-native';
+import Animated, {
+  useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS,
+} from 'react-native-reanimated';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
@@ -137,14 +141,50 @@ export function FiltersSheet({ visible, onClose, onApply }: FiltersSheetProps) {
 
   const countLabel = counting ? '...' : (liveCount ?? allStations.length);
 
+  // ── Swipe-to-close gesture ──────────────────────────────────────────────
+  const translateY = useSharedValue(0);
+  const sheetTransStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }));
+
+  const closeSheet = useCallback(() => {
+    translateY.value = 0;
+    onClose();
+  }, [onClose]);
+
+  const swipeGesture = useMemo(() => Gesture.Pan()
+    .activeOffsetY([0, 8])
+    .failOffsetX([-25, 25])
+    .onUpdate((e) => {
+      'worklet';
+      if (e.translationY > 0) translateY.value = e.translationY;
+    })
+    .onEnd((e) => {
+      'worklet';
+      if (e.translationY > 120 || e.velocityY > 700) {
+        runOnJS(closeSheet)();
+      } else {
+        translateY.value = withSpring(0, { damping: 20, stiffness: 200 });
+      }
+    })
+  , [closeSheet]);
+
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={closeSheet}>
+      {/* GestureHandlerRootView needed because Modal renders outside the app root */}
+      <GestureHandlerRootView style={{ flex: 1 }}>
       {/* Tap on dim area → close */}
-      <TouchableWithoutFeedback onPress={onClose}>
+      <TouchableWithoutFeedback onPress={closeSheet}>
         <View style={styles.overlay}>
           {/* Tap inside sheet → don't propagate to overlay */}
           <TouchableWithoutFeedback onPress={() => {}}>
-        <View style={[styles.sheet, { backgroundColor: colors.card }]}>
+          <Animated.View style={[styles.sheet, { backgroundColor: colors.card }, sheetTransStyle]}>
+            {/* Drag handle */}
+            <GestureDetector gesture={swipeGesture}>
+              <View style={styles.dragHandle}>
+                <View style={[styles.dragIndicator, { backgroundColor: colors.mutedForeground }]} />
+              </View>
+            </GestureDetector>
           <View style={styles.safeArea}>
             {/* Header */}
             <View style={[styles.header, { borderBottomColor: colors.border }]}>
@@ -406,10 +446,11 @@ export function FiltersSheet({ visible, onClose, onApply }: FiltersSheetProps) {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </Animated.View>
           </TouchableWithoutFeedback>
         </View>
       </TouchableWithoutFeedback>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
@@ -426,6 +467,18 @@ const styles = StyleSheet.create({
     maxHeight: '85%',
     minHeight: 400,
     overflow: 'hidden',
+  },
+  dragHandle: {
+    alignItems: 'center',
+    paddingTop: 12,
+    paddingBottom: 8,
+    width: '100%',
+  },
+  dragIndicator: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    opacity: 0.35,
   },
   safeArea: {},
   scrollView: { flexShrink: 1 },
