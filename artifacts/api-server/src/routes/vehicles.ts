@@ -99,12 +99,41 @@ function applyOverride<T extends { name: string; battery_kwh: number; connector_
   };
 }
 
-// ── API Ninjas type ───────────────────────────────────────────────────────
+// ── API Ninjas electricvehicle type ──────────────────────────────────────
 interface ApiNinjasEV {
   make: string;
   model: string;
   year?: number;
-  range?: number; // miles
+  range?: number;                       // miles (electricvehicle endpoint)
+  battery_capacity?: number | string;   // kWh — OR premium-gate string on basic plan
+}
+
+/**
+ * Safely extract a numeric battery capacity from the API response.
+ * Falls back to the VEHICLE_OVERRIDES table, then to a class-based estimate.
+ * Returns { kwh, estimated } so callers know whether the value is real.
+ */
+function parseBatteryCapacity(
+  raw: number | string | undefined,
+  vehicleName: string,
+): { kwh: number; estimated: boolean } {
+  // 1. API returned a real number
+  if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
+    return { kwh: raw, estimated: false };
+  }
+  // 2. Check override table (covers all common UZ-market models)
+  const lower = vehicleName.toLowerCase();
+  let bestKey = "";
+  let bestOverride: typeof VEHICLE_OVERRIDES[string] | null = null;
+  for (const [pattern, override] of Object.entries(VEHICLE_OVERRIDES)) {
+    if (lower.includes(pattern) && pattern.length > bestKey.length) {
+      bestKey = pattern;
+      bestOverride = override;
+    }
+  }
+  if (bestOverride) return { kwh: bestOverride.battery_kwh, estimated: false };
+  // 3. Class-based fallback (premium-gate or unknown model)
+  return { kwh: 60, estimated: true };
 }
 
 // ── Search endpoint ───────────────────────────────────────────────────────
@@ -116,49 +145,54 @@ router.get("/vehicles/search", async (req, res): Promise<void> => {
     return;
   }
 
-  // 1. Pull cache — we'll merge with API results, not short-circuit
+  // 1. Pull cache — always merge with API results (no short-circuit on cache hit)
   const cached = await db
     .select()
     .from(vehiclesTable)
     .where(ilike(vehiclesTable.name, `%${q}%`));
 
-  // 2. Always hit API Ninjas — parallel: search by model AND by make
+  // 2. Always hit /v1/electricvehicle — parallel: by make AND by model
+  //    limit=30 (API Ninjas max) so wide makes (BYD, Hyundai …) don't get truncated.
   const apiKey = process.env.EV_API_KEY;
   const apiRows: (typeof vehiclesTable.$inferSelect)[] = [];
 
   if (apiKey) {
     try {
-      const base = "https://api.api-ninjas.com/v1/cars";
+      const evBase = "https://api.api-ninjas.com/v1/electricvehicle";
       const headers = { "X-Api-Key": apiKey };
 
-      const [byModel, byMake] = await Promise.allSettled([
-        fetch(`${base}?model=${encodeURIComponent(q)}&fuel_type=electric&limit=10`, { headers, signal: AbortSignal.timeout(5000) }),
-        fetch(`${base}?make=${encodeURIComponent(q)}&fuel_type=electric&limit=10`,  { headers, signal: AbortSignal.timeout(5000) }),
+      const [byMake, byModel] = await Promise.allSettled([
+        fetch(`${evBase}?make=${encodeURIComponent(q)}&limit=30`,  { headers, signal: AbortSignal.timeout(5000) }),
+        fetch(`${evBase}?model=${encodeURIComponent(q)}&limit=30`, { headers, signal: AbortSignal.timeout(5000) }),
       ]);
 
       // Collect results from both calls
       const raw: ApiNinjasEV[] = [];
-      for (const result of [byModel, byMake]) {
+      for (const result of [byMake, byModel]) {
         if (result.status === "fulfilled" && result.value.ok) {
           const json = await result.value.json() as ApiNinjasEV[];
           if (Array.isArray(json)) raw.push(...json);
         }
       }
 
-      // Dedupe by "make model year" across both queries
+      // Dedupe by "make model" (year intentionally excluded — same vehicle, different years)
       const seen = new Set<string>();
       const deduped = raw.filter(v => {
-        const key = `${v.make} ${v.model} ${v.year ?? ""}`.toLowerCase().trim();
+        const key = `${v.make} ${v.model}`.toLowerCase().trim();
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
       });
 
-      // Map to our schema, then apply overrides for real battery/connector data
+      // Map to our schema:
+      //   • battery_capacity may be a non-numeric string on the basic plan → parseBatteryCapacity()
+      //   • range is in miles → convert to km; fall back to 300 mi if absent
       const mapped = deduped.map(v => {
+        const name = `${v.make} ${v.model}`;
+        const { kwh } = parseBatteryCapacity(v.battery_capacity, name);
         const base = {
-          name:                `${v.make} ${v.model}`,
-          battery_kwh:         60,         // API Ninjas basic: always missing
+          name,
+          battery_kwh:         kwh,
           range_km:            Math.round((v.range ?? 300) * 1.609),
           connector_type:      "CCS2" as const,
           current_battery_pct: null as number | null,
