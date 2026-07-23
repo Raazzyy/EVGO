@@ -217,14 +217,11 @@ export default function MapScreen() {
   })), [filteredStations]);
 
   const handleStationPress = useCallback((id: number) => {
-    if (selectedStationId === id) {
-      setSelectedStationId(null);
-      setMarkerPos(null);
-      router.push(`/station/${id}`);
-    } else {
-      setSelectedStationId(id);
-    }
-  }, [selectedStationId, router]);
+    // Single tap → open station page immediately.
+    // The old two-tap flow (1st tap = QuickView, 2nd tap = navigate) was confusing
+    // and broke when projectPoint returned null (QuickView invisible → nothing happened).
+    router.push(`/station/${id}` as any);
+  }, [router]);
 
   const selectedStation = useMemo<QuickViewStation | null>(() => {
     if (selectedStationId == null) return null;

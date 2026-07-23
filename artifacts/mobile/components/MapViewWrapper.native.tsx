@@ -225,12 +225,16 @@ export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
       return null;
     }, [polylineCoords, routePoints]);
 
-    // ── Marker culling — only render stations inside the visible region ──
-    // Adds a 50 % buffer around the viewport to avoid pop-in on fast pans.
+    // ── Marker culling — only cull when dataset is large (> 300 stations)  ──
+    // With the current seed data (~50–100 stations) culling is not needed and
+    // only causes confusion (markers missing from the initial viewport).
+    // When the dataset grows, onRegionChangeComplete keeps visibleRegion in sync.
     const visibleStations = useMemo(() => {
+      if (stations.length <= 300) return stations; // skip culling for small sets
       const { latitude: cLat, longitude: cLng, latitudeDelta, longitudeDelta } = visibleRegion;
-      const latPad = latitudeDelta  * 0.75;
-      const lngPad = longitudeDelta * 0.75;
+      // 3× buffer so markers pre-load before the user pans to them
+      const latPad = latitudeDelta  * 3;
+      const lngPad = longitudeDelta * 3;
       return stations.filter(s =>
         s.lat >= cLat - latPad && s.lat <= cLat + latPad &&
         s.lng >= cLng - lngPad && s.lng <= cLng + lngPad
