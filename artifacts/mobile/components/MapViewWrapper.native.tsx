@@ -14,8 +14,9 @@
  */
 import React, { forwardRef, useImperativeHandle, useRef, useEffect } from 'react';
 import { StyleSheet, View, Text } from 'react-native';
-import MapView, { Marker, Polyline, Region } from 'react-native-maps';
+import MapView, { Marker, Polyline, Callout, Region } from 'react-native-maps';
 import { Feather } from '@expo/vector-icons';
+import * as Location from 'expo-location';
 
 // ── Public API (forwarded via ref) ────────────────────────────────────────
 export interface MapApi {
@@ -123,15 +124,33 @@ export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
         regionRef.current = next;
       },
       locate() {
-        if (!userLocation) return;
-        const next: Region = {
-          latitude:       userLocation.lat,
-          longitude:      userLocation.lng,
-          latitudeDelta:  0.01,
-          longitudeDelta: 0.01,
+        const go = (lat: number, lng: number) => {
+          const next: Region = {
+            latitude:       lat,
+            longitude:      lng,
+            latitudeDelta:  0.01,
+            longitudeDelta: 0.01,
+          };
+          mapRef.current?.animateToRegion(next, 400);
+          regionRef.current = next;
         };
-        mapRef.current?.animateToRegion(next, 400);
-        regionRef.current = next;
+        if (userLocation) {
+          go(userLocation.lat, userLocation.lng);
+        } else {
+          // Fallback: request position via expo-location when prop not available
+          (async () => {
+            try {
+              const { status } = await Location.requestForegroundPermissionsAsync();
+              if (status !== 'granted') return;
+              const pos = await Location.getCurrentPositionAsync({
+                accuracy: Location.Accuracy.Balanced,
+              });
+              go(pos.coords.latitude, pos.coords.longitude);
+            } catch {
+              // silently ignore — user declined or device unavailable
+            }
+          })();
+        }
       },
       followUser(lat: number, lng: number, heading: number) {
         // animateCamera supports heading + pitch on both iOS and Android.
@@ -169,7 +188,7 @@ export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
       // Delay slightly so MapView has finished its own layout
       const t = setTimeout(() => {
         mapRef.current?.fitToCoordinates(coords, {
-          edgePadding: { top: 80, right: 40, bottom: 260, left: 40 },
+          edgePadding: { top: 80, right: 40, bottom: 200, left: 40 },
           animated: true,
         });
       }, 200);
@@ -265,15 +284,19 @@ export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
             coordinates={polylinePath}
             strokeWidth={5}
             strokeColor="#2563EB"
+            lineCap="round"
+            lineJoin="round"
           />
         )}
 
         {/* ── Route waypoint markers ───────────────────────────────────── */}
         {routePoints?.map((p, i) => {
-          const color  = ROUTE_COLORS[p.type ?? 'stop'] ?? ROUTE_COLORS.stop;
-          const icon: 'navigation' | 'map-pin' | 'zap' =
-            p.type === 'origin' ? 'navigation' :
-            p.type === 'dest'   ? 'map-pin'    : 'zap';
+          const color = ROUTE_COLORS[p.type ?? 'stop'] ?? ROUTE_COLORS.stop;
+          // Count only intermediate stops for numbering
+          const stopIndex = routePoints
+            .slice(0, i)
+            .filter(x => x.type === 'stop' || (!x.type && i > 0))
+            .length + 1;
 
           return (
             <Marker
@@ -283,8 +306,23 @@ export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
               anchor={{ x: 0.5, y: 0.5 }}
             >
               <View style={[styles.routePin, { backgroundColor: color }]}>
-                <Feather name={icon} size={8} color="#fff" />
+                {p.type === 'stop' || (!p.type && i > 0 && i < (routePoints.length - 1)) ? (
+                  // Stop: show sequential number instead of icon
+                  <Text style={styles.routePinNumber}>{stopIndex}</Text>
+                ) : p.type === 'origin' ? (
+                  <Feather name="navigation" size={8} color="#fff" />
+                ) : (
+                  <Feather name="map-pin" size={8} color="#fff" />
+                )}
               </View>
+              {/* Callout shows label on tap */}
+              {p.label ? (
+                <Callout tooltip={false}>
+                  <View style={styles.callout}>
+                    <Text style={styles.calloutText}>{p.label}</Text>
+                  </View>
+                </Callout>
+              ) : null}
             </Marker>
           );
         })}
@@ -352,5 +390,25 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 3,
+  },
+  // Stop number shown inside stop waypoint pins
+  routePinNumber: {
+    color: '#fff',
+    fontSize: 8,
+    fontWeight: '700',
+    lineHeight: 10,
+  },
+  // Callout bubble shown when tapping a route waypoint
+  callout: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: '#1E293B',
+    maxWidth: 180,
+  },
+  calloutText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
