@@ -49,48 +49,177 @@ const DEFAULT_FILTERS: FiltersState = {
   minPowerKw: 3, maxPowerKw: 350, maxPriceSum: 5000, vehicleId: null,
 };
 
-// ── Banner carousel ──────────────────────────────────────────────────────────
-const BANNER_H = Math.round(SCREEN_HEIGHT * 0.15);
+// ── Banner system ─────────────────────────────────────────────────────────────
+const BANNER_H        = Math.round(SCREEN_HEIGHT * 0.15);
 const BANNER_INTERVAL = 5000;
-const BANNER_RESUME_DELAY = 10000;
+const BANNER_RESUME   = 10000;
 
 interface BannerItem {
-  id: number;
-  title: string;
-  subtitle?: string;
-  discount?: number;
-  gradientColors: [string, string];
+  id:              string;
+  badge:           string;
+  badgeIcon:       'zap' | 'clock' | 'moon' | 'navigation' | 'percent' | 'star';
+  title:           string;
+  subtitle:        string;
+  gradient:        [string, string, ...string[]];
+  showCountdown:   boolean;
+  countdownEndsAt?: Date | null;
+  ctaText:         string;
+  stationId?:      number;
 }
 
-function makeBannersFromStations(stations: any[]): BannerItem[] {
-  const promos = stations.filter(s => s.is_promoted && s.discount_pct > 0);
-  if (promos.length === 0) {
-    return [
-      { id: -1, title: 'Заряжайтесь выгодно', subtitle: 'Скидки до 30% у партнёров', discount: undefined, gradientColors: ['#2563EB', '#7C3AED'] },
-      { id: -2, title: 'Быстрая зарядка DC', subtitle: 'CCS2 · CHAdeMO · GB/T', gradientColors: ['#0F172A', '#1E40AF'] },
-      { id: -3, title: 'Планируйте маршрут', subtitle: 'Навигация до зарядки одной кнопкой', gradientColors: ['#7C3AED', '#DB2777'] },
-    ];
+const STATIC_BANNERS: BannerItem[] = [
+  {
+    id: 'static-1', badge: 'HOT DEAL', badgeIcon: 'zap',
+    title: 'MEGA SALE ⚡ −30%', subtitle: 'на быструю зарядку · только сегодня',
+    gradient: ['#7C0000', '#DC2626', '#7C3AED'],
+    showCountdown: false, ctaText: 'Маршрут',
+  },
+  {
+    id: 'static-2', badge: 'FLASH SALE', badgeIcon: 'clock',
+    title: 'FLASH DEAL ⚡ −20%', subtitle: 'ограниченное время · CCS2 / CHAdeMO',
+    gradient: ['#92400E', '#D97706', '#DC2626'],
+    showCountdown: false, ctaText: 'Маршрут',
+  },
+  {
+    id: 'static-3', badge: 'РЯДОМ С ВАМИ', badgeIcon: 'navigation',
+    title: 'БЫСТРАЯ ЗАРЯДКА 🌙', subtitle: 'ночной тариф · DC до 150 кВт',
+    gradient: ['#0F172A', '#1E3A5F', '#1E40AF'],
+    showCountdown: false, ctaText: 'Маршрут',
+  },
+];
+
+function makeBanners(stations: any[], userLocation: { lat: number; lng: number } | null): BannerItem[] {
+  const result: BannerItem[] = [];
+
+  // а) Максимальная скидка
+  const maxDisc = [...stations.filter(s => s.discount_pct > 0)]
+    .sort((a, b) => b.discount_pct - a.discount_pct)[0];
+  if (maxDisc) {
+    result.push({
+      id: `mega-${maxDisc.id}`, badge: 'HOT DEAL', badgeIcon: 'zap',
+      title: `MEGA SALE ⚡ −${maxDisc.discount_pct}%`,
+      subtitle: `${maxDisc.name} · ${maxDisc.address}`.slice(0, 46),
+      gradient: ['#7C0000', '#DC2626', '#7C3AED'],
+      showCountdown: !!maxDisc.promo_ends_at,
+      countdownEndsAt: maxDisc.promo_ends_at ? new Date(maxDisc.promo_ends_at) : null,
+      ctaText: 'Маршрут', stationId: maxDisc.id,
+    });
   }
-  return promos.slice(0, 5).map(s => ({
-    id: s.id,
-    title: s.name,
-    subtitle: s.address,
-    discount: Number(s.discount_pct) || undefined,
-    gradientColors: ['#2563EB', '#7C3AED'] as [string, string],
-  }));
+
+  // б) Ближайшая акция по времени окончания
+  const soon = [...stations.filter(s => s.promo_ends_at && new Date(s.promo_ends_at) > new Date())]
+    .sort((a, b) => new Date(a.promo_ends_at).getTime() - new Date(b.promo_ends_at).getTime())[0];
+  if (soon && soon.id !== maxDisc?.id) {
+    result.push({
+      id: `flash-${soon.id}`, badge: 'FLASH SALE', badgeIcon: 'clock',
+      title: `FLASH DEAL ⚡ −${soon.discount_pct}%`,
+      subtitle: `${soon.name} · заканчивается скоро`,
+      gradient: ['#92400E', '#D97706', '#DC2626'],
+      showCountdown: true, countdownEndsAt: new Date(soon.promo_ends_at),
+      ctaText: 'Маршрут', stationId: soon.id,
+    });
+  }
+
+  // в/г) Ближайшая промо-станция по расстоянию
+  if (userLocation) {
+    const nearby = [...stations.filter(s => s.is_promoted)]
+      .map(s => ({ ...s, _d: haversine(userLocation.lat, userLocation.lng, s.lat, s.lng) }))
+      .sort((a, b) => a._d - b._d)[0];
+    if (nearby && nearby.id !== maxDisc?.id && nearby.id !== soon?.id) {
+      result.push({
+        id: `near-${nearby.id}`, badge: 'РЯДОМ С ВАМИ', badgeIcon: 'navigation',
+        title: `РЯДОМ · ${nearby.name}`.slice(0, 28),
+        subtitle: `${(nearby._d * 1000).toFixed(0)} м · ${nearby.price_per_kwh?.toLocaleString('ru-RU')} сум/кВт·ч`,
+        gradient: ['#1E3A5F', '#2563EB', '#7C3AED'],
+        showCountdown: false, ctaText: 'Маршрут', stationId: nearby.id,
+      });
+    }
+  }
+
+  return result.length > 0 ? result : STATIC_BANNERS;
 }
 
-interface BannerCarouselProps {
+// ── Countdown timer chip ───────────────────────────────────────────────────────
+function Countdown({ endsAt }: { endsAt: Date }) {
+  const [label, setLabel] = useState('');
+  useEffect(() => {
+    const tick = () => {
+      const diff = endsAt.getTime() - Date.now();
+      if (diff <= 0) { setLabel('00:00:00'); return; }
+      const h = Math.floor(diff / 3_600_000);
+      const m = Math.floor((diff % 3_600_000) / 60_000);
+      const s = Math.floor((diff % 60_000) / 1_000);
+      setLabel(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [endsAt]);
+  if (!label) return null;
+  return (
+    <View style={bStyles.countdown}>
+      <Feather name="clock" size={9} color="#FCA5A5" />
+      <Text style={bStyles.countdownText}>{label}</Text>
+    </View>
+  );
+}
+
+// ── Individual banner card ─────────────────────────────────────────────────────
+function BannerCard({ banner, cardWidth, onPress }: { banner: BannerItem; cardWidth: number; onPress: () => void }) {
+  return (
+    <TouchableOpacity activeOpacity={0.92} onPress={onPress} style={{ width: cardWidth }}>
+      <LinearGradient
+        colors={banner.gradient}
+        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+        style={[bStyles.card, { height: BANNER_H }]}
+      >
+        {/* Decorative circles */}
+        <View style={bStyles.circle1} />
+        <View style={bStyles.circle2} />
+        {/* Big bg icon */}
+        <Feather name="zap" size={BANNER_H * 0.75} color="rgba(255,255,255,0.07)"
+          style={bStyles.bgIcon} />
+
+        {/* Badge — top left */}
+        <View style={bStyles.badge}>
+          <Feather name={banner.badgeIcon} size={9} color="#1E293B" />
+          <Text style={bStyles.badgeText}>{banner.badge}</Text>
+        </View>
+
+        {/* Spacer */}
+        <View style={{ flex: 1 }} />
+
+        {/* Title + subtitle */}
+        <Text style={bStyles.title} numberOfLines={1}>{banner.title}</Text>
+        <Text style={bStyles.subtitle} numberOfLines={1}>{banner.subtitle}</Text>
+
+        {/* Bottom row: countdown (left) + CTA (right) */}
+        <View style={bStyles.bottomRow}>
+          {banner.showCountdown && banner.countdownEndsAt
+            ? <Countdown endsAt={banner.countdownEndsAt} />
+            : <View />
+          }
+          <View style={bStyles.cta}>
+            <Feather name="navigation" size={10} color="#1E293B" />
+            <Text style={bStyles.ctaText}>{banner.ctaText}</Text>
+          </View>
+        </View>
+      </LinearGradient>
+    </TouchableOpacity>
+  );
+}
+
+// ── Banner carousel ────────────────────────────────────────────────────────────
+function BannerCarousel({ banners, cardWidth, onPress }: {
   banners: BannerItem[];
+  cardWidth: number;
   onPress: (b: BannerItem) => void;
-}
-
-function BannerCarousel({ banners, onPress }: BannerCarouselProps) {
+}) {
   const [current, setCurrent] = useState(0);
-  const scrollRef = useRef<ScrollView>(null);
-  const autoTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const scrollRef   = useRef<ScrollView>(null);
+  const autoTimer   = useRef<ReturnType<typeof setInterval>  | null>(null);
   const resumeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isTouching = useRef(false);
+  const isTouching  = useRef(false);
 
   const startAuto = useCallback(() => {
     if (autoTimer.current) clearInterval(autoTimer.current);
@@ -98,42 +227,37 @@ function BannerCarousel({ banners, onPress }: BannerCarouselProps) {
       if (isTouching.current || banners.length <= 1) return;
       setCurrent(prev => {
         const next = (prev + 1) % banners.length;
-        scrollRef.current?.scrollTo({ x: next * SCREEN_WIDTH, animated: true });
+        scrollRef.current?.scrollTo({ x: next * cardWidth, animated: true });
         return next;
       });
     }, BANNER_INTERVAL);
-  }, [banners.length]);
+  }, [banners.length, cardWidth]);
 
   const pauseAuto = useCallback(() => {
     if (autoTimer.current) { clearInterval(autoTimer.current); autoTimer.current = null; }
     if (resumeTimer.current) clearTimeout(resumeTimer.current);
-    resumeTimer.current = setTimeout(() => {
-      isTouching.current = false;
-      startAuto();
-    }, BANNER_RESUME_DELAY);
+    resumeTimer.current = setTimeout(() => { isTouching.current = false; startAuto(); }, BANNER_RESUME);
   }, [startAuto]);
 
   useEffect(() => {
     startAuto();
     return () => {
-      if (autoTimer.current) clearInterval(autoTimer.current);
+      if (autoTimer.current)  clearInterval(autoTimer.current);
       if (resumeTimer.current) clearTimeout(resumeTimer.current);
     };
   }, [startAuto]);
 
   const onScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
-    setCurrent(idx);
+    setCurrent(Math.round(e.nativeEvent.contentOffset.x / cardWidth));
   };
 
   if (banners.length === 0) return null;
 
   return (
-    <View style={bannerStyles.wrapper}>
+    <View style={bStyles.wrapper}>
       <ScrollView
         ref={scrollRef}
-        horizontal
-        pagingEnabled
+        horizontal pagingEnabled
         showsHorizontalScrollIndicator={false}
         onScrollEndDrag={() => { isTouching.current = false; pauseAuto(); }}
         onMomentumScrollEnd={onScrollEnd}
@@ -141,46 +265,14 @@ function BannerCarousel({ banners, onPress }: BannerCarouselProps) {
         scrollEventThrottle={16}
         decelerationRate="fast"
       >
-        {banners.map((b, i) => (
-          <TouchableOpacity
-            key={b.id}
-            activeOpacity={0.92}
-            onPress={() => onPress(b)}
-            style={{ width: SCREEN_WIDTH - 32 }}
-          >
-            <LinearGradient
-              colors={b.gradientColors}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-              style={[bannerStyles.banner, { height: BANNER_H }]}
-            >
-              {b.discount != null && b.discount > 0 && (
-                <View style={bannerStyles.discountBadge}>
-                  <Text style={bannerStyles.discountText}>−{b.discount}%</Text>
-                </View>
-              )}
-              <Text style={bannerStyles.bannerTitle} numberOfLines={1}>{b.title}</Text>
-              {b.subtitle ? (
-                <Text style={bannerStyles.bannerSubtitle} numberOfLines={1}>{b.subtitle}</Text>
-              ) : null}
-              <View style={bannerStyles.bannerCta}>
-                <Text style={bannerStyles.bannerCtaText}>Подробнее</Text>
-                <Feather name="arrow-right" size={12} color="#fff" />
-              </View>
-            </LinearGradient>
-          </TouchableOpacity>
+        {banners.map(b => (
+          <BannerCard key={b.id} banner={b} cardWidth={cardWidth} onPress={() => onPress(b)} />
         ))}
       </ScrollView>
-      {/* Dot indicators */}
       {banners.length > 1 && (
-        <View style={bannerStyles.dots}>
+        <View style={bStyles.dots}>
           {banners.map((_, i) => (
-            <View
-              key={i}
-              style={[
-                bannerStyles.dot,
-                i === current ? bannerStyles.dotActive : bannerStyles.dotInactive,
-              ]}
-            />
+            <View key={i} style={[bStyles.dot, i === current ? bStyles.dotActive : bStyles.dotInactive]} />
           ))}
         </View>
       )}
@@ -188,20 +280,28 @@ function BannerCarousel({ banners, onPress }: BannerCarouselProps) {
   );
 }
 
-const bannerStyles = StyleSheet.create({
-  wrapper: { marginBottom: 4 },
-  banner: { borderRadius: 16, padding: 14, justifyContent: 'flex-end', overflow: 'hidden' },
-  discountBadge: {
-    position: 'absolute', top: 10, right: 10,
-    backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 8,
-    paddingHorizontal: 8, paddingVertical: 3,
-  },
-  discountText: { color: '#fff', fontSize: 13, fontFamily: 'Inter_700Bold' },
-  bannerTitle:   { color: '#fff', fontSize: 14, fontFamily: 'Inter_700Bold', marginBottom: 2 },
-  bannerSubtitle: { color: 'rgba(255,255,255,0.8)', fontSize: 11, fontFamily: 'Inter_400Regular', marginBottom: 6 },
-  bannerCta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  bannerCtaText: { color: '#fff', fontSize: 11, fontFamily: 'Inter_600SemiBold' },
-  dots: { flexDirection: 'row', justifyContent: 'center', gap: 5, marginTop: 8 },
+const bStyles = StyleSheet.create({
+  wrapper:  { marginBottom: 4 },
+  card:     { borderRadius: 16, padding: 12, overflow: 'hidden', flexDirection: 'column' },
+  // Decorative background
+  circle1:  { position: 'absolute', width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.06)', top: -30, right: -20 },
+  circle2:  { position: 'absolute', width: 80,  height: 80,  borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.04)', top: 20,  right: 70 },
+  bgIcon:   { position: 'absolute', right: -8, bottom: -8 },
+  // Badge
+  badge:       { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', backgroundColor: '#FACC15', borderRadius: 100, paddingHorizontal: 8, paddingVertical: 3 },
+  badgeText:   { fontSize: 11, fontFamily: 'Inter_700Bold', color: '#1E293B' },
+  // Content
+  title:       { color: '#FFFFFF', fontSize: 20, fontFamily: 'Inter_700Bold', lineHeight: 24, marginBottom: 2 },
+  subtitle:    { color: 'rgba(255,255,255,0.72)', fontSize: 12, fontFamily: 'Inter_400Regular', marginBottom: 6 },
+  // Bottom row
+  bottomRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  countdown:   { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(220,38,38,0.35)', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
+  countdownText: { color: '#FCA5A5', fontSize: 13, fontFamily: 'Inter_700Bold', fontVariant: ['tabular-nums'] },
+  // CTA
+  cta:         { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#FACC15', borderRadius: 100, paddingHorizontal: 10, paddingVertical: 5 },
+  ctaText:     { color: '#1E293B', fontSize: 12, fontFamily: 'Inter_700Bold' },
+  // Dots
+  dots:        { flexDirection: 'row', justifyContent: 'center', gap: 5, marginTop: 8 },
   dot:         { height: 4, borderRadius: 2 },
   dotActive:   { width: 16, backgroundColor: '#2563EB' },
   dotInactive: { width:  4, backgroundColor: '#CBD5E1' },
@@ -443,7 +543,10 @@ export default function MapScreen() {
   [filteredStations]);
 
   // ── Banners ───────────────────────────────────────────────────────────────
-  const banners = useMemo(() => makeBannersFromStations(promotedFromApi), [promotedFromApi]);
+  const banners = useMemo(
+    () => makeBanners([...allStations, ...promotedFromApi], userLocation),
+    [allStations, promotedFromApi, userLocation],
+  );
 
   // ── Map markers ───────────────────────────────────────────────────────────
   const markers = useMemo(() => filteredStations.map(s => ({
@@ -485,23 +588,40 @@ export default function MapScreen() {
   const routeFor   = (s: any) =>
     `/route/new?stationId=${s.id}&stationName=${encodeURIComponent(s.name)}&lat=${s.lat}&lng=${s.lng}` as any;
 
-  // ── Reusable station card renderer ────────────────────────────────────────
-  const renderCard = useCallback((s: any, i: number) => (
-    <Animated.View
-      key={s.id}
-      entering={FadeInDown.delay(i * 25).duration(280).easing(IOS_EASE)}
-      layout={Layout.duration(220).easing(IOS_EASE)}
+  // ── Horizontal section renderer ───────────────────────────────────────────
+  // Card width = 78 % of screen; gap = 12; padding = 16 on each side.
+  // ScrollView breaks out of parent's 16px horizontal padding via marginHorizontal: -16.
+  const CARD_W    = Math.round(SCREEN_WIDTH * 0.78);
+  const SNAP_STEP = CARD_W + 12;
+
+  const renderHSection = useCallback((stations: any[]) => (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      snapToInterval={SNAP_STEP}
+      decelerationRate="fast"
+      disableIntervalMomentum
+      style={styles.hSection}
+      contentContainerStyle={[styles.hSectionContent, { paddingRight: 16 + (SCREEN_WIDTH - CARD_W - 16) }]}
     >
-      <StationCard
-        station={s}
-        onPress={() => router.push(`/station/${s.id}`)}
-        onRoute={() => router.push(routeFor(s))}
-        discount_pct={(s as any).discount_pct}
-        is_promoted={(s as any).is_promoted}
-        amenities={(s as any).amenities}
-      />
-    </Animated.View>
-  ), [router]);
+      {stations.map((s, i) => (
+        <Animated.View
+          key={s.id}
+          entering={FadeInRight.delay(i * 40).duration(260).easing(IOS_EASE)}
+          style={{ width: CARD_W, marginRight: 12 }}
+        >
+          <StationCard
+            station={s}
+            onPress={() => router.push(`/station/${s.id}`)}
+            onRoute={() => router.push(routeFor(s))}
+            discount_pct={(s as any).discount_pct}
+            is_promoted={(s as any).is_promoted}
+            amenities={(s as any).amenities}
+          />
+        </Animated.View>
+      ))}
+    </ScrollView>
+  ), [router, CARD_W, SNAP_STEP]);
 
   // ── TOP BAR ───────────────────────────────────────────────────────────────
   const TopBar = (
@@ -650,35 +770,22 @@ export default function MapScreen() {
           showsVerticalScrollIndicator={false}
           nestedScrollEnabled
         >
-          {/* 1. Banner carousel */}
+          {/* 1. Banner carousel — breaks out of horizontal padding */}
           <BannerCarousel
             banners={banners}
+            cardWidth={SCREEN_WIDTH - 32}
             onPress={b => {
-              if (b.id > 0) router.push(`/station/${b.id}` as any);
+              if (b.stationId) router.push(`/station/${b.stationId}` as any);
             }}
           />
 
-          {/* 2. Рекомендуем */}
+          {/* 2. Рекомендуем (is_promoted, desc discount) */}
           {promotedStations.length > 0 && (
             <>
               <SectionHeader title="Рекомендуем" badge="Реклама" count={promotedStations.length} colors={colors} />
-              <ScrollView
-                horizontal showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.promoScroll}
-                snapToInterval={292} decelerationRate="fast" disableIntervalMomentum
-              >
-                {promotedStations.map((s, i) => (
-                  <Animated.View key={s.id}
-                    entering={FadeInRight.delay(i * 50).duration(280).easing(IOS_EASE)}
-                    style={styles.promoCard}
-                  >
-                    <StationCard station={s} onPress={() => router.push(`/station/${s.id}`)}
-                      onRoute={() => router.push(routeFor(s))} compact
-                      discount_pct={(s as any).discount_pct} is_promoted
-                      amenities={(s as any).amenities} />
-                  </Animated.View>
-                ))}
-              </ScrollView>
+              {renderHSection(
+                [...promotedStations].sort((a, b) => (b.discount_pct ?? 0) - (a.discount_pct ?? 0))
+              )}
             </>
           )}
 
@@ -686,15 +793,15 @@ export default function MapScreen() {
           {nearbyStations.length > 0 && (
             <>
               <SectionHeader title="Рядом с вами" count={nearbyStations.length} colors={colors} />
-              {nearbyStations.map((s, i) => renderCard(s, i))}
+              {renderHSection(nearbyStations)}
             </>
           )}
 
-          {/* 4. Дешёвые */}
+          {/* 4. Самые дешёвые */}
           {cheapStations.length > 0 && (
             <>
-              <SectionHeader title="Дешёвые" count={cheapStations.length} colors={colors} />
-              {cheapStations.map((s, i) => renderCard(s, i))}
+              <SectionHeader title="Самые дешёвые" count={cheapStations.length} colors={colors} />
+              {renderHSection(cheapStations)}
             </>
           )}
 
@@ -702,25 +809,25 @@ export default function MapScreen() {
           {freeStations.length > 0 && (
             <>
               <SectionHeader title="Свободные" count={freeStations.length} colors={colors} />
-              {freeStations.map((s, i) => renderCard(s, i))}
+              {renderHSection(freeStations)}
             </>
           )}
 
-          {/* 6. Секции по типам коннекторов (из данных) */}
-          {connectorSections.map(({ type, stations }) => (
-            <React.Fragment key={type}>
-              <SectionHeader title={type} count={stations.length} colors={colors} />
-              {stations.map((s, i) => renderCard(s, i))}
-            </React.Fragment>
-          ))}
-
-          {/* 7. Гибрид (AC + DC одновременно) */}
+          {/* 6. Гибрид (AC + DC одновременно) */}
           {hybridStations.length > 0 && (
             <>
               <SectionHeader title="Гибрид" count={hybridStations.length} colors={colors} />
-              {hybridStations.map((s, i) => renderCard(s, i))}
+              {renderHSection(hybridStations)}
             </>
           )}
+
+          {/* 7. Секции по типам коннекторов (генерируются из данных) */}
+          {connectorSections.map(({ type, stations }) => (
+            <React.Fragment key={type}>
+              <SectionHeader title={type} count={stations.length} colors={colors} />
+              {renderHSection(stations)}
+            </React.Fragment>
+          ))}
 
           {/* Empty state — shown only when the entire filtered set is empty */}
           {filteredStations.length === 0 && (
@@ -801,8 +908,9 @@ const styles = StyleSheet.create({
   handle: { width: 40, height: 4, borderRadius: 2 },
   sheetScroll: { flex: 1 },
   sheetContent: { paddingHorizontal: 16, paddingTop: 4 },
-  promoScroll: { paddingBottom: 8 },
-  promoCard: { width: 280, marginRight: 12 },
+  // Horizontal section: breaks out of parent 16px padding with negative margin
+  hSection: { marginHorizontal: -16, marginBottom: 4 },
+  hSectionContent: { paddingLeft: 16, paddingBottom: 8 },
   emptyState: { alignItems: 'center', paddingVertical: 40, gap: 8 },
   emptyTitle: { fontSize: 16, fontFamily: 'Inter_700Bold', marginTop: 4 },
   emptySubtitle: { fontSize: 13, fontFamily: 'Inter_400Regular', textAlign: 'center' },
