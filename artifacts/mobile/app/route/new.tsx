@@ -4,11 +4,12 @@ import {
   TouchableOpacity, Alert, ActivityIndicator, Platform,
 } from 'react-native';
 import * as Location from 'expo-location';
-import Animated, { FadeInDown, FadeInUp, SlideInRight } from 'react-native-reanimated';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
   useGetVehicles, useGetRoutes,
   useCreateRoute, useDeleteRoute,
@@ -18,129 +19,142 @@ import { useColors } from '@/hooks/useColors';
 import { useApp } from '@/contexts/AppContext';
 import { GradientButton } from '@/components/GradientButton';
 import { MapViewWrapper, MapApi } from '@/components/MapViewWrapper';
-import { LinearGradient } from 'expo-linear-gradient';
 
 function showAlert(title: string, message: string) {
   if (Platform.OS === 'web') window.alert(`${title}: ${message}`);
   else Alert.alert(title, message);
 }
 
-// Build route points for the map polyline from API response
-function buildRoutePoints(
-  result: any,
-  originLabel: string,
-  destLabel: string,
-): Array<{ lat: number; lng: number; label: string; type: 'origin' | 'stop' | 'dest' }> {
+function formatTime(totalMin: number) {
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return h > 0 ? `${h} ч ${m} мин` : `${m} мин`;
+}
+
+function formatHHMM(d: Date) {
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+// Eco-route approximation: same stops, ~12% longer drive time, ~20% more charging
+function buildEcoVariant(fast: any): any {
+  if (!fast) return null;
+  const totalChargeMins = (fast.stops ?? []).reduce((s: number, st: any) => s + st.charge_time_min, 0);
+  const driveTimeMins = fast.total_time_min - totalChargeMins;
+  const ecoStops = (fast.stops ?? []).map((s: any) => ({
+    ...s,
+    departure_battery_pct: Math.min(95, s.departure_battery_pct + 10),
+    charge_time_min: Math.round(s.charge_time_min * 1.2),
+  }));
+  const ecoChargeTime = ecoStops.reduce((s: number, st: any) => s + st.charge_time_min, 0);
+  const ecoDriveTime  = Math.round(driveTimeMins * (0.9 / 0.85));
+  return {
+    ...fast,
+    total_time_min: ecoDriveTime + ecoChargeTime,
+    total_distance_km: parseFloat((fast.total_distance_km * 0.97).toFixed(1)),
+    stops: ecoStops,
+    final_battery_pct: Math.min(50, (fast.final_battery_pct ?? 15) + 8),
+  };
+}
+
+// Cycling stop colors (operator-like gradient palette)
+const STOP_GRADS: [string, string][] = [
+  ['#2563EB', '#7C3AED'],
+  ['#10B981', '#059669'],
+  ['#F59E0B', '#D97706'],
+  ['#EF4444', '#DC2626'],
+  ['#8B5CF6', '#4F46E5'],
+];
+
+function buildRoutePoints(result: any, originLabel: string, destLabel: string) {
   const points: Array<{ lat: number; lng: number; label: string; type: 'origin' | 'stop' | 'dest' }> = [];
-
   points.push({ lat: result.origin_lat, lng: result.origin_lng, label: originLabel, type: 'origin' });
-
   for (const stop of result.stops ?? []) {
     if (stop.lat != null && stop.lng != null) {
       points.push({ lat: stop.lat, lng: stop.lng, label: stop.station_name, type: 'stop' });
     }
   }
-
   points.push({ lat: result.dest_lat, lng: result.dest_lng, label: destLabel, type: 'dest' });
-
   return points;
 }
 
+// ── Component ─────────────────────────────────────────────────────────────
+
 export default function NewRouteScreen() {
-  const colors = useColors();
-  const insets = useSafeAreaInsets();
-  const router = useRouter();
-  const qc = useQueryClient();
+  const colors  = useColors();
+  const insets  = useSafeAreaInsets();
+  const router  = useRouter();
+  const qc      = useQueryClient();
   const { selectedVehicleId, setActiveRouteId } = useApp();
-  const mapRef = useRef<MapApi>(null);
+  const mapRef  = useRef<MapApi>(null);
 
   const params = useLocalSearchParams<{
     stationId?: string; stationName?: string; lat?: string; lng?: string;
   }>();
 
   const prefilledName = params.stationName ? decodeURIComponent(params.stationName) : '';
-  const prefilledLat = params.lat ? parseFloat(params.lat) : null;
-  const prefilledLng = params.lng ? parseFloat(params.lng) : null;
+  const prefilledLat  = params.lat  ? parseFloat(params.lat)  : null;
+  const prefilledLng  = params.lng  ? parseFloat(params.lng)  : null;
 
-  const [origin, setOrigin] = useState('Определяю местоположение…');
+  const [origin, setOrigin]           = useState('Определяю местоположение…');
   const [destination, setDestination] = useState(prefilledName);
-  const [batteryPct, setBatteryPct] = useState('85');
+  const [batteryPct, setBatteryPct]   = useState('85');
   const [originCoords, setOriginCoords] = useState({ lat: 41.2995, lng: 69.2401 });
-  const [locating, setLocating] = useState(true);
+  const [locating, setLocating]       = useState(true);
   const [routeResult, setRouteResult] = useState<any>(null);
-  const [showMap, setShowMap] = useState(false);
+  const [showMap, setShowMap]         = useState(false);
+  const [routeMode, setRouteMode]     = useState<'fast' | 'eco'>('fast');
 
-  const { data: vehicles = [] } = useGetVehicles();
-  const { data: existingRoutes = [] } = useGetRoutes();
+  const { data: vehicles = [] }        = useGetVehicles();
+  const { data: existingRoutes = [] }  = useGetRoutes();
   const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId) || vehicles[0];
 
   const deleteRoute = useDeleteRoute();
-
   const createRoute = useCreateRoute({
     mutation: {
       onSuccess: (res) => {
         qc.invalidateQueries({ queryKey: getGetRoutesQueryKey() });
         setRouteResult(res);
         setShowMap(true);
+        setRouteMode('fast');
         setActiveRouteId(res.id);
       },
       onError: () => showAlert('Ошибка', 'Не удалось построить маршрут. Попробуйте ещё раз.'),
     },
   });
 
-  // Build polyline points from result
+  const ecoResult   = useMemo(() => buildEcoVariant(routeResult), [routeResult]);
+  const activeResult = routeMode === 'fast' ? routeResult : ecoResult;
+
   const routePoints = useMemo(() => {
     if (!routeResult) return undefined;
     return buildRoutePoints(routeResult, origin, destination);
   }, [routeResult, origin, destination]);
 
-  // On mount: get real GPS position + reverse-geocode via backend proxy
+  // GPS + reverse geocode on mount
   useEffect(() => {
     (async () => {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') {
-          setOrigin('Ташкент, Узбекистан');
-          setLocating(false);
-          return;
-        }
+        if (status !== 'granted') { setOrigin('Ташкент, Узбекистан'); setLocating(false); return; }
         const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
         const { latitude: lat, longitude: lng } = loc.coords;
         setOriginCoords({ lat, lng });
-        // Reverse geocode through backend — keeps key server-side
         const domain = process.env.EXPO_PUBLIC_DOMAIN;
-        const base = domain ? `https://${domain}` : '';
+        const base   = domain ? `https://${domain}` : '';
         const r = await fetch(`${base}/api/geocode/reverse?lat=${lat}&lng=${lng}`);
-        if (r.ok) {
-          const { address } = await r.json();
-          setOrigin(address ?? `${lat.toFixed(5)}, ${lng.toFixed(5)}`);
-        } else {
-          setOrigin(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
-        }
-      } catch {
-        setOrigin('Ташкент, Узбекистан');
-      } finally {
-        setLocating(false);
-      }
+        if (r.ok) { const { address } = await r.json(); setOrigin(address ?? `${lat.toFixed(5)}, ${lng.toFixed(5)}`); }
+        else setOrigin(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+      } catch { setOrigin('Ташкент, Узбекистан'); }
+      finally  { setLocating(false); }
     })();
   }, []);
-
-  // Switch to map view when route is ready
-  useEffect(() => {
-    if (showMap && mapRef.current) {
-      // map will fit bounds via routePoints effect in MapViewWrapper
-    }
-  }, [showMap, routePoints]);
 
   async function handlePlanRoute() {
     if (!destination.trim()) { showAlert('Пункт назначения', 'Введите конечную точку.'); return; }
     const pct = parseFloat(batteryPct);
     if (isNaN(pct) || pct < 0 || pct > 100) { showAlert('Неверный заряд', 'Введите заряд от 0 до 100%.'); return; }
-
-    // Delete all existing active routes first → one route at a time
-    const activeRoutes = (existingRoutes as any[]).filter((r) => r.status === 'active');
-    await Promise.all(activeRoutes.map((r) => deleteRoute.mutateAsync({ id: r.id })));
-
+    const active = (existingRoutes as any[]).filter((r) => r.status === 'active');
+    await Promise.all(active.map((r) => deleteRoute.mutateAsync({ id: r.id })));
     createRoute.mutate({
       data: {
         origin, destination,
@@ -154,22 +168,28 @@ export default function NewRouteScreen() {
   }
 
   function handleSwap() {
-    const tmp = origin;
-    setOrigin(destination);
-    setDestination(tmp);
+    const tmp = origin; setOrigin(destination); setDestination(tmp);
   }
 
-  function formatTime(totalMin: number) {
-    const h = Math.floor(totalMin / 60);
-    const m = totalMin % 60;
-    return h > 0 ? `${h} ч ${m} мин` : `${m} мин`;
-  }
-
-  // Extra padding so the button clears the tab bar on both platforms
   const bottomPad = Platform.OS === 'web' ? 100 : insets.bottom + 84;
-  const topPad = Platform.OS === 'web' ? 67 : insets.top;
+  const topPad    = Platform.OS === 'web' ? 67  : insets.top;
   const isPending = createRoute.isPending || deleteRoute.isPending;
 
+  // ── Derived timeline values ──────────────────────────────────────────────
+  const startTime   = useMemo(() => new Date(), [routeResult]);
+  const arrivalTime = useMemo(() => {
+    if (!activeResult) return new Date();
+    return new Date(startTime.getTime() + activeResult.total_time_min * 60_000);
+  }, [activeResult, startTime]);
+
+  const totalChargeMins = useMemo(() =>
+    (activeResult?.stops ?? []).reduce((s: number, st: any) => s + st.charge_time_min, 0),
+  [activeResult]);
+
+  const rangeKm = Math.round((parseFloat(batteryPct) / 100) * (selectedVehicle?.range_km ?? 450));
+  const speedKmPerMin = routeMode === 'eco' ? 0.85 : 0.9;
+
+  // ── Render ───────────────────────────────────────────────────────────────
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
@@ -177,31 +197,30 @@ export default function NewRouteScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
           <Feather name="arrow-left" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Маршрут</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>
+          {routeResult ? 'Навигация' : 'Маршрут'}
+        </Text>
         {routeResult ? (
           <TouchableOpacity style={styles.iconBtn} onPress={() => { setRouteResult(null); setShowMap(false); }}>
             <Feather name="refresh-ccw" size={20} color={colors.mutedForeground} />
           </TouchableOpacity>
-        ) : (
-          <View style={styles.iconBtn} />
-        )}
+        ) : <View style={styles.iconBtn} />}
       </View>
 
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: bottomPad + 100 }]}
+        contentContainerStyle={[styles.content, { paddingBottom: bottomPad + 120 }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Origin / Destination card */}
+        {/* ── Origin / Destination ────────────────────────────────────── */}
         <Animated.View entering={FadeInDown.delay(0).springify()}>
           <View style={[styles.card, { backgroundColor: colors.card }]}>
             <View style={styles.inputRow}>
               <View style={[styles.dot, { backgroundColor: colors.primary }]} />
               <TextInput
                 style={[styles.inputText, { color: colors.text }]}
-                value={origin}
-                onChangeText={setOrigin}
-                placeholder="Начальная точка"
+                value={origin} onChangeText={setOrigin}
+                placeholder={locating ? 'Определяю местоположение…' : 'Начальная точка'}
                 placeholderTextColor={colors.mutedForeground}
               />
             </View>
@@ -216,8 +235,7 @@ export default function NewRouteScreen() {
               <View style={[styles.dot, { backgroundColor: '#7C3AED' }]} />
               <TextInput
                 style={[styles.inputText, { color: colors.text }]}
-                value={destination}
-                onChangeText={setDestination}
+                value={destination} onChangeText={setDestination}
                 placeholder="Конечная точка"
                 placeholderTextColor={colors.mutedForeground}
               />
@@ -225,59 +243,117 @@ export default function NewRouteScreen() {
           </View>
         </Animated.View>
 
-        {/* Car card */}
+        {/* ── Car card ────────────────────────────────────────────────── */}
         <Animated.View entering={FadeInDown.delay(60).springify()}>
-          <View style={[styles.card, { backgroundColor: colors.card }]}>
+          <TouchableOpacity
+            style={[styles.card, { backgroundColor: colors.card }]}
+            onPress={() => router.push('/cars')}
+            activeOpacity={0.8}
+          >
             <View style={styles.carRow}>
               <View style={[styles.carIcon, { backgroundColor: colors.muted }]}>
                 <Feather name="truck" size={18} color={colors.primary} />
               </View>
               <View style={{ flex: 1 }}>
+                <Text style={[styles.carLabel, { color: colors.mutedForeground }]}>Мой автомобиль</Text>
                 <Text style={[styles.carName, { color: colors.text }]}>
                   {selectedVehicle?.name ?? 'Выберите автомобиль'}
                 </Text>
                 <Text style={[styles.carSub, { color: colors.mutedForeground }]}>
-                  {batteryPct}% · {selectedVehicle?.range_km ?? 410} км запаса
+                  {batteryPct}% · {rangeKm} км запаса
                 </Text>
               </View>
               <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
             </View>
 
-            <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-            <View style={styles.paramRow}>
-              <Text style={[styles.paramLabel, { color: colors.mutedForeground }]}>Заряд батареи</Text>
-              <View style={styles.batteryInputRow}>
-                <TextInput
-                  style={[styles.batteryInput, { color: colors.text, borderColor: colors.border }]}
-                  value={batteryPct}
-                  onChangeText={setBatteryPct}
-                  keyboardType="numeric"
-                  maxLength={3}
-                />
-                <Text style={[styles.pctLabel, { color: colors.mutedForeground }]}>%</Text>
-              </View>
-            </View>
-
-            {routeResult && (
-              <Animated.View entering={FadeInDown.springify()} style={styles.paramRow}>
-                <Text style={[styles.paramLabel, { color: colors.mutedForeground }]}>Маршрут</Text>
-                <Text style={[styles.paramValue, { color: colors.text }]}>
-                  {Math.round(routeResult.total_distance_km)} км · ~{formatTime(routeResult.total_time_min)}
-                </Text>
-              </Animated.View>
+            {!routeResult && (
+              <>
+                <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                <View style={styles.paramRow}>
+                  <Text style={[styles.paramLabel, { color: colors.mutedForeground }]}>Заряд батареи</Text>
+                  <View style={styles.batteryInputRow}>
+                    <TextInput
+                      style={[styles.batteryInput, { color: colors.text, borderColor: colors.border }]}
+                      value={batteryPct} onChangeText={setBatteryPct}
+                      keyboardType="numeric" maxLength={3}
+                    />
+                    <Text style={[styles.pctLabel, { color: colors.mutedForeground }]}>%</Text>
+                  </View>
+                </View>
+              </>
             )}
-          </View>
+          </TouchableOpacity>
         </Animated.View>
 
-        {/* Route result */}
-        {routeResult && (
-          <Animated.View entering={FadeInDown.delay(80).springify()}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Маршрут</Text>
+        {/* ── Route result ────────────────────────────────────────────── */}
+        {routeResult && activeResult && (
+          <Animated.View entering={FadeInDown.delay(80).springify()} style={{ gap: 16 }}>
 
-            {/* Leaflet mini-map */}
+            {/* Route mode switcher */}
+            <View style={styles.modeRow}>
+              {(['fast', 'eco'] as const).map((m) => {
+                const r = m === 'fast' ? routeResult : ecoResult;
+                const isActive = routeMode === m;
+                return (
+                  <TouchableOpacity
+                    key={m}
+                    onPress={() => setRouteMode(m)}
+                    activeOpacity={0.8}
+                    style={[styles.modeCard, { backgroundColor: isActive ? 'transparent' : colors.card, borderColor: isActive ? 'transparent' : colors.border }]}
+                  >
+                    {isActive && (
+                      <LinearGradient
+                        colors={m === 'fast' ? ['#EEF2FF', '#F5F3FF'] : ['#ECFDF5', '#F0FDF4']}
+                        style={StyleSheet.absoluteFill}
+                        borderRadius={14}
+                      />
+                    )}
+                    <View style={styles.modeCardInner}>
+                      <View style={styles.modeIconRow}>
+                        <View style={[styles.modeIcon, { backgroundColor: isActive ? (m === 'fast' ? '#EEF2FF' : '#ECFDF5') : colors.muted }]}>
+                          <Feather
+                            name={m === 'fast' ? 'zap' : 'wind'}
+                            size={14}
+                            color={isActive ? (m === 'fast' ? colors.primary : '#10B981') : colors.mutedForeground}
+                          />
+                        </View>
+                        <Text style={[styles.modeTitle, { color: isActive ? (m === 'fast' ? colors.primary : '#10B981') : colors.mutedForeground }]}>
+                          {m === 'fast' ? 'Быстрый маршрут' : 'Эко маршрут'}
+                        </Text>
+                      </View>
+                      <Text style={[styles.modeStats, { color: colors.mutedForeground }]}>
+                        {formatTime(r.total_time_min)} · {Math.round(r.total_distance_km)} км
+                      </Text>
+                    </View>
+                    {isActive && (
+                      <View style={[styles.modeCheckDot, { backgroundColor: m === 'fast' ? colors.primary : '#10B981' }]} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Summary stats strip */}
+            <View style={[styles.statsRow, { backgroundColor: colors.card }]}>
+              {[
+                { value: `${Math.round(activeResult.total_distance_km)}`, unit: 'км' },
+                { value: formatTime(activeResult.total_time_min - totalChargeMins), unit: 'в пути' },
+                { value: formatTime(totalChargeMins), unit: 'на зарядки' },
+                { value: `${activeResult.final_battery_pct ?? 15}%`, unit: 'прибыв.' },
+              ].map((s, i) => (
+                <React.Fragment key={i}>
+                  {i > 0 && <View style={[styles.statsDivider, { backgroundColor: colors.border }]} />}
+                  <View style={styles.statItem}>
+                    <Text style={[styles.statValue, { color: colors.text }]}>{s.value}</Text>
+                    <Text style={[styles.statUnit, { color: colors.mutedForeground }]}>{s.unit}</Text>
+                  </View>
+                </React.Fragment>
+              ))}
+            </View>
+
+            {/* Mini-map */}
             {showMap && routePoints && (
-              <Animated.View entering={FadeInUp.delay(120).springify()} style={styles.mapContainer}>
+              <Animated.View entering={FadeInUp.delay(100).springify()} style={styles.mapContainer}>
                 <MapViewWrapper
                   ref={mapRef}
                   stations={[]}
@@ -288,70 +364,79 @@ export default function NewRouteScreen() {
               </Animated.View>
             )}
 
-            {/* Summary pill */}
-            <View style={[styles.summaryPill, { backgroundColor: colors.card }]}>
-              <View style={styles.summaryItem}>
-                <Feather name="map" size={16} color={colors.primary} />
-                <Text style={[styles.summaryValue, { color: colors.text }]}>
-                  {Math.round(routeResult.total_distance_km)} км
-                </Text>
-              </View>
-              <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
-              <View style={styles.summaryItem}>
-                <Feather name="clock" size={16} color={colors.primary} />
-                <Text style={[styles.summaryValue, { color: colors.text }]}>
-                  {formatTime(routeResult.total_time_min)}
-                </Text>
-              </View>
-              <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
-              <View style={styles.summaryItem}>
-                <Feather name="zap" size={16} color={colors.primary} />
-                <Text style={[styles.summaryValue, { color: colors.text }]}>
-                  {routeResult.stops?.length ?? 0} остановок
-                </Text>
-              </View>
-            </View>
+            {/* Trip plan timeline */}
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>План поездки</Text>
+            <View style={[styles.timelineCard, { backgroundColor: colors.card }]}>
+              {/* START */}
+              <TLNode
+                dot={<View style={[styles.tlDotBlue, { backgroundColor: colors.primary }]} />}
+                title={origin}
+                subtitle={`Старт · ${batteryPct}%`}
+                time={formatHHMM(startTime)}
+                colors={colors}
+                showLine={activeResult.stops?.length > 0 || true}
+              />
 
-            {/* Stops */}
-            {routeResult.stops?.length === 0 ? (
-              <Animated.View entering={FadeInDown.springify()} style={[styles.noStopsCard, { backgroundColor: colors.card }]}>
-                <Feather name="check-circle" size={28} color="#10B981" />
-                <Text style={[styles.noStopsTitle, { color: colors.text }]}>Зарядка не нужна</Text>
-                <Text style={[styles.noStopsSub, { color: colors.mutedForeground }]}>
-                  Заряда хватит на весь маршрут
-                </Text>
-              </Animated.View>
-            ) : (
-              <View style={styles.stopsContainer}>
-                {(routeResult.stops ?? []).map((stop: any, i: number) => (
-                  <Animated.View
-                    key={i}
-                    entering={SlideInRight.delay(i * 80).springify()}
-                    style={[styles.stopCard, { backgroundColor: colors.card }]}
-                  >
-                    <LinearGradient
-                      colors={['#2563EB', '#7C3AED']}
-                      style={styles.stopBadge}
-                    >
-                      <Text style={styles.stopBadgeText}>{i + 1}</Text>
-                    </LinearGradient>
-                    <View style={{ flex: 1, gap: 3 }}>
-                      <Text style={[styles.stopName, { color: colors.text }]}>{stop.station_name}</Text>
-                      <Text style={[styles.stopDetails, { color: colors.mutedForeground }]}>
-                        {stop.arrival_battery_pct}% → {stop.departure_battery_pct}% · {stop.charge_time_min} мин зарядки
-                      </Text>
-                    </View>
-                    <Feather name="zap" size={16} color="#10B981" />
-                  </Animated.View>
-                ))}
-              </View>
-            )}
+              {/* STOPS */}
+              {(activeResult.stops ?? []).map((stop: any, i: number) => {
+                const [g1, g2] = STOP_GRADS[i % STOP_GRADS.length];
+                const segDriveMin = Math.round(stop.distance_from_prev_km / speedKmPerMin);
+                return (
+                  <React.Fragment key={i}>
+                    {/* Segment between nodes */}
+                    <TLSegment
+                      text={`${stop.distance_from_prev_km} км · ${formatTime(segDriveMin)}`}
+                      colors={colors}
+                    />
+                    {/* Stop node */}
+                    <TLNode
+                      dot={
+                        <LinearGradient colors={[g1, g2]} style={styles.tlDotGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+                          <Feather name="zap" size={11} color="#fff" />
+                        </LinearGradient>
+                      }
+                      title={stop.station_name}
+                      subtitle={`${stop.connector_type ?? 'CCS2'} · ${stop.connector_power_kw ?? stop.power_kw ?? '—'} кВт`}
+                      detail={`${stop.arrival_battery_pct}% → ${stop.departure_battery_pct}% · ${stop.charge_time_min} мин`}
+                      time={stop.eta}
+                      colors={colors}
+                      showLine
+                    />
+                  </React.Fragment>
+                );
+              })}
+
+              {/* Final segment (last stop → destination) */}
+              {(() => {
+                const stops = activeResult.stops ?? [];
+                if (stops.length === 0) return null;
+                const usedKm = stops.reduce((s: number, st: any) => s + st.distance_from_prev_km, 0);
+                const lastKm = parseFloat(Math.max(0, activeResult.total_distance_km - usedKm).toFixed(1));
+                const lastMin = Math.round(lastKm / speedKmPerMin);
+                return (
+                  <TLSegment
+                    text={`${lastKm} км · ${formatTime(lastMin)}`}
+                    colors={colors}
+                  />
+                );
+              })()}
+
+              {/* ARRIVAL */}
+              <TLNode
+                dot={<View style={[styles.tlDotPurple, { backgroundColor: '#7C3AED' }]} />}
+                title={destination}
+                subtitle={`Прибытие · ${activeResult.final_battery_pct ?? 15}%`}
+                time={formatHHMM(arrivalTime)}
+                colors={colors}
+                showLine={false}
+              />
+            </View>
           </Animated.View>
         )}
       </ScrollView>
 
       {/* Footer */}
-      <View style={[styles.footer, { backgroundColor: colors.card, borderTopColor: colors.border, bottom: bottomPad }]}>
+      <View style={[styles.footer, { bottom: bottomPad - 72, backgroundColor: colors.card, borderTopColor: colors.border }]}>
         {isPending ? (
           <View style={styles.loadingRow}>
             <ActivityIndicator color={colors.primary} />
@@ -360,11 +445,29 @@ export default function NewRouteScreen() {
             </Text>
           </View>
         ) : routeResult ? (
-          <GradientButton
-            label="Поехали"
-            onPress={() => router.push('/navigate' as any)}
-            icon={<Feather name="navigation" size={18} color="#fff" />}
-          />
+          <View style={styles.footerTwoBtn}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              activeOpacity={0.8}
+              style={[styles.saveBtn, { borderColor: colors.border }]}
+            >
+              <Text style={[styles.saveBtnText, { color: colors.text }]}>Сохранить маршрут</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => router.push('/navigate' as any)}
+              activeOpacity={0.85}
+              style={styles.goWrap}
+            >
+              <LinearGradient
+                colors={['#2563EB', '#7C3AED']}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                style={styles.goBtn}
+              >
+                <Text style={styles.goBtnText}>Поехали</Text>
+                <Feather name="navigation" size={16} color="#fff" />
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
         ) : (
           <GradientButton label="Построить маршрут" onPress={handlePlanRoute} />
         )}
@@ -372,6 +475,59 @@ export default function NewRouteScreen() {
     </View>
   );
 }
+
+// ── Timeline sub-components ───────────────────────────────────────────────
+
+interface TLNodeProps {
+  dot: React.ReactNode;
+  title: string;
+  subtitle: string;
+  detail?: string;
+  time: string;
+  colors: any;
+  showLine: boolean;
+}
+
+function TLNode({ dot, title, subtitle, detail, time, colors, showLine }: TLNodeProps) {
+  return (
+    <View style={styles.tlRow}>
+      {/* Left: dot + vertical line */}
+      <View style={styles.tlLeft}>
+        <View style={styles.tlDotWrap}>{dot}</View>
+        {showLine && <View style={[styles.tlLine, { backgroundColor: colors.border }]} />}
+      </View>
+      {/* Right: content */}
+      <View style={[styles.tlContent, { paddingBottom: showLine ? 18 : 0 }]}>
+        <View style={styles.tlContentRow}>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={[styles.tlTitle, { color: colors.text }]} numberOfLines={1}>{title}</Text>
+            <Text style={[styles.tlSubtitle, { color: colors.mutedForeground }]}>{subtitle}</Text>
+            {detail && <Text style={[styles.tlDetail, { color: colors.primary }]}>{detail}</Text>}
+          </View>
+          <Text style={[styles.tlTime, { color: colors.mutedForeground }]}>{time}</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+interface TLSegmentProps { text: string; colors: any; }
+function TLSegment({ text, colors }: TLSegmentProps) {
+  return (
+    <View style={styles.tlRow}>
+      <View style={styles.tlLeft}>
+        <View style={styles.tlLineOnly}>
+          <View style={[styles.tlLine, { backgroundColor: colors.border }]} />
+        </View>
+      </View>
+      <View style={styles.tlSegContent}>
+        <Text style={[styles.tlSegText, { color: colors.mutedForeground }]}>{text}</Text>
+      </View>
+    </View>
+  );
+}
+
+// ── Styles ────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -382,6 +538,8 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 20, fontFamily: 'Inter_700Bold' },
   iconBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
   content: { padding: 16, gap: 16 },
+
+  // Cards
   card: {
     borderRadius: 20, padding: 16,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 2,
@@ -395,53 +553,95 @@ const styles = StyleSheet.create({
     width: 28, height: 28, borderRadius: 14, borderWidth: 1,
     alignItems: 'center', justifyContent: 'center',
   },
+
+  // Car card
   carRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   carIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  carLabel: { fontSize: 11, fontFamily: 'Inter_400Regular', marginBottom: 1 },
   carName: { fontSize: 15, fontFamily: 'Inter_600SemiBold' },
   carSub: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
   divider: { height: 1, marginVertical: 12 },
   paramRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   paramLabel: { fontSize: 13, fontFamily: 'Inter_400Regular' },
-  paramValue: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
   batteryInputRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   batteryInput: {
     width: 52, textAlign: 'center', fontSize: 15, fontFamily: 'Inter_600SemiBold',
     borderWidth: 1, borderRadius: 8, paddingVertical: 4, paddingHorizontal: 8,
   },
   pctLabel: { fontSize: 13, fontFamily: 'Inter_500Medium' },
-  sectionTitle: { fontSize: 18, fontFamily: 'Inter_700Bold', marginBottom: 12 },
+
+  // Mode switcher
+  modeRow: { flexDirection: 'row', gap: 10 },
+  modeCard: {
+    flex: 1, borderRadius: 14, borderWidth: 1.5, padding: 12, overflow: 'hidden', position: 'relative',
+  },
+  modeCardInner: { gap: 6 },
+  modeIconRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  modeIcon: { width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  modeTitle: { fontSize: 12, fontFamily: 'Inter_700Bold', flexShrink: 1 },
+  modeStats: { fontSize: 12, fontFamily: 'Inter_400Regular' },
+  modeCheckDot: { position: 'absolute', top: 10, right: 10, width: 8, height: 8, borderRadius: 4 },
+
+  // Stats row
+  statsRow: {
+    flexDirection: 'row', borderRadius: 16, paddingVertical: 16,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 6, elevation: 1,
+  },
+  statItem: { flex: 1, alignItems: 'center', gap: 3 },
+  statValue: { fontSize: 17, fontFamily: 'Inter_700Bold' },
+  statUnit: { fontSize: 11, fontFamily: 'Inter_400Regular' },
+  statsDivider: { width: 1, height: '100%' },
+
+  // Map
   mapContainer: {
-    height: 220, borderRadius: 20, overflow: 'hidden', marginBottom: 12,
+    height: 200, borderRadius: 20, overflow: 'hidden',
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 2,
   },
-  summaryPill: {
-    flexDirection: 'row', borderRadius: 16, padding: 16, marginBottom: 16,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 1,
+
+  // Timeline card
+  sectionTitle: { fontSize: 18, fontFamily: 'Inter_700Bold' },
+  timelineCard: {
+    borderRadius: 20, paddingTop: 16, paddingBottom: 8, paddingHorizontal: 16,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 2,
   },
-  summaryItem: { flex: 1, alignItems: 'center', gap: 6 },
-  summaryValue: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
-  summaryDivider: { width: 1, height: '100%' },
-  noStopsCard: {
-    borderRadius: 16, padding: 28, alignItems: 'center', gap: 10,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 1,
+  tlRow: { flexDirection: 'row' },
+  tlLeft: { width: 32, alignItems: 'center' },
+  tlDotWrap: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
+  tlDotBlue: { width: 14, height: 14, borderRadius: 7 },
+  tlDotPurple: { width: 14, height: 14, borderRadius: 7 },
+  tlDotGrad: {
+    width: 28, height: 28, borderRadius: 14,
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4, elevation: 2,
   },
-  noStopsTitle: { fontSize: 17, fontFamily: 'Inter_700Bold' },
-  noStopsSub: { fontSize: 13, fontFamily: 'Inter_400Regular', textAlign: 'center' },
-  stopsContainer: { gap: 10 },
-  stopCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14, borderRadius: 16,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 1,
-  },
-  stopBadge: {
-    width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
-  },
-  stopBadgeText: { color: '#fff', fontSize: 13, fontFamily: 'Inter_700Bold' },
-  stopName: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
-  stopDetails: { fontSize: 12, fontFamily: 'Inter_400Regular' },
+  tlLine: { width: 2, flex: 1, minHeight: 12, borderRadius: 1 },
+  tlLineOnly: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 2 },
+  tlContent: { flex: 1, paddingLeft: 8, paddingTop: 4 },
+  tlContentRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
+  tlTitle: { fontSize: 14, fontFamily: 'Inter_700Bold' },
+  tlSubtitle: { fontSize: 12, fontFamily: 'Inter_400Regular' },
+  tlDetail: { fontSize: 12, fontFamily: 'Inter_600SemiBold', marginTop: 1 },
+  tlTime: { fontSize: 13, fontFamily: 'Inter_600SemiBold', flexShrink: 0, paddingTop: 3 },
+  tlSegContent: { flex: 1, paddingLeft: 8, paddingTop: 5, paddingBottom: 5 },
+  tlSegText: { fontSize: 11, fontFamily: 'Inter_400Regular' },
+
+  // Footer
   footer: {
     position: 'absolute', left: 16, right: 16,
-    backgroundColor: 'transparent', paddingVertical: 0,
+    borderTopWidth: 0, backgroundColor: 'transparent',
   },
+  footerTwoBtn: { flexDirection: 'row', gap: 10 },
+  saveBtn: {
+    flex: 1, paddingVertical: 15, borderRadius: 14, borderWidth: 1.5,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  saveBtnText: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
+  goWrap: { flex: 1.2, borderRadius: 14, overflow: 'hidden' },
+  goBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, paddingVertical: 15,
+  },
+  goBtnText: { color: '#fff', fontSize: 15, fontFamily: 'Inter_700Bold' },
   loadingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 16 },
   loadingText: { fontSize: 14, fontFamily: 'Inter_400Regular' },
 });

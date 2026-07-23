@@ -123,8 +123,16 @@ function planRoute(
   destLat: number, destLng: number,
   batteryPct: number,
   vehicle: { battery_kwh: number; range_km: number },
-  stations: Array<{ id: number; name: string; address: string; lat: number; lng: number; power_kw: number }>
+  stations: Array<{
+    id: number; name: string; address: string; lat: number; lng: number;
+    power_kw: number; connectors: Array<{ type: string; power_kw: number }> | null;
+  }>,
+  mode: "fast" | "eco" = "fast",
 ) {
+  // Eco: charge to 90 % (fewer, longer stops); slower speed (more efficient driving)
+  const targetBattery = mode === "eco" ? 90 : 80;
+  const speedKmPerMin = mode === "eco" ? 0.85 : 0.9; // km/min → affects ETA calculation
+
   const dist2d = (lat1: number, lng1: number, lat2: number, lng2: number) =>
     Math.sqrt(Math.pow((lat2 - lat1) * 111, 2) + Math.pow((lng2 - lng1) * 111 * Math.cos(lat1 * Math.PI / 180), 2));
 
@@ -132,11 +140,17 @@ function planRoute(
   const safeRange = (batteryPct / 100) * vehicle.range_km * 0.8;
 
   if (totalDistKm <= safeRange) {
-    return { stops: [], total_distance_km: totalDistKm, total_time_min: Math.round(totalDistKm / 0.9) };
+    const finalBattery = Math.round(Math.max(5, batteryPct - (totalDistKm / vehicle.range_km) * 100));
+    return {
+      stops: [], total_distance_km: totalDistKm,
+      total_time_min: Math.round(totalDistKm / speedKmPerMin),
+      final_battery_pct: finalBattery,
+    };
   }
 
   const stops: any[] = [];
   let coveredKm = 0, currentBattery = batteryPct, currentLat = originLat, currentLng = originLng;
+  let accumulatedTimeMin = 0;
 
   while (coveredKm < totalDistKm - vehicle.range_km * 0.2) {
     const rangeFromHere = (currentBattery / 100) * vehicle.range_km * 0.8;
@@ -152,10 +166,17 @@ function planRoute(
 
     const distToStation = dist2d(currentLat, currentLng, best.lat, best.lng);
     const arrivalBattery = Math.max(5, currentBattery - (distToStation / vehicle.range_km) * 100);
-    const targetBattery = 80;
     const energyNeeded = ((targetBattery - arrivalBattery) / 100) * vehicle.battery_kwh;
     const chargeTimeMin = Math.round((energyNeeded / best.power_kw) * 60);
-    const eta = new Date(Date.now() + (Math.round(coveredKm / 0.9) + chargeTimeMin) * 60_000);
+    accumulatedTimeMin += Math.round(distToStation / speedKmPerMin);
+    const eta = new Date(Date.now() + accumulatedTimeMin * 60_000);
+    accumulatedTimeMin += chargeTimeMin;
+
+    // Primary connector for this station (highest power DC preferred)
+    const connectors = best.connectors ?? [];
+    const primary = connectors.sort((a, b) => b.power_kw - a.power_kw)[0];
+    const connectorType = primary?.type ?? "CCS2";
+    const connectorPowerKw = primary?.power_kw ?? best.power_kw;
 
     stops.push({
       station_id: best.id,
@@ -167,6 +188,8 @@ function planRoute(
       departure_battery_pct: targetBattery,
       charge_time_min: chargeTimeMin,
       distance_from_prev_km: parseFloat(distToStation.toFixed(1)),
+      connector_type: connectorType,
+      connector_power_kw: connectorPowerKw,
       eta: eta.toTimeString().slice(0, 5),
     });
 
@@ -176,8 +199,15 @@ function planRoute(
     currentLng = best.lng;
   }
 
-  const totalTimeMin = Math.round(totalDistKm / 0.9) + stops.reduce((acc, s) => acc + s.charge_time_min, 0);
-  return { stops, total_distance_km: parseFloat(totalDistKm.toFixed(1)), total_time_min: totalTimeMin };
+  const distToDestFromLast = dist2d(currentLat, currentLng, destLat, destLng);
+  const finalBattery = Math.round(Math.max(5, currentBattery - (distToDestFromLast / vehicle.range_km) * 100));
+  const totalTimeMin = Math.round(totalDistKm / speedKmPerMin) + stops.reduce((acc, s) => acc + s.charge_time_min, 0);
+  return {
+    stops,
+    total_distance_km: parseFloat(totalDistKm.toFixed(1)),
+    total_time_min: totalTimeMin,
+    final_battery_pct: finalBattery,
+  };
 }
 
 // ── GET /routes ───────────────────────────────────────────────────────────
@@ -227,11 +257,16 @@ router.post("/routes", async (req, res): Promise<void> => {
   }
 
   const allStations = await db
-    .select({ id: stationsTable.id, name: stationsTable.name, address: stationsTable.address, lat: stationsTable.lat, lng: stationsTable.lng, power_kw: stationsTable.power_kw })
+    .select({
+      id: stationsTable.id, name: stationsTable.name, address: stationsTable.address,
+      lat: stationsTable.lat, lng: stationsTable.lng, power_kw: stationsTable.power_kw,
+      connectors: stationsTable.connectors,
+    })
     .from(stationsTable)
     .where(eq(stationsTable.status, "free"));
 
-  const plan = planRoute(originLat, originLng, destLat, destLng, initial_battery_pct, vehicle, allStations);
+  const mode = (req.body.mode === "eco" ? "eco" : "fast") as "fast" | "eco";
+  const plan = planRoute(originLat, originLng, destLat, destLng, initial_battery_pct, vehicle, allStations, mode);
 
   const [route] = await db.insert(routesTable).values({
     vehicle_id: vehicle_id ?? null,
