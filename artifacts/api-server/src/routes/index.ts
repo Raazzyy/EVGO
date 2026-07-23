@@ -12,6 +12,8 @@ import supportRouter from "./support";
 import notificationsRouter from "./notifications";
 import favoritesRouter from "./favorites";
 import connectorsRouter from "./connectors";
+import promosRouter from "./promos";
+import bannersRouter from "./banners";
 
 const router = Router();
 
@@ -191,5 +193,7 @@ router.use(supportRouter);
 router.use(notificationsRouter);
 router.use(favoritesRouter);
 router.use(connectorsRouter);
+router.use(promosRouter);
+router.use(bannersRouter);
 
 export default router;
