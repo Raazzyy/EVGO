@@ -1,39 +1,104 @@
-import React, { useRef, useState, useMemo } from 'react';
+import React, { useRef, useState, useMemo, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput,
-  TouchableOpacity, Platform, Animated, Dimensions,
+  TouchableOpacity, Platform, PanResponder, Dimensions,
 } from 'react-native';
+import Animated, {
+  useSharedValue, useAnimatedStyle, withSpring, withTiming,
+  FadeInDown, FadeInRight, Layout,
+} from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Location from 'expo-location';
 import { useGetStations, useGetVehicles } from '@workspace/api-client-react';
 import { useColors } from '@/hooks/useColors';
 import { useApp } from '@/contexts/AppContext';
 import { StationCard } from '@/components/StationCard';
 import { MapViewWrapper, MapApi } from '@/components/MapViewWrapper';
-import { FiltersSheet } from '@/components/FiltersSheet';
+import { FiltersSheet, FiltersState } from '@/components/FiltersSheet';
 import { LinearGradient } from 'expo-linear-gradient';
 
-const SCREEN_HEIGHT = Dimensions.get('window').height;
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SHEET_MIN = 190;
 const SHEET_MAX = SCREEN_HEIGHT * 0.65;
+const STATUS_ORDER: Record<string, number> = { free: 0, occupied: 1, offline: 2 };
 
 type FilterStatus = 'all' | 'my-cars' | 'ac' | 'dc' | 'free';
 
-const STATUS_ORDER: Record<string, number> = { free: 0, occupied: 1, offline: 2 };
+const DEFAULT_FILTERS: FiltersState = {
+  connectorTypes: [],
+  availability: 'all',
+  amenities: [],
+  minPowerKw: 3,
+  maxPowerKw: 350,
+  maxPriceSum: 5000,
+  vehicleId: null,
+};
 
 export default function MapScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const mapRef = useRef<MapApi>(null);
 
   const [viewMode, setViewMode] = useState<'map' | 'list'>('map');
   const [activeChip, setActiveChip] = useState<FilterStatus>('all');
   const [search, setSearch] = useState('');
   const [filtersVisible, setFiltersVisible] = useState(false);
-  const [sheetExpanded, setSheetExpanded] = useState(false);
-  const sheetAnim = useRef(new Animated.Value(SHEET_MIN)).current;
-  const mapRef = useRef<MapApi>(null);
+  const [activeFilters, setActiveFilters] = useState<FiltersState>(DEFAULT_FILTERS);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+
+  // Sheet animation via Reanimated
+  const sheetHeight = useSharedValue(SHEET_MIN);
+  const expanded = useRef(false);
+
+  const sheetStyle = useAnimatedStyle(() => ({
+    height: sheetHeight.value,
+  }));
+
+  function openSheet() {
+    expanded.current = true;
+    sheetHeight.value = withSpring(SHEET_MAX, { damping: 20, stiffness: 200 });
+  }
+  function closeSheet() {
+    expanded.current = false;
+    sheetHeight.value = withSpring(SHEET_MIN, { damping: 20, stiffness: 200 });
+  }
+
+  // Swipe pan responder on the sheet handle
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dy) > 5,
+      onPanResponderMove: (_, gs) => {
+        const base = expanded.current ? SHEET_MAX : SHEET_MIN;
+        const next = Math.max(SHEET_MIN, Math.min(SHEET_MAX, base - gs.dy));
+        sheetHeight.value = next;
+      },
+      onPanResponderRelease: (_, gs) => {
+        if (gs.dy < -40) openSheet();
+        else if (gs.dy > 40) closeSheet();
+        else {
+          // snap back
+          sheetHeight.value = withSpring(
+            expanded.current ? SHEET_MAX : SHEET_MIN,
+            { damping: 20, stiffness: 200 }
+          );
+        }
+      },
+    })
+  ).current;
+
+  // Request geolocation on mount
+  useEffect(() => {
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return;
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      setUserLocation({ lat: loc.coords.latitude, lng: loc.coords.longitude });
+    })();
+  }, []);
 
   const { selectedVehicleId } = useApp();
   const { data: vehicles = [] } = useGetVehicles();
@@ -43,87 +108,103 @@ export default function MapScreen() {
     query: { refetchInterval: 30_000 },
   });
 
-  // Backend puts ALL stations in `nearby`, promoted is a subset
-  const allStations = useMemo(() => stationsData?.nearby ?? [], [stationsData]);
-  const promotedFromApi = useMemo(() => stationsData?.promoted ?? [], [stationsData]);
+  const allStations = useMemo(() => (stationsData?.nearby ?? []) as any[], [stationsData]);
+  const promotedFromApi = useMemo(() => (stationsData?.promoted ?? []) as any[], [stationsData]);
 
-  // ── Apply chip filter ────────────────────────────────────────────────────
-  function applyFilter<T extends { status: string; connectors?: unknown }>(list: T[]): T[] {
-    if (activeChip === 'free') return list.filter(s => s.status === 'free');
-    if (activeChip === 'my-cars' && defaultVehicle?.connector_type) {
-      return list.filter(s => {
-        const conns: any[] = (s.connectors as any[]) ?? [];
-        return conns.some(c => c.type === defaultVehicle.connector_type);
-      });
-    }
-    if (activeChip === 'ac') {
-      return list.filter(s => {
-        const conns: any[] = (s.connectors as any[]) ?? [];
-        return conns.some(c => ['Type2', 'Type 2', 'AC'].includes(c.type));
-      });
-    }
-    if (activeChip === 'dc') {
-      return list.filter(s => {
-        const conns: any[] = (s.connectors as any[]) ?? [];
-        return conns.some(c => ['CCS2', 'CHAdeMO', 'GB/T', 'GB-T', 'DC'].includes(c.type));
-      });
-    }
-    return list;
-  }
+  // ── Apply chip filter ────────────────────────────────────────────────
+  const applyChipFilter = useCallback(
+    <T extends { status: string; connectors?: unknown }>(list: T[]): T[] => {
+      if (activeChip === 'free') return list.filter((s) => s.status === 'free');
+      if (activeChip === 'my-cars' && defaultVehicle?.connector_type) {
+        return list.filter((s) => {
+          const conns = ((s as any).connectors ?? []) as any[];
+          return conns.some((c) => c.type === defaultVehicle.connector_type);
+        });
+      }
+      if (activeChip === 'ac') {
+        return list.filter((s) => {
+          const conns = ((s as any).connectors ?? []) as any[];
+          return conns.some((c) => ['Type2', 'Type 2', 'AC'].includes(c.type));
+        });
+      }
+      if (activeChip === 'dc') {
+        return list.filter((s) => {
+          const conns = ((s as any).connectors ?? []) as any[];
+          return conns.some((c) => ['CCS2', 'CHAdeMO', 'GB/T', 'GB-T', 'DC'].includes(c.type));
+        });
+      }
+      return list;
+    },
+    [activeChip, defaultVehicle]
+  );
 
-  // ── Filtered + sorted stations (free first) ────────────────────────────
+  // ── Apply FiltersSheet filters ───────────────────────────────────────
+  const applySheetFilter = useCallback(
+    (list: any[]): any[] => {
+      let r = list;
+      if (activeFilters.availability === 'free') r = r.filter((s) => s.status === 'free');
+      if (activeFilters.availability === 'busy') r = r.filter((s) => s.status === 'occupied');
+      if (activeFilters.connectorTypes.length > 0) {
+        r = r.filter((s) => {
+          const conns: any[] = s.connectors ?? [];
+          return conns.some((c) => activeFilters.connectorTypes.includes(c.type));
+        });
+      }
+      r = r.filter((s) => s.power_kw >= activeFilters.minPowerKw && s.power_kw <= activeFilters.maxPowerKw);
+      r = r.filter((s) => s.price_per_kwh <= activeFilters.maxPriceSum);
+      return r;
+    },
+    [activeFilters]
+  );
+
+  const hasActiveFilters =
+    activeFilters.connectorTypes.length > 0 ||
+    activeFilters.availability !== 'all' ||
+    activeFilters.amenities.length > 0 ||
+    activeFilters.maxPriceSum < 5000 ||
+    activeFilters.minPowerKw > 3 ||
+    activeFilters.maxPowerKw < 350;
+
+  // ── Filtered + sorted (free first) ──────────────────────────────────
   const filteredStations = useMemo(() => {
-    let result = allStations as any[];
+    let r = allStations;
     if (search.trim()) {
       const q = search.toLowerCase();
-      result = result.filter(s =>
-        s.name.toLowerCase().includes(q) || s.address.toLowerCase().includes(q)
-      );
+      r = r.filter((s) => s.name.toLowerCase().includes(q) || s.address.toLowerCase().includes(q));
     }
-    result = applyFilter(result);
-    // Sort: free → occupied → offline, then by name
-    return [...result].sort((a, b) => {
-      const diff = (STATUS_ORDER[a.status] ?? 3) - (STATUS_ORDER[b.status] ?? 3);
-      return diff !== 0 ? diff : a.name.localeCompare(b.name, 'ru');
+    r = applyChipFilter(r);
+    r = applySheetFilter(r);
+    return [...r].sort((a, b) => {
+      const d = (STATUS_ORDER[a.status] ?? 3) - (STATUS_ORDER[b.status] ?? 3);
+      return d !== 0 ? d : a.name.localeCompare(b.name, 'ru');
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allStations, search, activeChip, defaultVehicle]);
+  }, [allStations, search, applyChipFilter, applySheetFilter]);
 
-  // ── Promoted list (search-filtered, no chip filter for promo block) ────
   const promotedStations = useMemo(() => {
     if (!search.trim()) return promotedFromApi;
     const q = search.toLowerCase();
-    return (promotedFromApi as any[]).filter(s =>
-      s.name.toLowerCase().includes(q) || s.address.toLowerCase().includes(q)
-    );
+    return promotedFromApi.filter((s) => s.name.toLowerCase().includes(q) || s.address.toLowerCase().includes(q));
   }, [promotedFromApi, search]);
 
-  // ── Map markers: use FILTERED stations so chips update the map ─────────
   const markers = useMemo(
-    () => filteredStations.map(s => ({
-      id: s.id, lat: s.lat, lng: s.lng,
-      name: s.name, status: s.status,
-      power_kw: s.power_kw, price_per_kwh: s.price_per_kwh,
-    })),
+    () =>
+      filteredStations.map((s) => ({
+        id: s.id, lat: s.lat, lng: s.lng,
+        name: s.name, status: s.status,
+        power_kw: s.power_kw, price_per_kwh: s.price_per_kwh,
+      })),
     [filteredStations]
   );
-
-  function toggleSheet() {
-    const toValue = sheetExpanded ? SHEET_MIN : SHEET_MAX;
-    setSheetExpanded(!sheetExpanded);
-    Animated.spring(sheetAnim, { toValue, useNativeDriver: false, tension: 65, friction: 11 }).start();
-  }
 
   const topOffset = Platform.OS === 'web' ? 0 : insets.top;
   const bottomPad = Platform.OS === 'web' ? 34 + 84 : insets.bottom + 100;
 
-  // ── TOP BAR ────────────────────────────────────────────────────────────
+  // ── TOP BAR (bell only on right now) ────────────────────────────────
   const TopBar = (
     <View style={[styles.topBar, { top: topOffset + 8 }]}>
       <Text style={[styles.logo, { color: colors.primary }]}>iON</Text>
-
       <View style={[styles.segmentControl, { backgroundColor: colors.card }]}>
-        {(['map', 'list'] as const).map(mode => (
+        {(['map', 'list'] as const).map((mode) => (
           <TouchableOpacity
             key={mode}
             onPress={() => setViewMode(mode)}
@@ -142,19 +223,16 @@ export default function MapScreen() {
           </TouchableOpacity>
         ))}
       </View>
-
-      <View style={styles.topRightIcons}>
-        <TouchableOpacity style={[styles.iconBtn, { backgroundColor: colors.card }]} onPress={() => router.push('/notifications')}>
-          <Feather name="bell" size={18} color={colors.text} />
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.iconBtn, { backgroundColor: colors.card }]} onPress={() => setFiltersVisible(true)}>
-          <Feather name="sliders" size={18} color={colors.text} />
-        </TouchableOpacity>
-      </View>
+      <TouchableOpacity
+        style={[styles.iconBtn, { backgroundColor: colors.card }]}
+        onPress={() => router.push('/notifications')}
+      >
+        <Feather name="bell" size={18} color={colors.text} />
+      </TouchableOpacity>
     </View>
   );
 
-  // ── FILTER CHIPS ───────────────────────────────────────────────────────
+  // ── FILTER CHIPS ROW (filter icon is first) ──────────────────────────
   const FilterChips = (
     <ScrollView
       horizontal
@@ -162,13 +240,43 @@ export default function MapScreen() {
       style={[styles.filterScroll, { top: topOffset + 60 }]}
       contentContainerStyle={styles.filterRow}
     >
+      {/* Filter button — first item */}
+      <TouchableOpacity
+        onPress={() => setFiltersVisible(true)}
+        style={[
+          styles.filterPill,
+          {
+            backgroundColor: hasActiveFilters ? 'transparent' : colors.card,
+            borderColor: hasActiveFilters ? 'transparent' : colors.border,
+          },
+        ]}
+      >
+        {hasActiveFilters && (
+          <LinearGradient
+            colors={[colors.gradientStart, colors.gradientEnd]}
+            style={StyleSheet.absoluteFill}
+            borderRadius={20}
+          />
+        )}
+        <Feather
+          name="sliders"
+          size={14}
+          color={hasActiveFilters ? '#fff' : colors.text}
+          style={{ position: 'relative', zIndex: 1 }}
+        />
+        <Text style={[styles.filterText, { color: hasActiveFilters ? '#fff' : colors.text }]}>
+          Фильтры{hasActiveFilters ? ' ●' : ''}
+        </Text>
+      </TouchableOpacity>
+
+      {/* Chip filters */}
       {([
         { id: 'all', label: 'Все' },
         { id: 'free', label: 'Свободные' },
         { id: 'my-cars', label: 'Мои машины' },
         { id: 'ac', label: 'AC' },
         { id: 'dc', label: 'DC' },
-      ] as { id: FilterStatus; label: string }[]).map(f => {
+      ] as { id: FilterStatus; label: string }[]).map((f) => {
         const isActive = activeChip === f.id;
         return (
           <TouchableOpacity
@@ -193,7 +301,7 @@ export default function MapScreen() {
     </ScrollView>
   );
 
-  // ── LIST VIEW ──────────────────────────────────────────────────────────
+  // ── LIST MODE ────────────────────────────────────────────────────────
   if (viewMode === 'list') {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, paddingTop: topOffset }]}>
@@ -220,45 +328,58 @@ export default function MapScreen() {
           contentContainerStyle={{ padding: 16, paddingTop: 56, paddingBottom: bottomPad }}
           showsVerticalScrollIndicator={false}
         >
-          {filteredStations.map(s => (
-            <StationCard
-              key={s.id}
-              station={s}
-              onPress={() => router.push(`/station/${s.id}`)}
-              onRoute={() => router.push(`/route/new?stationId=${s.id}&stationName=${encodeURIComponent(s.name)}&lat=${s.lat}&lng=${s.lng}` as any)}
-            />
+          {filteredStations.map((s, i) => (
+            <Animated.View key={s.id} entering={FadeInDown.delay(i * 40).springify()} layout={Layout.springify()}>
+              <StationCard
+                station={s}
+                onPress={() => router.push(`/station/${s.id}`)}
+                onRoute={() =>
+                  router.push(
+                    `/route/new?stationId=${s.id}&stationName=${encodeURIComponent(s.name)}&lat=${s.lat}&lng=${s.lng}` as any
+                  )
+                }
+              />
+            </Animated.View>
           ))}
         </ScrollView>
-        <FiltersSheet visible={filtersVisible} onClose={() => setFiltersVisible(false)} onApply={() => {}} />
+        <FiltersSheet
+          visible={filtersVisible}
+          onClose={() => setFiltersVisible(false)}
+          onApply={(f) => setActiveFilters(f)}
+        />
       </View>
     );
   }
 
-  // ── MAP VIEW ───────────────────────────────────────────────────────────
+  // ── MAP MODE ─────────────────────────────────────────────────────────
   return (
     <View style={styles.container}>
       <MapViewWrapper
         ref={mapRef}
         stations={markers}
-        onStationPress={id => router.push(`/station/${id}`)}
+        userLocation={userLocation}
+        onStationPress={(id) => router.push(`/station/${id}`)}
       />
 
       {TopBar}
       {FilterChips}
 
-      {/* Bottom sheet */}
-      <Animated.View style={[styles.sheet, { backgroundColor: colors.card, height: sheetAnim }]}>
-        <TouchableOpacity onPress={toggleSheet} style={styles.sheetHandle} activeOpacity={1}>
-          <View style={[styles.handle, { backgroundColor: colors.mutedForeground, opacity: 0.3 }]} />
-        </TouchableOpacity>
+      {/* Bottom sheet with swipe */}
+      <Animated.View style={[styles.sheet, { backgroundColor: colors.card }, sheetStyle]}>
+        {/* Handle — swipeable area */}
+        <View style={styles.handleArea} {...panResponder.panHandlers}>
+          <TouchableOpacity onPress={() => (expanded.current ? closeSheet() : openSheet())} activeOpacity={1}>
+            <View style={[styles.handle, { backgroundColor: colors.mutedForeground, opacity: 0.3 }]} />
+          </TouchableOpacity>
+        </View>
 
         <ScrollView
           style={styles.sheetScroll}
           contentContainerStyle={[styles.sheetContent, { paddingBottom: bottomPad }]}
           showsVerticalScrollIndicator={false}
-          scrollEnabled={sheetExpanded}
+          scrollEnabled={expanded.current}
         >
-          {sheetExpanded ? (
+          {expanded.current ? (
             <>
               {promotedStations.length > 0 && (
                 <>
@@ -268,52 +389,70 @@ export default function MapScreen() {
                       <Text style={[styles.adBadgeText, { color: colors.mutedForeground }]}>Реклама</Text>
                     </View>
                   </View>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.promoScroll}>
-                    {promotedStations.map(s => (
-                      <View key={s.id} style={{ width: 280, marginRight: 12 }}>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.promoScroll}
+                  >
+                    {promotedStations.map((s, i) => (
+                      <Animated.View key={s.id} entering={FadeInRight.delay(i * 60).springify()} style={{ width: 280, marginRight: 12 }}>
                         <StationCard
                           station={s}
                           onPress={() => router.push(`/station/${s.id}`)}
-                          onRoute={() => router.push(`/route/new?stationId=${s.id}&stationName=${encodeURIComponent(s.name)}&lat=${s.lat}&lng=${s.lng}` as any)}
+                          onRoute={() =>
+                            router.push(
+                              `/route/new?stationId=${s.id}&stationName=${encodeURIComponent(s.name)}&lat=${s.lat}&lng=${s.lng}` as any
+                            )
+                          }
                           compact={true}
                           discount_pct={(s as any).discount_pct}
                           is_promoted={true}
                           amenities={(s as any).amenities}
                         />
-                      </View>
+                      </Animated.View>
                     ))}
                   </ScrollView>
                 </>
               )}
-
               <Text style={[styles.sectionTitle, { color: colors.text, marginTop: 16, marginBottom: 12 }]}>
                 {activeChip === 'free' ? 'Свободные станции' :
                  activeChip === 'ac' ? 'AC станции' :
                  activeChip === 'dc' ? 'DC станции' : 'Рядом с вами'}
               </Text>
-              {filteredStations.map(s => (
-                <StationCard
-                  key={s.id}
-                  station={s}
-                  onPress={() => router.push(`/station/${s.id}`)}
-                  onRoute={() => router.push(`/route/new?stationId=${s.id}&stationName=${encodeURIComponent(s.name)}&lat=${s.lat}&lng=${s.lng}` as any)}
-                  discount_pct={(s as any).discount_pct}
-                />
+              {filteredStations.map((s, i) => (
+                <Animated.View key={s.id} entering={FadeInDown.delay(i * 35).springify()} layout={Layout.springify()}>
+                  <StationCard
+                    station={s}
+                    onPress={() => router.push(`/station/${s.id}`)}
+                    onRoute={() =>
+                      router.push(
+                        `/route/new?stationId=${s.id}&stationName=${encodeURIComponent(s.name)}&lat=${s.lat}&lng=${s.lng}` as any
+                      )
+                    }
+                    discount_pct={(s as any).discount_pct}
+                  />
+                </Animated.View>
               ))}
             </>
           ) : (
             filteredStations[0] && (
-              <StationCard
-                station={filteredStations[0]}
-                onPress={() => router.push(`/station/${filteredStations[0].id}`)}
-                onRoute={() => router.push(`/route/new?stationId=${filteredStations[0].id}&stationName=${encodeURIComponent(filteredStations[0].name)}&lat=${filteredStations[0].lat}&lng=${filteredStations[0].lng}` as any)}
-              />
+              <Animated.View entering={FadeInDown.springify()}>
+                <StationCard
+                  station={filteredStations[0]}
+                  onPress={() => router.push(`/station/${filteredStations[0].id}`)}
+                  onRoute={() =>
+                    router.push(
+                      `/route/new?stationId=${filteredStations[0].id}&stationName=${encodeURIComponent(filteredStations[0].name)}&lat=${filteredStations[0].lat}&lng=${filteredStations[0].lng}` as any
+                    )
+                  }
+                />
+              </Animated.View>
             )
           )}
         </ScrollView>
       </Animated.View>
 
-      {/* Map controls — rendered AFTER sheet so they sit on top in DOM order */}
+      {/* Map controls — rendered AFTER sheet */}
       <View style={styles.mapControls} pointerEvents="box-none">
         <TouchableOpacity style={styles.mapBtn} onPress={() => mapRef.current?.locate()} activeOpacity={0.8}>
           <Feather name="navigation" size={18} color="#1E293B" />
@@ -329,7 +468,11 @@ export default function MapScreen() {
         </View>
       </View>
 
-      <FiltersSheet visible={filtersVisible} onClose={() => setFiltersVisible(false)} onApply={() => {}} />
+      <FiltersSheet
+        visible={filtersVisible}
+        onClose={() => setFiltersVisible(false)}
+        onApply={(f) => setActiveFilters(f)}
+      />
     </View>
   );
 }
@@ -353,7 +496,6 @@ const styles = StyleSheet.create({
   },
   segmentBtnActive: {},
   segmentText: { fontSize: 13, fontFamily: 'Inter_600SemiBold', position: 'relative', zIndex: 1 },
-  topRightIcons: { flexDirection: 'row', gap: 8 },
   iconBtn: {
     width: 36, height: 36, borderRadius: 18,
     alignItems: 'center', justifyContent: 'center',
@@ -363,7 +505,8 @@ const styles = StyleSheet.create({
   filterScroll: { position: 'absolute', left: 0, right: 0, zIndex: 20 },
   filterRow: { paddingHorizontal: 16, gap: 8 },
   filterPill: {
-    paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06, shadowRadius: 3, elevation: 1,
     position: 'relative', overflow: 'hidden',
@@ -381,7 +524,7 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.1, shadowRadius: 16, elevation: 20,
   },
-  sheetHandle: { alignItems: 'center', paddingVertical: 12, width: '100%' },
+  handleArea: { alignItems: 'center', paddingTop: 12, paddingBottom: 8, width: '100%' },
   handle: { width: 36, height: 4, borderRadius: 2 },
   sheetScroll: { flex: 1 },
   sheetContent: { paddingHorizontal: 16, paddingTop: 4 },
@@ -390,18 +533,12 @@ const styles = StyleSheet.create({
   adBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   adBadgeText: { fontSize: 10, fontFamily: 'Inter_600SemiBold' },
   promoScroll: { paddingBottom: 4 },
-  // Map controls — rendered AFTER sheet so appear on top
   mapControls: {
-    position: 'absolute',
-    right: 12,
-    bottom: SHEET_MIN + 16,
-    alignItems: 'center',
-    gap: 10,
-    zIndex: 30,
+    position: 'absolute', right: 12, bottom: SHEET_MIN + 16,
+    alignItems: 'center', gap: 10, zIndex: 30,
   },
   mapBtn: {
-    width: 44, height: 44, borderRadius: 12,
-    backgroundColor: '#FFFFFF',
+    width: 44, height: 44, borderRadius: 12, backgroundColor: '#FFFFFF',
     alignItems: 'center', justifyContent: 'center',
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15, shadowRadius: 6, elevation: 4,
@@ -411,9 +548,6 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15, shadowRadius: 6, elevation: 4,
   },
-  zoomBtn: {
-    width: 44, height: 44,
-    alignItems: 'center', justifyContent: 'center',
-  },
+  zoomBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   zoomDivider: { height: 1, backgroundColor: '#E2E8F0', width: 44 },
 });

@@ -51,7 +51,9 @@ export function FiltersSheet({ visible, onClose, onApply }: FiltersSheetProps) {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data: vehicles = [] } = useGetVehicles();
-  const { data: allStations = [] } = useGetStations();
+  const { data: stationsResp } = useGetStations();
+  // API returns {promoted, nearby}; use nearby (contains all stations)
+  const allStations = (stationsResp?.nearby ?? []) as any[];
 
   // Compute live count locally by filtering allStations — avoids extra API round-trips
   const computeCount = useCallback(
@@ -59,7 +61,7 @@ export function FiltersSheet({ visible, onClose, onApply }: FiltersSheetProps) {
       setCounting(true);
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
-        let result = allStations;
+        let result: any[] = [...allStations];
         if (f.availability === 'free') result = result.filter((s) => s.status === 'free');
         if (f.availability === 'busy') result = result.filter((s) => s.status === 'busy');
         if (f.connectorTypes.length > 0) {
