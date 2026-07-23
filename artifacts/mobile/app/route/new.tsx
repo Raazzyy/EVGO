@@ -50,7 +50,7 @@ export default function NewRouteScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const qc = useQueryClient();
-  const { selectedVehicleId } = useApp();
+  const { selectedVehicleId, setActiveRouteId } = useApp();
   const mapRef = useRef<MapApi>(null);
 
   const params = useLocalSearchParams<{
@@ -80,6 +80,7 @@ export default function NewRouteScreen() {
         qc.invalidateQueries({ queryKey: getGetRoutesQueryKey() });
         setRouteResult(res);
         setShowMap(true);
+        setActiveRouteId(res.id);
       },
       onError: () => showAlert('Ошибка', 'Не удалось построить маршрут. Попробуйте ещё раз.'),
     },
@@ -249,6 +250,7 @@ export default function NewRouteScreen() {
                   stations={[]}
                   onStationPress={() => {}}
                   routePoints={routePoints}
+                  polylineCoords={routeResult?.polyline ?? undefined}
                 />
               </Animated.View>
             )}
@@ -327,7 +329,7 @@ export default function NewRouteScreen() {
         ) : routeResult ? (
           <GradientButton
             label="Поехали"
-            onPress={() => router.back()}
+            onPress={() => router.push('/navigate' as any)}
             icon={<Feather name="navigation" size={18} color="#fff" />}
           />
         ) : (

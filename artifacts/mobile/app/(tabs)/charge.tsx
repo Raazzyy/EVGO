@@ -43,7 +43,7 @@ export default function ChargeScreen() {
         qc.invalidateQueries({ queryKey: getGetSessionsQueryKey() });
         // Navigate to receipt with session id and payment card
         const card = encodeURIComponent((activeSession as any)?._selectedCard ?? 'Uzcard');
-        router.push(`/payment/receipt/${activeSession?.id}?card=${card}` as any);
+        router.push(`/payment/receipt?id=${activeSession?.id}&card=${card}` as any);
       },
     },
   });
