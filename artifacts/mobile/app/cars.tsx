@@ -10,18 +10,25 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useColors } from '@/hooks/useColors';
 import { useApp } from '@/contexts/AppContext';
 import {
-  useGetVehicles, useCreateVehicle, useDeleteVehicle,
-  getGetVehiclesQueryKey,
+  useGetUserVehicles, useCreateUserVehicle, useDeleteUserVehicle,
+  getGetUserVehiclesQueryKey,
+  type UserVehicle,
 } from '@workspace/api-client-react';
 import { LinearGradient } from 'expo-linear-gradient';
 
 interface SearchResult {
+  id?: number;
   name: string;
   connector_type: string;
   battery_kwh?: number;
   range_km?: number;
   data_source?: string;
   is_verified?: boolean;
+  body_style?: string;
+  vehicle_type?: string;
+  make?: string;
+  model?: string;
+  year?: number;
 }
 
 interface PopularGroup {
@@ -42,19 +49,17 @@ function normalizeConnector(ct: string): 'CCS2' | 'CHAdeMO' | 'Type2' | 'GB-T' {
   return 'CCS2';
 }
 
-/** Feather icon name based on vehicle body style / type */
 function vehicleIcon(item: SearchResult): React.ComponentProps<typeof Feather>['name'] {
-  const style = (item as any).body_style?.toLowerCase() ?? '';
-  const type  = (item as any).vehicle_type?.toLowerCase() ?? '';
+  const style = (item.body_style ?? '').toLowerCase();
+  const type  = (item.vehicle_type ?? '').toLowerCase();
   if (type.includes('suv') || style.includes('crossover') || style.includes('suv')) return 'shield';
   if (type.includes('van') || style.includes('van') || style.includes('minivan')) return 'box';
   if (type.includes('pickup') || style.includes('pickup')) return 'tool';
   if (style.includes('coupe') || style.includes('roadster')) return 'wind';
-  return 'zap'; // sedan / hatchback / default
+  return 'zap';
 }
 
 const API_BASE = process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` : '';
-
 const CONNECTOR_OPTIONS: Array<'CCS2' | 'CHAdeMO' | 'Type2' | 'GB-T'> = ['CCS2', 'CHAdeMO', 'Type2', 'GB-T'];
 const BODY_STYLE_OPTIONS = ['sedan', 'hatchback', 'crossover', 'suv', 'coupe', 'wagon', 'van', 'pickup'];
 
@@ -65,7 +70,8 @@ export default function CarsScreen() {
   const qc = useQueryClient();
   const { selectedVehicleId, setSelectedVehicleId, userId } = useApp();
 
-  const { data: vehicles = [], isLoading } = useGetVehicles();
+  // User's garage (user_vehicles with joined catalog vehicle)
+  const { data: userVehicles = [], isLoading } = useGetUserVehicles(userId);
   const [showCompatible, setShowCompatible] = useState(true);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
@@ -91,33 +97,38 @@ export default function CarsScreen() {
   const [savingManual, setSavingManual] = useState(false);
   const [manualError, setManualError] = useState('');
 
-  const deleteMutation = useDeleteVehicle({
+  const invalidate = useCallback(() =>
+    qc.invalidateQueries({ queryKey: getGetUserVehiclesQueryKey(userId) }), [qc, userId]);
+
+  const deleteMutation = useDeleteUserVehicle({
     mutation: {
       onSuccess: () => {
-        qc.invalidateQueries({ queryKey: getGetVehiclesQueryKey() });
-        setConfirmDeleteId(null);
+        invalidate();
         if (confirmDeleteId === selectedVehicleId) setSelectedVehicleId(null);
+        setConfirmDeleteId(null);
       },
     },
   });
 
-  const createVehicle = useCreateVehicle({
+  const createMutation = useCreateUserVehicle({
     mutation: {
-      onSuccess: () => {
-        qc.invalidateQueries({ queryKey: getGetVehiclesQueryKey() });
+      onSuccess: (uv) => {
+        invalidate();
+        // Auto-select newly added car if none selected
+        if (!selectedVehicleId) setSelectedVehicleId(uv.id);
         closeModal();
+      },
+      onError: (err: any) => {
+        // 409 = already in garage — just close and select
+        if (err?.status === 409 || String(err).includes('409')) closeModal();
       },
     },
   });
 
   const closeModal = useCallback(() => {
     setModalVisible(false);
-    setQuery('');
-    setResults([]);
-    setNoResults(false);
-    setIsFuzzy(false);
-    setShowManual(false);
-    setManualError('');
+    setQuery(''); setResults([]); setNoResults(false);
+    setIsFuzzy(false); setShowManual(false); setManualError('');
   }, []);
 
   const openModal = useCallback(async () => {
@@ -141,32 +152,33 @@ export default function CarsScreen() {
     try {
       const res = await fetch(`${API_BASE}/api/vehicles/search?q=${encodeURIComponent(text.trim())}`);
       const json = await res.json() as SearchResponse | SearchResult[];
-      // Support both old (array) and new ({ results, fuzzy }) format
       const list: SearchResult[] = Array.isArray(json) ? json : (json.results ?? []);
       const fuzzy = Array.isArray(json) ? false : (json.fuzzy ?? false);
-      setResults(list);
-      setIsFuzzy(fuzzy);
-      setNoResults(list.length === 0);
+      setResults(list); setIsFuzzy(fuzzy); setNoResults(list.length === 0);
     } catch {
-      setResults([]);
-      setNoResults(true);
-    } finally {
-      setSearching(false);
-    }
+      setResults([]); setNoResults(true);
+    } finally { setSearching(false); }
   }, []);
 
+  // Add from catalog search result
   const handleAddVehicle = useCallback((car: SearchResult) => {
-    createVehicle.mutate({
-      data: {
+    createMutation.mutate({
+      user_id: userId,
+      ...(car.id ? { vehicle_id: car.id } : {
         name: car.name,
         connector_type: normalizeConnector(car.connector_type),
         battery_kwh: car.battery_kwh ?? 60,
         range_km: car.range_km ?? 300,
-        user_id: userId,
-      },
+        make: car.make,
+        model: car.model,
+        year: car.year,
+        body_style: car.body_style,
+        vehicle_type: car.vehicle_type,
+      }),
     });
-  }, [createVehicle, userId]);
+  }, [createMutation, userId]);
 
+  // Manual entry: create catalog record first, then link
   const handleSaveManual = useCallback(async () => {
     if (!manualMake.trim() || !manualModel.trim()) { setManualError('Введите марку и модель'); return; }
     const battery = parseFloat(manualBattery);
@@ -175,34 +187,23 @@ export default function CarsScreen() {
     if (!range || range <= 0)     { setManualError('Укажите корректный запас хода'); return; }
     setSavingManual(true); setManualError('');
     try {
-      const body: Record<string, unknown> = {
-        make: manualMake.trim(), model: manualModel.trim(),
-        battery_kwh: battery, range_km: range,
-        connector_type: manualConnector, body_style: manualBodyStyle,
-        user_id: userId ?? undefined,
-      };
-      if (manualYear.trim()) body.year = parseInt(manualYear.trim());
-      const res = await fetch(`${API_BASE}/api/vehicles/manual`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) { const e = await res.json(); setManualError(e.error ?? 'Ошибка'); return; }
-      const v = await res.json();
-      createVehicle.mutate({
-        data: {
-          name: v.name,
-          connector_type: manualConnector,
-          battery_kwh: battery,
-          range_km: range,
-          user_id: userId,
-        },
+      createMutation.mutate({
+        user_id: userId,
+        name: `${manualMake.trim()} ${manualModel.trim()}`,
+        connector_type: manualConnector,
+        battery_kwh: battery,
+        range_km: range,
+        make: manualMake.trim(),
+        model: manualModel.trim(),
+        year: manualYear.trim() ? parseInt(manualYear.trim()) : undefined,
+        body_style: manualBodyStyle,
       });
     } catch (e: any) {
       setManualError(e?.message ?? 'Ошибка сети');
     } finally {
       setSavingManual(false);
     }
-  }, [manualMake, manualModel, manualYear, manualBattery, manualRange, manualConnector, manualBodyStyle, userId]);
+  }, [manualMake, manualModel, manualYear, manualBattery, manualRange, manualConnector, manualBodyStyle, userId, createMutation]);
 
   const topPad = Platform.OS === 'web' ? 20 : insets.top;
   const bottomPad = Platform.OS === 'web' ? 34 : insets.bottom;
@@ -222,29 +223,32 @@ export default function CarsScreen() {
       <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad + 40 }]} showsVerticalScrollIndicator={false}>
         {isLoading ? (
           <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
-        ) : vehicles.length === 0 ? (
+        ) : userVehicles.length === 0 ? (
           <View style={styles.emptyState}>
             <Feather name="truck" size={48} color={colors.mutedForeground} />
             <Text style={[styles.emptyTitle, { color: colors.text }]}>Нет автомобилей</Text>
             <Text style={[styles.emptyDesc, { color: colors.mutedForeground }]}>Добавьте свой первый электромобиль.</Text>
           </View>
         ) : (
-          vehicles.map((car, index) => {
-            const batteryPct = BATTERY_LEVELS[index % BATTERY_LEVELS.length];
-            const rangeKm = Math.round(batteryPct * ((car.range_km ?? 300) / 100));
-            const isDefault = car.id === selectedVehicleId || (selectedVehicleId == null && index === 0);
-            const isDeleting = deleteMutation.isPending && confirmDeleteId === car.id;
+          userVehicles.map((uv: UserVehicle, index) => {
+            const v = uv.vehicle;
+            const batteryPct = uv.current_battery_pct ?? BATTERY_LEVELS[index % BATTERY_LEVELS.length];
+            const rangeKm = Math.round(batteryPct * ((v?.range_km ?? 300) / 100));
+            const isDefault = uv.id === selectedVehicleId || (selectedVehicleId == null && index === 0);
+            const isDeleting = deleteMutation.isPending && confirmDeleteId === uv.id;
             return (
-              <View key={car.id}>
-                <TouchableOpacity activeOpacity={0.85} onPress={() => setSelectedVehicleId(car.id)}
+              <View key={uv.id}>
+                <TouchableOpacity activeOpacity={0.85} onPress={() => setSelectedVehicleId(uv.id)}
                   style={[styles.carCard, { backgroundColor: '#FFFFFF', borderColor: isDefault ? colors.primary : 'transparent', borderWidth: isDefault ? 2 : 0 }]}>
                   <View style={[styles.carIconBox, { backgroundColor: colors.muted }]}>
                     <Feather name="zap" size={26} color={isDefault ? colors.primary : colors.mutedForeground} />
                   </View>
                   <View style={styles.carInfo}>
-                    <Text style={[styles.carName, { color: colors.text }]}>{car.name}</Text>
+                    <Text style={[styles.carName, { color: colors.text }]}>
+                      {uv.nickname ?? v?.name ?? '—'}
+                    </Text>
                     <Text style={[styles.carConnector, { color: colors.mutedForeground }]}>
-                      {car.connector_type}{car.battery_kwh ? ` · ${car.battery_kwh} кВт·ч` : ''}
+                      {v?.connector_type ?? '—'}{v?.battery_kwh ? ` · ${v.battery_kwh} кВт·ч` : ''}
                     </Text>
                     <View style={styles.batteryRow}>
                       <Text style={[styles.batteryText, { color: colors.mutedForeground }]}>{batteryPct}% · {rangeKm} км</Text>
@@ -256,16 +260,16 @@ export default function CarsScreen() {
                   </View>
                   <View style={styles.rightCol}>
                     {isDefault ? <Feather name="check-circle" size={22} color="#10B981" /> : <View style={[styles.emptyCircle, { borderColor: colors.border }]} />}
-                    <TouchableOpacity onPress={() => setConfirmDeleteId(car.id)} style={[styles.deleteBtn, { backgroundColor: '#FEE2E2' }]} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <TouchableOpacity onPress={() => setConfirmDeleteId(uv.id)} style={[styles.deleteBtn, { backgroundColor: '#FEE2E2' }]} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                       <Feather name="trash-2" size={14} color="#EF4444" />
                     </TouchableOpacity>
                   </View>
                 </TouchableOpacity>
-                {confirmDeleteId === car.id && (
+                {confirmDeleteId === uv.id && (
                   <View style={[styles.confirmRow, { backgroundColor: '#FEF2F2', borderColor: '#FECACA' }]}>
                     <Text style={[styles.confirmText, { color: '#DC2626' }]}>Удалить автомобиль?</Text>
                     <View style={styles.confirmBtns}>
-                      <TouchableOpacity style={[styles.confirmBtn, { backgroundColor: '#EF4444' }]} onPress={() => deleteMutation.mutate({ id: car.id })} disabled={isDeleting}>
+                      <TouchableOpacity style={[styles.confirmBtn, { backgroundColor: '#EF4444' }]} onPress={() => deleteMutation.mutate({ id: uv.id })} disabled={isDeleting}>
                         {isDeleting ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.confirmBtnText}>Удалить</Text>}
                       </TouchableOpacity>
                       <TouchableOpacity style={[styles.confirmBtn, { backgroundColor: colors.muted }]} onPress={() => setConfirmDeleteId(null)}>
@@ -305,7 +309,6 @@ export default function CarsScreen() {
       <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={closeModal}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={[styles.modal, { backgroundColor: colors.background, paddingTop: insets.top + 16 }]}>
-            {/* Header */}
             <View style={[styles.modalHeader, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
               <TouchableOpacity onPress={showManual ? () => setShowManual(false) : closeModal}>
                 <Feather name={showManual ? 'arrow-left' : 'x'} size={24} color={colors.text} />
@@ -317,12 +320,11 @@ export default function CarsScreen() {
             </View>
 
             {showManual ? (
-              /* ── Manual entry form ──────────────────────────────────────── */
+              /* ── Manual entry form ─────────────────────────────────────── */
               <ScrollView contentContainerStyle={{ padding: 20, gap: 14 }} showsVerticalScrollIndicator={false}>
                 <Text style={[styles.manualHint, { color: colors.mutedForeground }]}>
                   Запись будет помечена «добавлено пользователем» до верификации администратором.
                 </Text>
-                {/* Make + Model */}
                 <View style={styles.row}>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.fieldLabel, { color: colors.text }]}>Марка *</Text>
@@ -333,7 +335,6 @@ export default function CarsScreen() {
                     <TextInput style={[styles.fieldInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.card }]} placeholder="Han" placeholderTextColor={colors.mutedForeground} value={manualModel} onChangeText={setManualModel} />
                   </View>
                 </View>
-                {/* Year + Battery */}
                 <View style={styles.row}>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.fieldLabel, { color: colors.text }]}>Год</Text>
@@ -344,12 +345,10 @@ export default function CarsScreen() {
                     <TextInput style={[styles.fieldInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.card }]} placeholder="85.4" placeholderTextColor={colors.mutedForeground} keyboardType="decimal-pad" value={manualBattery} onChangeText={setManualBattery} />
                   </View>
                 </View>
-                {/* Range */}
                 <View>
                   <Text style={[styles.fieldLabel, { color: colors.text }]}>Запас хода (км) *</Text>
                   <TextInput style={[styles.fieldInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.card }]} placeholder="605" placeholderTextColor={colors.mutedForeground} keyboardType="numeric" value={manualRange} onChangeText={setManualRange} />
                 </View>
-                {/* Connector */}
                 <View>
                   <Text style={[styles.fieldLabel, { color: colors.text }]}>Тип коннектора *</Text>
                   <View style={styles.chipRow}>
@@ -362,7 +361,6 @@ export default function CarsScreen() {
                     ))}
                   </View>
                 </View>
-                {/* Body style */}
                 <View>
                   <Text style={[styles.fieldLabel, { color: colors.text }]}>Тип кузова</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -378,9 +376,9 @@ export default function CarsScreen() {
                   </ScrollView>
                 </View>
                 {manualError ? <Text style={styles.errorText}>{manualError}</Text> : null}
-                <TouchableOpacity onPress={handleSaveManual} disabled={savingManual} style={[styles.addButton, { marginTop: 4 }]}>
+                <TouchableOpacity onPress={handleSaveManual} disabled={savingManual || createMutation.isPending} style={[styles.addButton, { marginTop: 4 }]}>
                   <LinearGradient colors={['#2563EB', '#7C3AED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.addButtonGradient}>
-                    {savingManual ? <ActivityIndicator color="#fff" /> : <><Feather name="check" size={18} color="#fff" /><Text style={styles.addButtonText}>Сохранить</Text></>}
+                    {(savingManual || createMutation.isPending) ? <ActivityIndicator color="#fff" /> : <><Feather name="check" size={18} color="#fff" /><Text style={styles.addButtonText}>Сохранить</Text></>}
                   </LinearGradient>
                 </TouchableOpacity>
               </ScrollView>
@@ -410,7 +408,7 @@ export default function CarsScreen() {
                     contentContainerStyle={{ padding: 16, gap: 10 }}
                     renderItem={({ item }) => (
                       <TouchableOpacity activeOpacity={0.85} style={[styles.resultCard, { backgroundColor: colors.card }]}
-                        onPress={() => handleAddVehicle(item)} disabled={createVehicle.isPending}>
+                        onPress={() => handleAddVehicle(item)} disabled={createMutation.isPending}>
                         <View style={[styles.resultIcon, { backgroundColor: colors.muted }]}>
                           <Feather name={vehicleIcon(item)} size={20} color={colors.primary} />
                         </View>
@@ -427,7 +425,7 @@ export default function CarsScreen() {
                             {item.connector_type}{item.battery_kwh ? ` · ${item.battery_kwh} кВт·ч` : ''}{item.range_km ? ` · ${item.range_km} км` : ''}
                           </Text>
                         </View>
-                        {createVehicle.isPending ? <ActivityIndicator size="small" color={colors.primary} /> : <Feather name="plus-circle" size={22} color={colors.primary} />}
+                        {createMutation.isPending ? <ActivityIndicator size="small" color={colors.primary} /> : <Feather name="plus-circle" size={22} color={colors.primary} />}
                       </TouchableOpacity>
                     )}
                     ListHeaderComponent={isFuzzy && results.length > 0 ? (
@@ -474,7 +472,7 @@ export default function CarsScreen() {
                           </View>
                           {group.vehicles.map((item, idx) => (
                             <TouchableOpacity key={idx} activeOpacity={0.75} style={[styles.popularRow, { backgroundColor: colors.card, borderTopWidth: idx === 0 ? 0 : 1, borderTopColor: colors.border }]}
-                              onPress={() => handleAddVehicle(item)} disabled={createVehicle.isPending}>
+                              onPress={() => handleAddVehicle(item)} disabled={createMutation.isPending}>
                               <View style={{ flex: 1 }}>
                                 <Text style={[{ fontSize: 14, fontFamily: 'Inter_500Medium', color: colors.text }]}>{item.name}</Text>
                                 <Text style={[{ fontSize: 11, fontFamily: 'Inter_400Regular', color: colors.mutedForeground, marginTop: 2 }]}>
@@ -544,7 +542,6 @@ const styles = StyleSheet.create({
   makeIconBox: { width: 24, height: 24, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
   makeTitle: { fontSize: 13, fontFamily: 'Inter_700Bold', letterSpacing: 0.5, textTransform: 'uppercase' },
   popularRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, paddingHorizontal: 14 },
-  // Manual form
   row: { flexDirection: 'row', gap: 12 },
   fieldLabel: { fontSize: 12, fontFamily: 'Inter_600SemiBold', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 },
   fieldInput: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11, fontSize: 15, fontFamily: 'Inter_400Regular' },

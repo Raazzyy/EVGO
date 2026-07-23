@@ -78,7 +78,7 @@ function amenityInfo(key: string) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-export function StationCard({
+export const StationCard = React.memo(function StationCard({
   station,
   onPress,
   compact = false,
@@ -261,7 +261,7 @@ export function StationCard({
       )}
     </TouchableOpacity>
   );
-}
+});
 
 // ─────────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({

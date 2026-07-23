@@ -14,3 +14,4 @@ export * from "./connectors";
 export * from "./connector_watchers";
 export * from "./promos";
 export * from "./banners";
+export * from "./user_vehicles";

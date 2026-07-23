@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useGetVehicles, useGetStations } from '@workspace/api-client-react';
+import { useGetUserVehicles, useGetStations } from '@workspace/api-client-react';
 import { useApp } from '@/contexts/AppContext';
 
 export interface FiltersState {
@@ -49,14 +49,14 @@ interface FiltersSheetProps {
 export function FiltersSheet({ visible, onClose, onApply }: FiltersSheetProps) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { selectedVehicleId, setSelectedVehicleId } = useApp();
+  const { selectedVehicleId, setSelectedVehicleId, userId } = useApp();
 
   const [filters, setFilters] = useState<FiltersState>({ ...DEFAULT_FILTERS });
   const [liveCount, setLiveCount] = useState<number | null>(null);
   const [counting, setCounting] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { data: vehicles = [] } = useGetVehicles();
+  const { data: userVehicles = [] } = useGetUserVehicles(userId);
   const { data: stationsResp } = useGetStations();
   // API returns {promoted, nearby}; use nearby (contains all stations)
   const allStations = (stationsResp?.nearby ?? []) as any[];
@@ -77,11 +77,12 @@ export function FiltersSheet({ visible, onClose, onApply }: FiltersSheetProps) {
           });
         }
         if (f.vehicleId) {
-          const vehicle = vehicles.find((v) => v.id === f.vehicleId);
-          if (vehicle?.connector_type) {
+          const uv = userVehicles.find((u) => u.id === f.vehicleId);
+          const connType = uv?.vehicle?.connector_type;
+          if (connType) {
             result = result.filter((s) => {
               const conns: any[] = (s as any).connectors ?? [];
-              return conns.some((c) => c.type === vehicle.connector_type);
+              return conns.some((c) => c.type === connType);
             });
           }
         }
@@ -91,7 +92,7 @@ export function FiltersSheet({ visible, onClose, onApply }: FiltersSheetProps) {
         setCounting(false);
       }, 300);
     },
-    [allStations, vehicles]
+    [allStations, userVehicles]
   );
 
   // Recompute whenever filters change
@@ -131,11 +132,12 @@ export function FiltersSheet({ visible, onClose, onApply }: FiltersSheetProps) {
   }
 
   function selectVehicle(id: number) {
-    const vehicle = vehicles.find((v) => v.id === id);
+    const uv = userVehicles.find((u) => u.id === id);
+    const connType = uv?.vehicle?.connector_type;
     setFilters((prev) => ({
       ...prev,
       vehicleId: prev.vehicleId === id ? null : id,
-      connectorTypes: vehicle && prev.vehicleId !== id ? [vehicle.connector_type] : [],
+      connectorTypes: connType && prev.vehicleId !== id ? [connType] : [],
     }));
   }
 
@@ -178,7 +180,7 @@ export function FiltersSheet({ visible, onClose, onApply }: FiltersSheetProps) {
         <View style={styles.overlay}>
           {/* Tap inside sheet → don't propagate to overlay */}
           <TouchableWithoutFeedback onPress={() => {}}>
-          <Animated.View style={[styles.sheet, { backgroundColor: colors.card }, sheetTransStyle]}>
+            <Animated.View style={[styles.sheet, { backgroundColor: colors.card }, sheetTransStyle]}>
             {/* Drag handle */}
             <GestureDetector gesture={swipeGesture}>
               <View style={styles.dragHandle}>
@@ -215,12 +217,12 @@ export function FiltersSheet({ visible, onClose, onApply }: FiltersSheetProps) {
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.hScroll}
                 >
-                  {vehicles.map((car) => {
-                    const isActive = filters.vehicleId === car.id;
+                  {userVehicles.map((uv) => {
+                    const isActive = filters.vehicleId === uv.id;
                     return (
                       <TouchableOpacity
-                        key={car.id}
-                        onPress={() => selectVehicle(car.id)}
+                        key={uv.id}
+                        onPress={() => selectVehicle(uv.id)}
                         style={[
                           styles.carChip,
                           {
@@ -235,7 +237,7 @@ export function FiltersSheet({ visible, onClose, onApply }: FiltersSheetProps) {
                           color={isActive ? colors.primary : colors.mutedForeground}
                         />
                         <Text style={[styles.carChipText, { color: isActive ? colors.primary : colors.text }]}>
-                          {car.name}
+                          {uv.nickname ?? uv.vehicle?.name ?? '—'}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -446,7 +448,7 @@ export function FiltersSheet({ visible, onClose, onApply }: FiltersSheetProps) {
               </TouchableOpacity>
             </View>
           </View>
-        </Animated.View>
+            </Animated.View>
           </TouchableWithoutFeedback>
         </View>
       </TouchableWithoutFeedback>

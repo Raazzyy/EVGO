@@ -22,7 +22,8 @@ const AppContext = createContext<AppContextType | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [activeSessionId, setActiveSessionId] = useState<number | null>(null);
-  const [selectedVehicleId, setSelectedVehicleId] = useState<number | null>(1);
+  // selectedVehicleId now refers to user_vehicles.id (not vehicles/catalog id)
+  const [selectedVehicleId, setSelectedVehicleId] = useState<number | null>(null);
   const [activeRouteId, setActiveRouteId] = useState<number | null>(null);
 
   return (

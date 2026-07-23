@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
 } from 'react-native';
@@ -20,15 +20,126 @@ import { Platform } from 'react-native';
 
 const IOS_EASE = Easing.bezier(0.25, 0.46, 0.45, 0.94);
 
+// ── LiveChargingContent ───────────────────────────────────────────────────
+// Isolated sub-component that owns the 1-second tick so ChargeScreen
+// itself does NOT re-render 60× per minute.
+const LiveChargingContent = React.memo(function LiveChargingContent({
+  activeSession,
+  sessionDetail,
+  onStopRequest,
+  onConfirmedStop,
+  isStopPending,
+  bottomPad,
+}: {
+  activeSession: any;
+  sessionDetail: any;
+  onStopRequest: () => void;
+  onConfirmedStop: () => void;
+  isStopPending: boolean;
+  bottomPad: number;
+}) {
+  const colors = useColors();
+  const router = useRouter();
+
+  const [tick, setTick] = useState(0);
+  const [confirmStop, setConfirmStop] = useState(false);
+
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const stationPrice = (activeSession?.station as any)?.price_per_kwh ?? 2000;
+  const stationPower = (activeSession?.station as any)?.power_kw ?? 100;
+
+  const SIM_DURATION_S = 28 * 60;
+  const simElapsedS = Math.min(tick, SIM_DURATION_S);
+  const liveEnergyKwh = parseFloat(((simElapsedS / 3600) * stationPower).toFixed(1));
+  const liveCost = Math.round(liveEnergyKwh * stationPrice);
+  const batteryPct = (sessionDetail as any)?.progress_pct ?? Math.min(95, 45 + (simElapsedS / SIM_DURATION_S) * 30);
+  const timeToEighty = Math.max(-99, Math.round(((0.8 * 77.4 - liveEnergyKwh) / stationPower) * 60));
+  const simH = Math.floor(simElapsedS / 3600);
+  const simM = Math.floor((simElapsedS % 3600) / 60);
+  const simS = simElapsedS % 60;
+  const simTime = `${String(simH).padStart(2,'0')}:${String(simM).padStart(2,'0')}:${String(simS).padStart(2,'0')}`;
+
+  return (
+    <ScrollView
+      contentContainerStyle={[styles.activeContent, { paddingBottom: bottomPad + 100 }]}
+      showsVerticalScrollIndicator={false}
+    >
+      <Animated.View entering={FadeInDown.duration(300).easing(IOS_EASE)} style={[styles.progressCard, { backgroundColor: colors.card }]}>
+        <CircularProgress
+          progress={batteryPct} size={180} strokeWidth={14}
+          subLabel="Заряжено"
+          icon={<Feather name="zap" size={24} color={colors.primary} />}
+        />
+      </Animated.View>
+
+      <Animated.View entering={FadeInDown.delay(60).duration(280).easing(IOS_EASE)} style={[styles.statsGrid, { backgroundColor: colors.card }]}>
+        {[
+          { value: `${stationPower} кВт`, label: 'Мощность' },
+          { value: `${liveEnergyKwh.toFixed(1)} кВт·ч`, label: 'Энергия' },
+          { value: simTime, label: 'Время' },
+          { value: timeToEighty < 0 ? `✓ 80%` : `~${timeToEighty} мин`, label: 'До 80%', color: timeToEighty < 0 ? '#10B981' : undefined },
+        ].map((item, i, arr) => (
+          <React.Fragment key={i}>
+            <View style={styles.statBlock}>
+              <Text style={[styles.statValue, { color: item.color ?? colors.text }]}>{item.value}</Text>
+              <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>{item.label}</Text>
+            </View>
+            {i < arr.length - 1 && <View style={[styles.statDivider, { backgroundColor: colors.border }]} />}
+          </React.Fragment>
+        ))}
+      </Animated.View>
+
+      <Animated.View entering={FadeInDown.delay(100).duration(260).easing(IOS_EASE)} style={[styles.costCard, { backgroundColor: colors.card }]}>
+        <Text style={[styles.costValue, { color: colors.text }]}>{liveCost.toLocaleString('ru-RU')} сум</Text>
+        <Text style={[styles.costRate, { color: colors.mutedForeground }]}>{stationPrice.toLocaleString('ru-RU')} сум/кВт·ч</Text>
+      </Animated.View>
+
+      {!confirmStop ? (
+        <Animated.View entering={FadeInDown.delay(140).duration(260).easing(IOS_EASE)}>
+          <TouchableOpacity onPress={() => setConfirmStop(true)} activeOpacity={0.8} style={{ borderRadius: 16, overflow: 'hidden' }}>
+            <LinearGradient colors={['#F472B6', '#EF4444']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.stopBtn}>
+              <Text style={styles.stopText}>Остановить сессию</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </Animated.View>
+      ) : (
+        <Animated.View entering={FadeInDown.duration(220).easing(IOS_EASE)} style={[styles.confirmCard, { backgroundColor: '#FEF2F2', borderColor: '#FECACA' }]}>
+          <Text style={[styles.confirmTitle, { color: '#DC2626' }]}>Завершить зарядку?</Text>
+          <Text style={[styles.confirmSub, { color: '#9CA3AF' }]}>
+            Сессия будет остановлена. Итоговая стоимость: {liveCost.toLocaleString('ru-RU')} сум
+          </Text>
+          <View style={styles.confirmBtns}>
+            <TouchableOpacity
+              style={[styles.confirmBtn, { backgroundColor: '#EF4444', flex: 1 }]}
+              onPress={() => { onConfirmedStop(); setConfirmStop(false); }}
+              disabled={isStopPending}
+            >
+              <Text style={styles.confirmBtnText}>{isStopPending ? 'Останавливаем…' : 'Да, остановить'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.confirmBtn, { backgroundColor: '#F3F4F6', flex: 1 }]} onPress={() => setConfirmStop(false)}>
+              <Text style={[styles.confirmBtnText, { color: '#374151' }]}>Отмена</Text>
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+      )}
+
+      <TouchableOpacity style={styles.detailsLink} onPress={() => router.push(`/payment/${activeSession.id}`)}>
+        <Text style={[styles.detailsText, { color: colors.primary }]}>Детали сессии</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+});
+
 export default function ChargeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const qc = useQueryClient();
   const { userId } = useApp();
-
-  const [tick, setTick] = useState(0);
-  const [confirmStop, setConfirmStop] = useState(false);
 
   const { data: sessions = [] } = useGetSessions({ status: 'active', user_id: userId });
   const activeSession = sessions[0] ?? null;
@@ -40,44 +151,19 @@ export default function ChargeScreen() {
   const stopMutation = useStopSession({
     mutation: {
       onSuccess: (stoppedSession) => {
-        setConfirmStop(false);
-        // Populate the individual session cache immediately with the stop response
-        // (which already contains energy_kwh, cost, and station).
-        // This prevents the receipt screen from reading a stale cache with zeros.
         if (activeSession?.id) {
           qc.setQueryData(getGetSessionQueryKey(activeSession.id), stoppedSession);
         }
         qc.invalidateQueries({ queryKey: getGetSessionsQueryKey() });
         qc.invalidateQueries({ queryKey: getGetSessionQueryKey(activeSession?.id ?? 0) });
-        // Navigate to receipt with session id and payment card
         const card = encodeURIComponent((activeSession as any)?._selectedCard ?? 'Uzcard');
         router.push(`/payment/receipt?id=${activeSession?.id}&card=${card}` as any);
       },
     },
   });
 
-  useEffect(() => {
-    const id = setInterval(() => setTick(t => t + 1), 1000);
-    return () => clearInterval(id);
-  }, []);
-
   const topPad = Platform.OS === 'web' ? 0 : insets.top;
   const bottomPad = Platform.OS === 'web' ? 34 : insets.bottom;
-
-  const stationPrice = (activeSession?.station as any)?.price_per_kwh ?? 2000;
-  const stationPower = (activeSession?.station as any)?.power_kw ?? 100;
-
-  const SIM_DURATION_S = 28 * 60;
-  const simElapsedS = Math.min(tick, SIM_DURATION_S);
-  const liveEnergyKwh = parseFloat(((simElapsedS / 3600) * stationPower).toFixed(1));
-  const liveCost = Math.round(liveEnergyKwh * stationPrice);
-  const batteryPct = (sessionDetail as any)?.progress_pct ?? Math.min(95, 45 + (simElapsedS / SIM_DURATION_S) * 30);
-  const timeToEighty = Math.max(-99, Math.round(((0.8 * 77.4 - liveEnergyKwh) / stationPower) * 60));
-
-  const simH = Math.floor(simElapsedS / 3600);
-  const simM = Math.floor((simElapsedS % 3600) / 60);
-  const simS = simElapsedS % 60;
-  const simTime = `${String(simH).padStart(2,'0')}:${String(simM).padStart(2,'0')}:${String(simS).padStart(2,'0')}`;
 
   if (!activeSession) {
     return (
@@ -109,74 +195,15 @@ export default function ChargeScreen() {
         </View>
       </View>
 
-      <ScrollView
-        contentContainerStyle={[styles.activeContent, { paddingBottom: bottomPad + 100 }]}
-        showsVerticalScrollIndicator={false}
-      >
-        <Animated.View entering={FadeInDown.duration(300).easing(IOS_EASE)} style={[styles.progressCard, { backgroundColor: colors.card }]}>
-          <CircularProgress
-            progress={batteryPct} size={180} strokeWidth={14}
-            subLabel="Заряжено"
-            icon={<Feather name="zap" size={24} color={colors.primary} />}
-          />
-        </Animated.View>
-
-        <Animated.View entering={FadeInDown.delay(60).duration(280).easing(IOS_EASE)} style={[styles.statsGrid, { backgroundColor: colors.card }]}>
-          {[
-            { value: `${stationPower} кВт`, label: 'Мощность' },
-            { value: `${liveEnergyKwh.toFixed(1)} кВт·ч`, label: 'Энергия' },
-            { value: simTime, label: 'Время' },
-            { value: timeToEighty < 0 ? `✓ 80%` : `~${timeToEighty} мин`, label: 'До 80%', color: timeToEighty < 0 ? '#10B981' : undefined },
-          ].map((item, i, arr) => (
-            <React.Fragment key={i}>
-              <View style={styles.statBlock}>
-                <Text style={[styles.statValue, { color: item.color ?? colors.text }]}>{item.value}</Text>
-                <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>{item.label}</Text>
-              </View>
-              {i < arr.length - 1 && <View style={[styles.statDivider, { backgroundColor: colors.border }]} />}
-            </React.Fragment>
-          ))}
-        </Animated.View>
-
-        <Animated.View entering={FadeInDown.delay(100).duration(260).easing(IOS_EASE)} style={[styles.costCard, { backgroundColor: colors.card }]}>
-          <Text style={[styles.costValue, { color: colors.text }]}>{liveCost.toLocaleString('ru-RU')} сум</Text>
-          <Text style={[styles.costRate, { color: colors.mutedForeground }]}>{stationPrice.toLocaleString('ru-RU')} сум/кВт·ч</Text>
-        </Animated.View>
-
-        {/* Stop section */}
-        {!confirmStop ? (
-          <Animated.View entering={FadeInDown.delay(140).duration(260).easing(IOS_EASE)}>
-            <TouchableOpacity onPress={() => setConfirmStop(true)} activeOpacity={0.8} style={{ borderRadius: 16, overflow: 'hidden' }}>
-              <LinearGradient colors={['#F472B6', '#EF4444']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.stopBtn}>
-                <Text style={styles.stopText}>Остановить сессию</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </Animated.View>
-        ) : (
-          <Animated.View entering={FadeInDown.duration(220).easing(IOS_EASE)} style={[styles.confirmCard, { backgroundColor: '#FEF2F2', borderColor: '#FECACA' }]}>
-            <Text style={[styles.confirmTitle, { color: '#DC2626' }]}>Завершить зарядку?</Text>
-            <Text style={[styles.confirmSub, { color: '#9CA3AF' }]}>
-              Сессия будет остановлена. Итоговая стоимость: {liveCost.toLocaleString('ru-RU')} сум
-            </Text>
-            <View style={styles.confirmBtns}>
-              <TouchableOpacity
-                style={[styles.confirmBtn, { backgroundColor: '#EF4444', flex: 1 }]}
-                onPress={() => stopMutation.mutate({ id: activeSession.id })}
-                disabled={stopMutation.isPending}
-              >
-                <Text style={styles.confirmBtnText}>{stopMutation.isPending ? 'Останавливаем…' : 'Да, остановить'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.confirmBtn, { backgroundColor: '#F3F4F6', flex: 1 }]} onPress={() => setConfirmStop(false)}>
-                <Text style={[styles.confirmBtnText, { color: '#374151' }]}>Отмена</Text>
-              </TouchableOpacity>
-            </View>
-          </Animated.View>
-        )}
-
-        <TouchableOpacity style={styles.detailsLink} onPress={() => router.push(`/payment/${activeSession.id}`)}>
-          <Text style={[styles.detailsText, { color: colors.primary }]}>Детали сессии</Text>
-        </TouchableOpacity>
-      </ScrollView>
+      {/* LiveChargingContent owns the 1-second tick so this parent doesn't re-render every second */}
+      <LiveChargingContent
+        activeSession={activeSession}
+        sessionDetail={sessionDetail}
+        onStopRequest={() => {}}
+        onConfirmedStop={() => stopMutation.mutate({ id: activeSession.id })}
+        isStopPending={stopMutation.isPending}
+        bottomPad={bottomPad}
+      />
     </View>
   );
 }

@@ -14,6 +14,7 @@ import favoritesRouter from "./favorites";
 import connectorsRouter from "./connectors";
 import promosRouter from "./promos";
 import bannersRouter from "./banners";
+import userVehiclesRouter from "./user_vehicles";
 
 const router = Router();
 
@@ -195,5 +196,6 @@ router.use(favoritesRouter);
 router.use(connectorsRouter);
 router.use(promosRouter);
 router.use(bannersRouter);
+router.use(userVehiclesRouter);
 
 export default router;

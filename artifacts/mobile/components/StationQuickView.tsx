@@ -207,7 +207,7 @@ export function StationQuickView({
     // Wrapper: fills the container, passes touches through in empty areas
     <View style={[StyleSheet.absoluteFillObject, { pointerEvents: 'box-none' }]}>
       <GestureDetector gesture={swipeGesture}>
-      <Animated.View
+        <Animated.View
         onLayout={(e) => { cardHeightRef.current = e.nativeEvent.layout.height; }}
         style={[
           styles.card,
@@ -327,7 +327,7 @@ export function StationQuickView({
         {showAbove && (
           <View style={[styles.tailDown, { left: tailLeft, borderTopColor: colors.card }]} />
         )}
-      </Animated.View>
+        </Animated.View>
       </GestureDetector>
     </View>
   );

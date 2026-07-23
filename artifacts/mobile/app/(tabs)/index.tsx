@@ -2,7 +2,7 @@ import React, {
   useRef, useState, useMemo, useEffect, useCallback,
 } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TextInput,
+  View, Text, StyleSheet, ScrollView, FlatList, TextInput,
   TouchableOpacity, Pressable, Platform,
   Dimensions, Linking,
 } from 'react-native';
@@ -12,11 +12,11 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
-import { useGetStations, useGetVehicles } from '@workspace/api-client-react';
+import { useGetStations, useGetUserVehicles } from '@workspace/api-client-react';
 import { useColors } from '@/hooks/useColors';
 import { useApp } from '@/contexts/AppContext';
 import { StationCard } from '@/components/StationCard';
@@ -496,23 +496,33 @@ export default function MapScreen() {
   }, []);
 
   // ── Data ──────────────────────────────────────────────────────────────────
-  const { selectedVehicleId } = useApp();
-  const { data: vehicles = [] } = useGetVehicles();
-  const defaultVehicle = vehicles.find(v => v.id === selectedVehicleId) ?? vehicles[0];
+  const { selectedVehicleId, userId } = useApp();
+  const { data: userVehicles = [] } = useGetUserVehicles(userId);
+  const defaultUserVehicle = userVehicles.find(uv => uv.id === selectedVehicleId) ?? userVehicles[0];
+  const defaultConnectorType = defaultUserVehicle?.vehicle?.connector_type;
 
-  const { data: stationsData } = useGetStations(undefined, { query: { refetchInterval: 30_000 } });
+  // Stop station polling when the tab is not in focus — saves battery + bandwidth
+  const [isFocused, setIsFocused] = useState(true);
+  useFocusEffect(useCallback(() => {
+    setIsFocused(true);
+    return () => setIsFocused(false);
+  }, []));
+
+  const { data: stationsData } = useGetStations(undefined, {
+    query: { refetchInterval: isFocused ? 30_000 : false },
+  });
   const allStations      = useMemo(() => (stationsData?.nearby    ?? []) as any[], [stationsData]);
   const promotedFromApi  = useMemo(() => (stationsData?.promoted  ?? []) as any[], [stationsData]);
 
   // ── Filters ───────────────────────────────────────────────────────────────
   const applyChipFilter = useCallback(<T extends { status: string }>(list: T[]): T[] => {
     if (activeChip === 'free') return list.filter(s => s.status === 'free');
-    if (activeChip === 'my-cars' && defaultVehicle?.connector_type)
-      return list.filter(s => ((s as any).connectors ?? []).some((c: any) => c.type === defaultVehicle.connector_type));
+    if (activeChip === 'my-cars' && defaultConnectorType)
+      return list.filter(s => ((s as any).connectors ?? []).some((c: any) => c.type === defaultConnectorType));
     if (activeChip === 'ac') return list.filter(s => ((s as any).connectors ?? []).some((c: any) => AC_TYPES.includes(c.type)));
     if (activeChip === 'dc') return list.filter(s => ((s as any).connectors ?? []).some((c: any) => DC_TYPES.includes(c.type)));
     return list;
-  }, [activeChip, defaultVehicle]);
+  }, [activeChip, defaultConnectorType]);
 
   const applySheetFilter = useCallback((list: any[]): any[] => {
     let r = list;
@@ -770,18 +780,24 @@ export default function MapScreen() {
           </View>
         </View>
         {FilterChips}
-        <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 56, paddingBottom: bottomPad }}
-          showsVerticalScrollIndicator={false} nestedScrollEnabled>
-          {nearbyStations.map((s, i) => (
-            <Animated.View key={s.id} entering={FadeInDown.delay(i * 35).duration(300).easing(IOS_EASE)}
-              layout={Layout.duration(250).easing(IOS_EASE)}>
+        <FlatList
+          data={nearbyStations}
+          keyExtractor={(s) => String(s.id)}
+          contentContainerStyle={{ padding: 16, paddingTop: 56, paddingBottom: bottomPad }}
+          showsVerticalScrollIndicator={false}
+          windowSize={5}
+          initialNumToRender={8}
+          maxToRenderPerBatch={6}
+          removeClippedSubviews
+          renderItem={({ item: s, index: i }) => (
+            <Animated.View entering={FadeInDown.delay(Math.min(i, 8) * 35).duration(300).easing(IOS_EASE)}>
               <StationCard station={s} onPress={() => router.push(`/station/${s.id}`)}
                 onRoute={() => router.push(routeFor(s))}
                 discount_pct={(s as any).discount_pct} is_promoted={(s as any).is_promoted}
                 amenities={(s as any).amenities} />
             </Animated.View>
-          ))}
-        </ScrollView>
+          )}
+        />
         <FiltersSheet visible={filtersVisible} onClose={() => setFiltersVisible(false)} onApply={f => setActiveFilters(f)} />
       </View>
     );
