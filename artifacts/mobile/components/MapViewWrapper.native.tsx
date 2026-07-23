@@ -174,13 +174,22 @@ export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
     }, [routePoints]);
 
     // ── Derived route geometry ──────────────────────────────────────────
-    // Prefer road-snapped coords; fall back to straight waypoint lines
-    const polylinePath =
+    // Decimate to ≤ 4 000 points so react-native-maps doesn't crash
+    // with RangeError: Property storage exceeds 196607 properties
+    function decimatePath<T>(arr: T[], maxPts = 4000): T[] {
+      if (arr.length <= maxPts) return arr;
+      const step = Math.ceil(arr.length / maxPts);
+      return arr.filter((_, i) => i % step === 0 || i === arr.length - 1);
+    }
+
+    const rawPath =
       polylineCoords && polylineCoords.length >= 2
         ? polylineCoords.map(([lat, lng]) => ({ latitude: lat, longitude: lng }))
         : routePoints && routePoints.length >= 2
           ? routePoints.map(p => ({ latitude: p.lat, longitude: p.lng }))
           : null;
+
+    const polylinePath = rawPath ? decimatePath(rawPath) : null;
 
     // ── Render ──────────────────────────────────────────────────────────
     return (

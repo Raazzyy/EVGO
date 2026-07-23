@@ -127,7 +127,7 @@ export function StationCard({
       ]}
     >
       {/* ── TOP BADGE: ТОП СТАНЦИЯ ──────────────────────────────────── */}
-      {is_promoted && (
+      {!!is_promoted && (
         <View style={[styles.topBadgeWrap, { pointerEvents: 'none' }]}>
           <LinearGradient
             colors={['#F59E0B', '#D97706']}
