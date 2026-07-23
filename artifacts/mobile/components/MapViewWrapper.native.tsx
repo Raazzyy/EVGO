@@ -23,6 +23,7 @@ export interface StationMarker {
 interface MapViewWrapperProps {
   stations: StationMarker[];
   onStationPress: (id: number) => void;
+  onMapPress?: () => void;
   userLocation?: { lat: number; lng: number } | null;
   routePoints?: Array<{ lat: number; lng: number; label?: string; type?: 'origin' | 'stop' | 'dest' }>;
   polylineCoords?: Array<[number, number]>;
@@ -35,14 +36,12 @@ const TASHKENT: Region = {
   longitudeDelta: 0.15,
 };
 
-// How much to multiply delta on each zoom step (< 1 = zoom in, > 1 = zoom out)
 const ZOOM_FACTOR = 0.5;
 
 export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
-  ({ stations, onStationPress, userLocation }, ref) => {
+  ({ stations, onStationPress, onMapPress, userLocation }, ref) => {
     const colors = useColors();
-    const mapRef  = useRef<MapView>(null);
-    // Track the current region so zoom steps are relative to it
+    const mapRef   = useRef<MapView>(null);
     const regionRef = useRef<Region>(TASHKENT);
 
     useImperativeHandle(ref, () => ({
@@ -85,6 +84,7 @@ export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
         style={StyleSheet.absoluteFillObject}
         initialRegion={TASHKENT}
         onRegionChangeComplete={(r) => { regionRef.current = r; }}
+        onPress={() => onMapPress?.()}
         showsUserLocation
         showsMyLocationButton={false}
       >
@@ -99,13 +99,9 @@ export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
               pinColor={pinColor}
               onPress={() => onStationPress(s.id)}
             >
-              <Callout onPress={() => onStationPress(s.id)}>
-                <View style={styles.callout}>
-                  <Text style={styles.calloutTitle}>{s.name}</Text>
-                  <Text style={styles.calloutSub}>
-                    {s.power_kw} кВт · {s.price_per_kwh.toLocaleString('ru-RU')} сум/кВт·ч
-                  </Text>
-                </View>
+              <Callout tooltip>
+                {/* Empty callout — quick view shown via Modal instead */}
+                <View />
               </Callout>
             </Marker>
           );

@@ -30,27 +30,28 @@ export interface StationMarker {
 interface Props {
   stations: StationMarker[];
   onStationPress: (id: number) => void;
+  onMapPress?: () => void;
   userLocation?: { lat: number; lng: number } | null;
-  // Semantic waypoints (origin/stop/dest markers)
   routePoints?: Array<{ lat: number; lng: number; label?: string; type?: 'origin' | 'stop' | 'dest' }>;
-  // Raw road-following polyline from Yandex Router (overrides straight-line if provided)
   polylineCoords?: Array<[number, number]>;
 }
 
 export const MapViewWrapper = forwardRef<MapApi, Props>(
-  ({ stations, onStationPress, userLocation, routePoints, polylineCoords }, ref) => {
+  ({ stations, onStationPress, onMapPress, userLocation, routePoints, polylineCoords }, ref) => {
     const divRef = useRef<HTMLDivElement | null>(null);
     const mapRef = useRef<any>(null);
     const leafletRef = useRef<any>(null);
     const markersRef = useRef<any[]>([]);
     const userMarkerRef = useRef<any>(null);
     const routeLayerRef = useRef<any>(null);
-    const onPressRef = useRef(onStationPress);
-    onPressRef.current = onStationPress;
+    const onPressRef    = useRef(onStationPress);
+    const onMapPressRef = useRef(onMapPress);
+    onPressRef.current    = onStationPress;
+    onMapPressRef.current = onMapPress;
     const [mapReady, setMapReady] = useState(false);
 
     useImperativeHandle(ref, () => ({
-      zoomIn: () => mapRef.current?.zoomIn(),
+      zoomIn:  () => mapRef.current?.zoomIn(),
       zoomOut: () => mapRef.current?.zoomOut(),
       locate: () => {
         if (userLocation) {
@@ -79,6 +80,10 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
         });
         mapRef.current = map;
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+        // Map-level click → close quick view (markers stop propagation, so this only fires on empty map)
+        map.on('click', () => onMapPressRef.current?.());
+
         if (!cancelled) setMapReady(true);
       })();
       return () => {
@@ -101,7 +106,7 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
       markersRef.current = [];
       stations.forEach((s) => {
         const color =
-          s.status === 'free' ? '#10B981' :
+          s.status === 'free'     ? '#10B981' :
           s.status === 'occupied' ? '#F59E0B' : '#94A3B8';
         const icon = L.divIcon({
           html: `<div style="background:${color};width:36px;height:36px;border-radius:50%;border:3px solid white;box-shadow:0 2px 12px rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .15s">
@@ -111,16 +116,14 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
           </div>`,
           className: '', iconSize: [36, 36], iconAnchor: [18, 18],
         });
-        const marker = L.marker([s.lat, s.lng], { icon })
-          .addTo(map)
-          .on('click', () => onPressRef.current(s.id));
-        marker.bindTooltip(
-          `<div style="font-family:system-ui,sans-serif;padding:2px 4px">
-            <div style="font-weight:700;font-size:13px">${s.name}</div>
-            <div style="color:#64748B;font-size:11px;margin-top:2px">${s.power_kw} кВт · ${s.price_per_kwh.toLocaleString('ru-RU')} сум/кВт·ч</div>
-          </div>`,
-          { direction: 'top', offset: [0, -22], opacity: 1 },
-        );
+        const marker = L.marker([s.lat, s.lng], { icon }).addTo(map);
+
+        // Stop propagation so the map 'click' handler (onMapPress) doesn't fire on pin taps
+        marker.on('click', (e: any) => {
+          L.DomEvent.stopPropagation(e);
+          onPressRef.current(s.id);
+        });
+
         markersRef.current.push(marker);
       });
     }, [stations, mapReady]);
@@ -136,7 +139,6 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
         className: '', iconSize: [16, 16], iconAnchor: [8, 8],
       });
       userMarkerRef.current = L.marker([userLocation.lat, userLocation.lng], { icon }).addTo(map);
-      // Center map on first location fix
       map.setView([userLocation.lat, userLocation.lng], 14, { animate: true });
     }, [userLocation, mapReady]);
 
@@ -150,21 +152,16 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
       if (!routePoints || routePoints.length < 2) return;
 
       const waypointLatlngs = routePoints.map((p) => [p.lat, p.lng] as [number, number]);
-      // Use Yandex road-following polyline if available, else straight segments between waypoints
       const roadLatlngs: [number, number][] = polylineCoords && polylineCoords.length >= 2
         ? polylineCoords
         : waypointLatlngs;
 
-      // Draw road polyline (solid blue line)
-      const line = L.polyline(roadLatlngs, {
-        color: '#2563EB', weight: 5, opacity: 0.9,
-      }).addTo(map);
+      const line = L.polyline(roadLatlngs, { color: '#2563EB', weight: 5, opacity: 0.9 }).addTo(map);
 
-      // Place point markers
       const pointMarkers = routePoints.map((p) => {
         const bg =
           p.type === 'origin' ? '#2563EB' :
-          p.type === 'dest' ? '#7C3AED' : '#10B981';
+          p.type === 'dest'   ? '#7C3AED' : '#10B981';
         const icon = L.divIcon({
           html: `<div style="background:${bg};width:14px;height:14px;border-radius:50%;border:2px solid white;box-shadow:0 1px 6px rgba(0,0,0,.25)"></div>`,
           className: '', iconSize: [14, 14], iconAnchor: [7, 7],
@@ -174,7 +171,6 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
         return m;
       });
 
-      // Fit bounds to waypoints (not the full polyline, for better framing)
       map.fitBounds(waypointLatlngs, { padding: [50, 50], animate: true, maxZoom: 14 });
 
       const group = L.layerGroup([line, ...pointMarkers]).addTo(map);

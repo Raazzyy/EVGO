@@ -17,6 +17,7 @@ import { useApp } from '@/contexts/AppContext';
 import { StationCard } from '@/components/StationCard';
 import { MapViewWrapper, MapApi } from '@/components/MapViewWrapper';
 import { FiltersSheet, FiltersState } from '@/components/FiltersSheet';
+import { StationQuickView, type QuickViewStation } from '@/components/StationQuickView';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -44,6 +45,7 @@ export default function MapScreen() {
   const [activeFilters, setActiveFilters] = useState<FiltersState>(DEFAULT_FILTERS);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isExpanded, setIsExpanded] = useState(false); // state not ref → triggers re-renders
+  const [selectedStationId, setSelectedStationId] = useState<number | null>(null);
 
   // Sheet animation — smooth iOS timing
   const sheetHeight = useSharedValue(SHEET_MIN);
@@ -145,6 +147,22 @@ export default function MapScreen() {
     id: s.id, lat: s.lat, lng: s.lng, name: s.name, status: s.status,
     power_kw: s.power_kw, price_per_kwh: s.price_per_kwh,
   })), [filteredStations]);
+
+  // Quick view: first tap → open modal, second tap on same pin → full page
+  const handleStationPress = useCallback((id: number) => {
+    if (selectedStationId === id) {
+      setSelectedStationId(null);
+      router.push(`/station/${id}`);
+    } else {
+      setSelectedStationId(id);
+    }
+  }, [selectedStationId, router]);
+
+  // Find full station data (search both lists so filters don't lose it)
+  const selectedStation = useMemo<QuickViewStation | null>(() => {
+    if (selectedStationId == null) return null;
+    return [...allStations, ...promotedFromApi].find(s => s.id === selectedStationId) as QuickViewStation ?? null;
+  }, [selectedStationId, allStations, promotedFromApi]);
 
   const topOffset = Platform.OS === 'web' ? 0 : insets.top;
   const bottomPad = Platform.OS === 'web' ? 34 + 84 : insets.bottom + 100;
@@ -254,7 +272,8 @@ export default function MapScreen() {
     <View style={styles.container}>
       <MapViewWrapper
         ref={mapRef} stations={markers} userLocation={userLocation}
-        onStationPress={id => router.push(`/station/${id}`)}
+        onStationPress={handleStationPress}
+        onMapPress={() => setSelectedStationId(null)}
       />
       {TopBar}
       {FilterChips}
@@ -342,6 +361,27 @@ export default function MapScreen() {
       </View>
 
       <FiltersSheet visible={filtersVisible} onClose={() => setFiltersVisible(false)} onApply={(f) => setActiveFilters(f)} />
+
+      {/* Station quick-view modal — tap pin once to open, tap again or header to open full page */}
+      {selectedStation && (
+        <StationQuickView
+          station={selectedStation}
+          userLocation={userLocation}
+          onClose={() => setSelectedStationId(null)}
+          onOpenFull={() => {
+            setSelectedStationId(null);
+            router.push(`/station/${selectedStation.id}`);
+          }}
+          onNavigate={() => {
+            setSelectedStationId(null);
+            router.push(routeFor(selectedStation) as any);
+          }}
+          onCharge={() => {
+            setSelectedStationId(null);
+            router.push(`/station/${selectedStation.id}`);
+          }}
+        />
+      )}
     </View>
   );
 }
