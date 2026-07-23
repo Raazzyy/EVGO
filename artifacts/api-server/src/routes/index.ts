@@ -21,6 +21,39 @@ router.get("/config", (_req, res) => {
   });
 });
 
+// Reverse geocoding proxy — keeps YANDEX_GEOCODER_KEY server-side
+router.get("/geocode/reverse", async (req, res): Promise<void> => {
+  const lat = parseFloat(req.query.lat as string);
+  const lng = parseFloat(req.query.lng as string);
+  if (isNaN(lat) || isNaN(lng)) {
+    res.status(400).json({ error: "lat and lng are required numbers" });
+    return;
+  }
+  const apikey = process.env.YANDEX_GEOCODER_KEY;
+  if (!apikey) {
+    res.status(503).json({ error: "Geocoder not configured" });
+    return;
+  }
+  try {
+    // Yandex expects geocode=LNG,LAT (longitude first)
+    const url = `https://geocode-maps.yandex.ru/1.x/?apikey=${apikey}&geocode=${lng},${lat}&format=json&lang=ru_RU&results=1&kind=house`;
+    const r = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    if (!r.ok) {
+      const body = await r.text();
+      console.error(`[geocode/reverse] Yandex error ${r.status}:`, body);
+      res.status(502).json({ error: "Geocoder upstream error", status: r.status });
+      return;
+    }
+    const data: any = await r.json();
+    const members: any[] = data?.response?.GeoObjectCollection?.featureMember ?? [];
+    const address = members[0]?.GeoObject?.metaDataProperty?.GeocoderMetaData?.text ?? null;
+    res.json({ address });
+  } catch (err: any) {
+    console.error("[geocode/reverse] fetch error:", err?.message ?? err);
+    res.status(502).json({ error: "Geocoder fetch failed" });
+  }
+});
+
 router.use(healthRouter);
 router.use(operatorsRouter);
 router.use(stationsRouter);

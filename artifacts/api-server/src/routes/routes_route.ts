@@ -18,9 +18,15 @@ async function fetchYandexPolyline(
   try {
     const pts = waypoints.map((w) => `${w.lat},${w.lng}`).join("|");
     const url = `https://api.routing.yandex.net/v2/route?apikey=${apikey}&waypoints=${pts}&mode=driving`;
+    console.log(`[yandex-router] GET ${url.replace(apikey, "***")}`);
     const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
-    if (!res.ok) return buildStraightPolyline(waypoints);
+    if (!res.ok) {
+      const body = await res.text();
+      console.error(`[yandex-router] error ${res.status} ${res.statusText}:`, body.slice(0, 500));
+      return buildStraightPolyline(waypoints);
+    }
     const data: any = await res.json();
+    console.log(`[yandex-router] OK — legs: ${data.route?.legs?.length ?? 0}`);
     const coords: Array<[number, number]> = [];
     for (const leg of data.route?.legs ?? []) {
       for (const step of leg.steps ?? []) {
@@ -30,8 +36,12 @@ async function fetchYandexPolyline(
         }
       }
     }
+    if (coords.length < 2) {
+      console.warn(`[yandex-router] response parsed but no coords extracted — raw:`, JSON.stringify(data).slice(0, 300));
+    }
     return coords.length >= 2 ? coords : buildStraightPolyline(waypoints);
-  } catch {
+  } catch (err: any) {
+    console.error(`[yandex-router] fetch exception:`, err?.message ?? err);
     return buildStraightPolyline(waypoints);
   }
 }

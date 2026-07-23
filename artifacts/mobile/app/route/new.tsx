@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TextInput,
   TouchableOpacity, Alert, ActivityIndicator, Platform,
 } from 'react-native';
+import * as Location from 'expo-location';
 import Animated, { FadeInDown, FadeInUp, SlideInRight } from 'react-native-reanimated';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -61,10 +62,11 @@ export default function NewRouteScreen() {
   const prefilledLat = params.lat ? parseFloat(params.lat) : null;
   const prefilledLng = params.lng ? parseFloat(params.lng) : null;
 
-  const [origin, setOrigin] = useState('Ташкент, Узбекистан');
+  const [origin, setOrigin] = useState('Определяю местоположение…');
   const [destination, setDestination] = useState(prefilledName);
   const [batteryPct, setBatteryPct] = useState('85');
-  const [originCoords] = useState({ lat: 41.2995, lng: 69.2401 });
+  const [originCoords, setOriginCoords] = useState({ lat: 41.2995, lng: 69.2401 });
+  const [locating, setLocating] = useState(true);
   const [routeResult, setRouteResult] = useState<any>(null);
   const [showMap, setShowMap] = useState(false);
 
@@ -91,6 +93,37 @@ export default function NewRouteScreen() {
     if (!routeResult) return undefined;
     return buildRoutePoints(routeResult, origin, destination);
   }, [routeResult, origin, destination]);
+
+  // On mount: get real GPS position + reverse-geocode via backend proxy
+  useEffect(() => {
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          setOrigin('Ташкент, Узбекистан');
+          setLocating(false);
+          return;
+        }
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        const { latitude: lat, longitude: lng } = loc.coords;
+        setOriginCoords({ lat, lng });
+        // Reverse geocode through backend — keeps key server-side
+        const domain = process.env.EXPO_PUBLIC_DOMAIN;
+        const base = domain ? `https://${domain}` : '';
+        const r = await fetch(`${base}/api/geocode/reverse?lat=${lat}&lng=${lng}`);
+        if (r.ok) {
+          const { address } = await r.json();
+          setOrigin(address ?? `${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+        } else {
+          setOrigin(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+        }
+      } catch {
+        setOrigin('Ташкент, Узбекистан');
+      } finally {
+        setLocating(false);
+      }
+    })();
+  }, []);
 
   // Switch to map view when route is ready
   useEffect(() => {
