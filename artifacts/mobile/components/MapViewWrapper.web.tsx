@@ -50,9 +50,11 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
     const markersRef = useRef<any[]>([]);
     const userMarkerRef = useRef<any>(null);
     const routeLayerRef = useRef<any>(null);
-    const onPressRef       = useRef(onStationPress);
-    const onMapPressRef    = useRef(onMapPress);
+    const onPressRef        = useRef(onStationPress);
+    const onMapPressRef     = useRef(onMapPress);
     const onRegionChangeRef = useRef(onRegionChange);
+    // Guard: prevent the map 'click' from clearing selection right after a marker click
+    const markerJustClicked = useRef(false);
     onPressRef.current        = onStationPress;
     onMapPressRef.current     = onMapPress;
     onRegionChangeRef.current = onRegionChange;
@@ -105,8 +107,11 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
         mapRef.current = map;
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
-        // Map-level click → close quick view
-        map.on('click', () => onMapPressRef.current?.());
+        // Map-level click → close quick view (skip if a marker was just clicked)
+        map.on('click', () => {
+          if (markerJustClicked.current) return;
+          onMapPressRef.current?.();
+        });
 
         // Region change → throttled via rAF so we don't fire >1× per frame
         const fireRegionChange = () => {
@@ -165,6 +170,8 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
         const marker = L.marker([s.lat, s.lng], { icon }).addTo(map);
         marker.on('click', (e: any) => {
           L.DomEvent.stopPropagation(e);
+          markerJustClicked.current = true;
+          setTimeout(() => { markerJustClicked.current = false; }, 200);
           onPressRef.current(s.id);
         });
         markersRef.current.push(marker);

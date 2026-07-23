@@ -94,8 +94,11 @@ export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
     },
     ref,
   ) => {
-    const mapRef    = useRef<MapView>(null);
-    const regionRef = useRef<Region>(TASHKENT);
+    const mapRef          = useRef<MapView>(null);
+    const regionRef       = useRef<Region>(TASHKENT);
+    // Prevent MapView.onPress from clearing selection right after a Marker press.
+    // react-native-maps fires both Marker.onPress AND MapView.onPress on the same tap.
+    const markerJustPressed = useRef(false);
 
     // ── Imperative API ──────────────────────────────────────────────────
     useImperativeHandle(ref, () => ({
@@ -202,7 +205,10 @@ export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
           onRegionChange?.();
         }}
         onRegionChangeComplete={(r) => { regionRef.current = r; }}
-        onPress={() => onMapPress?.()}
+        onPress={() => {
+          if (markerJustPressed.current) return; // swallow map-tap that piggybacks a marker tap
+          onMapPress?.();
+        }}
         showsUserLocation
         showsMyLocationButton={false}
       >
@@ -218,7 +224,12 @@ export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
             <Marker
               key={s.id}
               coordinate={{ latitude: s.lat, longitude: s.lng }}
-              onPress={() => onStationPress(s.id)}
+              onPress={() => {
+                markerJustPressed.current = true;
+                // MapView.onPress fires ≈ a frame later; clear the flag after 200 ms
+                setTimeout(() => { markerJustPressed.current = false; }, 200);
+                onStationPress(s.id);
+              }}
               // tracksViewChanges=false prevents expensive re-renders on each map move
               tracksViewChanges={false}
               anchor={{ x: 0.5, y: 0.5 }}
