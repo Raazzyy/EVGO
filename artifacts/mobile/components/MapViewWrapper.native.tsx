@@ -1,8 +1,14 @@
-import React from 'react';
+import React, { forwardRef, useImperativeHandle } from 'react';
 import { StyleSheet } from 'react-native';
 import MapView, { Marker, Callout } from 'react-native-maps';
 import { View, Text } from 'react-native';
 import { useColors } from '@/hooks/useColors';
+
+export interface MapApi {
+  zoomIn: () => void;
+  zoomOut: () => void;
+  locate: () => void;
+}
 
 export interface StationMarker {
   id: number;
@@ -26,61 +32,50 @@ const TASHKENT = {
   longitudeDelta: 0.15,
 };
 
-export function MapViewWrapper({ stations, onStationPress }: MapViewWrapperProps) {
-  const colors = useColors();
+export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
+  ({ stations, onStationPress }, ref) => {
+    const colors = useColors();
 
-  const markerColor = (status: string) =>
-    status === 'free' ? colors.free : status === 'occupied' ? colors.occupied : colors.offline;
+    // Native map has built-in controls; expose no-ops via ref
+    useImperativeHandle(ref, () => ({
+      zoomIn: () => {},
+      zoomOut: () => {},
+      locate: () => {},
+    }), []);
 
-  return (
-    <MapView style={StyleSheet.absoluteFill} initialRegion={TASHKENT} showsUserLocation>
-      {stations.map((s) => (
-        <Marker
-          key={s.id}
-          coordinate={{ latitude: s.lat, longitude: s.lng }}
-          pinColor={markerColor(s.status)}
-          onCalloutPress={() => onStationPress(s.id)}
-        >
-          <Callout tooltip>
-            <View style={[styles.callout, { backgroundColor: colors.card }]}>
-              <Text style={[styles.calloutName, { color: colors.text }]}>{s.name}</Text>
-              <Text style={[styles.calloutPower, { color: colors.primary }]}>
-                {s.power_kw} kW · {s.price_per_kwh.toLocaleString()} sum/kWh
-              </Text>
-              <Text style={[styles.calloutTap, { color: colors.primary }]}>
-                Tap for details →
-              </Text>
-            </View>
-          </Callout>
-        </Marker>
-      ))}
-    </MapView>
-  );
-}
+    return (
+      <MapView style={StyleSheet.absoluteFillObject} initialRegion={TASHKENT}>
+        {stations.map((s) => {
+          const pinColor =
+            s.status === 'free' ? '#10B981' :
+            s.status === 'occupied' ? '#F59E0B' : '#94A3B8';
+          return (
+            <Marker
+              key={s.id}
+              coordinate={{ latitude: s.lat, longitude: s.lng }}
+              pinColor={pinColor}
+              onPress={() => onStationPress(s.id)}
+            >
+              <Callout onPress={() => onStationPress(s.id)}>
+                <View style={styles.callout}>
+                  <Text style={styles.calloutTitle}>{s.name}</Text>
+                  <Text style={styles.calloutSub}>
+                    {s.power_kw} кВт · {s.price_per_kwh.toLocaleString('ru-RU')} сум/кВт·ч
+                  </Text>
+                </View>
+              </Callout>
+            </Marker>
+          );
+        })}
+      </MapView>
+    );
+  }
+);
+
+MapViewWrapper.displayName = 'MapViewWrapper';
 
 const styles = StyleSheet.create({
-  callout: {
-    padding: 12,
-    borderRadius: 12,
-    minWidth: 180,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  calloutName: {
-    fontSize: 14,
-    fontFamily: 'Inter_600SemiBold',
-    marginBottom: 4,
-  },
-  calloutPower: {
-    fontSize: 12,
-    fontFamily: 'Inter_500Medium',
-    marginBottom: 6,
-  },
-  calloutTap: {
-    fontSize: 11,
-    fontFamily: 'Inter_500Medium',
-  },
+  callout: { padding: 8, minWidth: 160 },
+  calloutTitle: { fontSize: 14, fontWeight: '700', marginBottom: 2 },
+  calloutSub: { fontSize: 12, color: '#64748B' },
 });

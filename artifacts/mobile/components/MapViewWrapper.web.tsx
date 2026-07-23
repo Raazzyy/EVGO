@@ -1,11 +1,5 @@
-/**
- * Web map using Leaflet + OpenStreetMap.
- * Yandex Maps JS API 2.1 requires domain registration in Yandex Cloud Console —
- * once the key is registered for this domain, swap this file to use ymaps.
- */
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { View, TouchableOpacity, StyleSheet } from 'react-native';
-import { Feather } from '@expo/vector-icons';
+import React, { useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef } from 'react';
+import { View, StyleSheet } from 'react-native';
 
 const TASHKENT: [number, number] = [41.2995, 69.2401];
 
@@ -19,7 +13,13 @@ function injectLeafletCSS() {
   document.head.appendChild(link);
 }
 
-interface Station {
+export interface MapApi {
+  zoomIn: () => void;
+  zoomOut: () => void;
+  locate: () => void;
+}
+
+export interface StationMarker {
   id: number;
   lat: number;
   lng: number;
@@ -30,11 +30,11 @@ interface Station {
 }
 
 interface Props {
-  stations: Station[];
+  stations: StationMarker[];
   onStationPress: (id: number) => void;
 }
 
-export function MapViewWrapper({ stations, onStationPress }: Props) {
+export const MapViewWrapper = forwardRef<MapApi, Props>(({ stations, onStationPress }, ref) => {
   const divRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any>(null);
   const leafletRef = useRef<any>(null);
@@ -43,7 +43,19 @@ export function MapViewWrapper({ stations, onStationPress }: Props) {
   onPressRef.current = onStationPress;
   const [mapReady, setMapReady] = useState(false);
 
-  // ── Init map once ──────────────────────────────────────────────────────────
+  // Expose zoom/locate to parent
+  useImperativeHandle(ref, () => ({
+    zoomIn: () => mapRef.current?.zoomIn(),
+    zoomOut: () => mapRef.current?.zoomOut(),
+    locate: () => {
+      navigator.geolocation?.getCurrentPosition(
+        (pos) => mapRef.current?.setView([pos.coords.latitude, pos.coords.longitude], 15),
+        () => {},
+      );
+    },
+  }), []);
+
+  // Init map once
   useEffect(() => {
     if (typeof window === 'undefined') return;
     injectLeafletCSS();
@@ -57,14 +69,12 @@ export function MapViewWrapper({ stations, onStationPress }: Props) {
       const map = L.map(divRef.current, {
         center: TASHKENT,
         zoom: 12,
-        zoomControl: false,          // custom buttons below
+        zoomControl: false,
         attributionControl: false,
       });
       mapRef.current = map;
 
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-      }).addTo(map);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
       if (!cancelled) setMapReady(true);
     })();
@@ -76,10 +86,11 @@ export function MapViewWrapper({ stations, onStationPress }: Props) {
       mapRef.current?.remove();
       mapRef.current = null;
       leafletRef.current = null;
+      setMapReady(false);
     };
   }, []);
 
-  // ── Sync markers whenever stations or map change ───────────────────────────
+  // Sync markers whenever stations or map change
   useEffect(() => {
     const L = leafletRef.current;
     const map = mapRef.current;
@@ -118,79 +129,18 @@ export function MapViewWrapper({ stations, onStationPress }: Props) {
 
       markersRef.current.push(marker);
     });
-  }, [stations, mapReady]);   // re-run when mapReady flips true or stations update
-
-  // ── Control callbacks ──────────────────────────────────────────────────────
-  const handleZoomIn = useCallback(() => mapRef.current?.zoomIn(), []);
-  const handleZoomOut = useCallback(() => mapRef.current?.zoomOut(), []);
-  const handleLocate = useCallback(() => {
-    navigator.geolocation?.getCurrentPosition(
-      (pos) => mapRef.current?.setView([pos.coords.latitude, pos.coords.longitude], 15),
-      () => {},
-    );
-  }, []);
+  }, [stations, mapReady]);
 
   return (
     <View style={styles.container}>
       {/* @ts-ignore */}
       <div ref={divRef} style={{ width: '100%', height: '100%' }} />
-
-      {/* Controls — bottom-right */}
-      <View style={styles.controls}>
-        <TouchableOpacity style={styles.btn} onPress={handleLocate} activeOpacity={0.8}>
-          <Feather name="navigation" size={18} color="#1E293B" />
-        </TouchableOpacity>
-        <View style={styles.zoomGroup}>
-          <TouchableOpacity style={[styles.btn, styles.noRadius]} onPress={handleZoomIn} activeOpacity={0.8}>
-            <Feather name="plus" size={20} color="#1E293B" />
-          </TouchableOpacity>
-          <View style={styles.divider} />
-          <TouchableOpacity style={[styles.btn, styles.noRadius]} onPress={handleZoomOut} activeOpacity={0.8}>
-            <Feather name="minus" size={20} color="#1E293B" />
-          </TouchableOpacity>
-        </View>
-      </View>
     </View>
   );
-}
+});
+
+MapViewWrapper.displayName = 'MapViewWrapper';
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  controls: {
-    position: 'absolute',
-    bottom: 200,
-    right: 12,
-    alignItems: 'center',
-    gap: 10,
-    zIndex: 50,
-  },
-  btn: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  zoomGroup: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  noRadius: {
-    borderRadius: 0,
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  divider: { height: 1, backgroundColor: '#E2E8F0', width: 44 },
 });
