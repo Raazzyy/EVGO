@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "GUWHyok1vL4yf0UUsXe8m"
+uri = "file://ion-ev-source.zip"
+type = "unspecified"
+title = "iON EV — исходный код"
