@@ -1,7 +1,7 @@
 import React, { useRef, useState, useMemo, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput,
-  TouchableOpacity, Platform, PanResponder, Dimensions,
+  TouchableOpacity, Pressable, Platform, PanResponder, Dimensions,
 } from 'react-native';
 import Animated, {
   useSharedValue, useAnimatedStyle, withTiming, Easing,
@@ -257,32 +257,51 @@ export default function MapScreen() {
   // ── FILTER CHIPS ──────────────────────────────────────────────────────────
   const FilterChips = (
     <ScrollView
-      horizontal showsHorizontalScrollIndicator={false}
+      horizontal
+      showsHorizontalScrollIndicator={false}
       style={[styles.filterScroll, { top: topOffset + 60 }]}
       contentContainerStyle={styles.filterRow}
+      // keyboardShouldPersistTaps + scrollEnabled fixes touch propagation on iOS Safari
+      keyboardShouldPersistTaps="always"
+      scrollEventThrottle={16}
     >
-      <TouchableOpacity
+      {/* Use Pressable — more reliable than TouchableOpacity on iOS/web */}
+      <Pressable
         onPress={() => setFiltersVisible(true)}
-        style={[styles.filterPill, { backgroundColor: hasActiveFilters ? 'transparent' : colors.card, borderColor: hasActiveFilters ? 'transparent' : colors.border }]}
+        style={({ pressed }) => [
+          styles.filterPill,
+          {
+            backgroundColor: hasActiveFilters ? 'transparent' : colors.card,
+            borderColor: hasActiveFilters ? 'transparent' : colors.border,
+            opacity: pressed ? 0.75 : 1,
+          },
+        ]}
       >
         {hasActiveFilters && <LinearGradient colors={[colors.gradientStart, colors.gradientEnd]} style={StyleSheet.absoluteFill} borderRadius={20} />}
         <Feather name="sliders" size={14} color={hasActiveFilters ? '#fff' : colors.text} style={{ position: 'relative', zIndex: 1 }} />
         <Text style={[styles.filterText, { color: hasActiveFilters ? '#fff' : colors.text }]}>Фильтры{hasActiveFilters ? ' ●' : ''}</Text>
-      </TouchableOpacity>
+      </Pressable>
       {([
         { id: 'all', label: 'Все' }, { id: 'free', label: 'Свободные' },
         { id: 'my-cars', label: 'Мои машины' }, { id: 'ac', label: 'AC' }, { id: 'dc', label: 'DC' },
       ] as { id: FilterStatus; label: string }[]).map(f => {
         const isActive = activeChip === f.id;
         return (
-          <TouchableOpacity
+          <Pressable
             key={f.id}
             onPress={() => setActiveChip(f.id)}
-            style={[styles.filterPill, { backgroundColor: isActive ? 'transparent' : colors.card, borderColor: isActive ? 'transparent' : colors.border }]}
+            style={({ pressed }) => [
+              styles.filterPill,
+              {
+                backgroundColor: isActive ? 'transparent' : colors.card,
+                borderColor: isActive ? 'transparent' : colors.border,
+                opacity: pressed ? 0.75 : 1,
+              },
+            ]}
           >
             {isActive && <LinearGradient colors={[colors.gradientStart, colors.gradientEnd]} style={StyleSheet.absoluteFill} borderRadius={20} />}
             <Text style={[styles.filterText, { color: isActive ? '#fff' : colors.text }]}>{f.label}</Text>
-          </TouchableOpacity>
+          </Pressable>
         );
       })}
     </ScrollView>
