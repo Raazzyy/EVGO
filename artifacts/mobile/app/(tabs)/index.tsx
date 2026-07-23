@@ -556,8 +556,16 @@ export default function MapScreen() {
   })), [filteredStations]);
 
   const handleStationPress = useCallback((id: number) => {
-    router.push(`/station/${id}` as any);
-  }, [router]);
+    if (selectedStationId === id) {
+      // Second tap on the same pin → go to full page
+      setSelectedStationId(null);
+      setMarkerPos(null);
+      router.push(`/station/${id}` as any);
+    } else {
+      // First tap → show quick-view card
+      setSelectedStationId(id);
+    }
+  }, [selectedStationId, router]);
 
   const selectedStation = useMemo<QuickViewStation | null>(() => {
     if (selectedStationId == null) return null;
