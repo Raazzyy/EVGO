@@ -121,6 +121,8 @@ export default function RoutesScreen() {
 
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
   const bottomPad = Platform.OS === 'web' ? 34 : insets.bottom;
+  // Tab bar is ~84px on web — footer must sit above it
+  const footerBottom = Platform.OS === 'web' ? 84 : insets.bottom;
 
   const filteredRoutes = tab === 'active' 
     ? routes.filter(r => r.status === 'active')
@@ -189,7 +191,7 @@ export default function RoutesScreen() {
       )}
 
       {/* New Route FAB / Footer Button */}
-      <View style={[styles.footer, { backgroundColor: colors.background, paddingBottom: bottomPad + 12 }]}>
+      <View style={[styles.footer, { backgroundColor: colors.background, bottom: footerBottom, paddingBottom: 12 }]}>
         <GradientButton
           label="Новый маршрут"
           onPress={() => router.push('/route/new')}
