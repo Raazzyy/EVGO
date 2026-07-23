@@ -18,6 +18,7 @@ import { StationCard } from '@/components/StationCard';
 import { MapViewWrapper, MapApi } from '@/components/MapViewWrapper';
 import { FiltersSheet, FiltersState } from '@/components/FiltersSheet';
 import { StationQuickView, type QuickViewStation } from '@/components/StationQuickView';
+import { HotDealBanner } from '@/components/HotDealBanner';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -294,6 +295,19 @@ export default function MapScreen() {
         >
           {isExpanded ? (
             <>
+              {/* HOT DEAL banner — first promo station with real discount */}
+              {(() => {
+                const hot = (promotedStations as any[]).find(s => s.discount_pct > 0 && s.promo_ends_at);
+                if (!hot) return null;
+                return (
+                  <HotDealBanner
+                    station={hot}
+                    onPress={() => router.push(`/station/${hot.id}`)}
+                    onRoute={() => router.push(routeFor(hot))}
+                  />
+                );
+              })()}
+
               {promotedStations.length > 0 && (
                 <>
                   <View style={styles.sectionHeader}>

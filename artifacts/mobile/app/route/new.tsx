@@ -19,6 +19,7 @@ import { useColors } from '@/hooks/useColors';
 import { useApp } from '@/contexts/AppContext';
 import { GradientButton } from '@/components/GradientButton';
 import { MapViewWrapper, MapApi } from '@/components/MapViewWrapper';
+import { PromoCountdown } from '@/components/PromoCountdown';
 
 function showAlert(title: string, message: string) {
   if (Platform.OS === 'web') window.alert(`${title}: ${message}`);
@@ -185,6 +186,17 @@ export default function NewRouteScreen() {
   const totalChargeMins = useMemo(() =>
     (activeResult?.stops ?? []).reduce((s: number, st: any) => s + st.charge_time_min, 0),
   [activeResult]);
+
+  const totalSavings = useMemo(() => {
+    const stops = activeResult?.stops ?? [];
+    return stops.reduce((total: number, stop: any) => {
+      if (!stop.is_promoted || !stop.discount_pct || !stop.price_per_kwh) return total;
+      const newPricePerKwh  = stop.price_per_kwh as number;
+      const origPricePerKwh = Math.round(newPricePerKwh / (1 - stop.discount_pct / 100));
+      const energyKwh = (stop.connector_power_kw ?? 50) * stop.charge_time_min / 60;
+      return total + Math.round((origPricePerKwh - newPricePerKwh) * energyKwh);
+    }, 0);
+  }, [activeResult]);
 
   const rangeKm = Math.round((parseFloat(batteryPct) / 100) * (selectedVehicle?.range_km ?? 450));
   const speedKmPerMin = routeMode === 'eco' ? 0.85 : 0.9;
@@ -364,6 +376,29 @@ export default function NewRouteScreen() {
               </Animated.View>
             )}
 
+            {/* ── Total savings banner ───────────────────────────────── */}
+            {totalSavings > 0 && (
+              <Animated.View entering={FadeInDown.delay(60).springify()}>
+                <LinearGradient
+                  colors={['#ECFDF5', '#D1FAE5']}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                  style={styles.savingsBanner}
+                >
+                  <View style={styles.savingsIconCircle}>
+                    <Feather name="tag" size={16} color="#fff" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.savingsTitle}>Экономия с iON Charge</Text>
+                    <Text style={styles.savingsAmount}>
+                      ~{totalSavings.toLocaleString('ru-RU')} сум
+                    </Text>
+                    <Text style={styles.savingsSub}>по сравнению с обычным маршрутом</Text>
+                  </View>
+                  <Feather name="smile" size={18} color="#10B981" />
+                </LinearGradient>
+              </Animated.View>
+            )}
+
             {/* Trip plan timeline */}
             <Text style={[styles.sectionTitle, { color: colors.text }]}>План поездки</Text>
             <View style={[styles.timelineCard, { backgroundColor: colors.card }]}>
@@ -381,6 +416,16 @@ export default function NewRouteScreen() {
               {(activeResult.stops ?? []).map((stop: any, i: number) => {
                 const [g1, g2] = STOP_GRADS[i % STOP_GRADS.length];
                 const segDriveMin = Math.round(stop.distance_from_prev_km / speedKmPerMin);
+                // Promo savings for this stop
+                const promo = (stop.is_promoted && stop.discount_pct > 0 && stop.price_per_kwh)
+                  ? (() => {
+                      const newP  = stop.price_per_kwh as number;
+                      const oldP  = Math.round(newP / (1 - stop.discount_pct / 100));
+                      const kwh   = (stop.connector_power_kw ?? 50) * stop.charge_time_min / 60;
+                      return { oldPrice: oldP, newPrice: newP, discountPct: stop.discount_pct,
+                               savingsSum: Math.round((oldP - newP) * kwh), endsAt: stop.promo_ends_at };
+                    })()
+                  : undefined;
                 return (
                   <React.Fragment key={i}>
                     {/* Segment between nodes */}
@@ -401,6 +446,7 @@ export default function NewRouteScreen() {
                       time={stop.eta}
                       colors={colors}
                       showLine
+                      promo={promo}
                     />
                   </React.Fragment>
                 );
@@ -486,9 +532,10 @@ interface TLNodeProps {
   time: string;
   colors: any;
   showLine: boolean;
+  promo?: { oldPrice: number; newPrice: number; discountPct: number; savingsSum: number; endsAt?: string | null };
 }
 
-function TLNode({ dot, title, subtitle, detail, time, colors, showLine }: TLNodeProps) {
+function TLNode({ dot, title, subtitle, detail, time, colors, showLine, promo }: TLNodeProps) {
   return (
     <View style={styles.tlRow}>
       {/* Left: dot + vertical line */}
@@ -503,6 +550,29 @@ function TLNode({ dot, title, subtitle, detail, time, colors, showLine }: TLNode
             <Text style={[styles.tlTitle, { color: colors.text }]} numberOfLines={1}>{title}</Text>
             <Text style={[styles.tlSubtitle, { color: colors.mutedForeground }]}>{subtitle}</Text>
             {detail && <Text style={[styles.tlDetail, { color: colors.primary }]}>{detail}</Text>}
+            {/* Promo pricing inline */}
+            {promo && (
+              <View style={styles.tlPromoWrap}>
+                <View style={styles.tlPromoPrice}>
+                  <Text style={[styles.tlOldPriceText, { color: colors.mutedForeground }]}>
+                    {promo.oldPrice.toLocaleString('ru-RU')}
+                  </Text>
+                  <Text style={[styles.tlNewPriceText, { color: '#10B981' }]}>
+                    {promo.newPrice.toLocaleString('ru-RU')}
+                  </Text>
+                  <View style={styles.tlDiscBadge}>
+                    <Text style={styles.tlDiscText}>-{promo.discountPct}%</Text>
+                  </View>
+                </View>
+                <View style={styles.tlSavingsRow}>
+                  <Feather name="trending-down" size={10} color="#10B981" />
+                  <Text style={styles.tlSavingsText}>
+                    Вы экономите {promo.savingsSum.toLocaleString('ru-RU')} сум
+                  </Text>
+                  {promo.endsAt && <PromoCountdown endsAt={promo.endsAt} compact />}
+                </View>
+              </View>
+            )}
           </View>
           <Text style={[styles.tlTime, { color: colors.mutedForeground }]}>{time}</Text>
         </View>
@@ -623,6 +693,27 @@ const styles = StyleSheet.create({
   tlDetail: { fontSize: 12, fontFamily: 'Inter_600SemiBold', marginTop: 1 },
   tlTime: { fontSize: 13, fontFamily: 'Inter_600SemiBold', flexShrink: 0, paddingTop: 3 },
   tlSegContent: { flex: 1, paddingLeft: 8, paddingTop: 5, paddingBottom: 5 },
+  // Promo within TLNode
+  tlPromoWrap: { marginTop: 6, gap: 4 },
+  tlPromoPrice: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  tlOldPriceText: { fontSize: 11, fontFamily: 'Inter_400Regular', textDecorationLine: 'line-through' },
+  tlNewPriceText: { fontSize: 13, fontFamily: 'Inter_700Bold' },
+  tlDiscBadge: { backgroundColor: '#FEF2F2', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 5 },
+  tlDiscText: { fontSize: 10, fontFamily: 'Inter_700Bold', color: '#EF4444' },
+  tlSavingsRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  tlSavingsText: { fontSize: 11, fontFamily: 'Inter_600SemiBold', color: '#10B981' },
+  // Savings banner
+  savingsBanner: {
+    borderRadius: 16, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12,
+    shadowColor: '#10B981', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 3,
+  },
+  savingsIconCircle: {
+    width: 38, height: 38, borderRadius: 19, backgroundColor: '#10B981',
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+  savingsTitle: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#065F46' },
+  savingsAmount: { fontSize: 18, fontFamily: 'Inter_700Bold', color: '#10B981' },
+  savingsSub: { fontSize: 11, fontFamily: 'Inter_400Regular', color: '#059669' },
   tlSegText: { fontSize: 11, fontFamily: 'Inter_400Regular' },
 
   // Footer

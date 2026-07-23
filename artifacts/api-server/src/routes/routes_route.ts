@@ -125,7 +125,9 @@ function planRoute(
   vehicle: { battery_kwh: number; range_km: number },
   stations: Array<{
     id: number; name: string; address: string; lat: number; lng: number;
-    power_kw: number; connectors: Array<{ type: string; power_kw: number }> | null;
+    power_kw: number; price_per_kwh: number;
+    is_promoted: number; discount_pct: number; promo_ends_at: Date | null;
+    connectors: Array<{ type: string; power_kw: number }> | null;
   }>,
   mode: "fast" | "eco" = "fast",
 ) {
@@ -191,6 +193,11 @@ function planRoute(
       connector_type: connectorType,
       connector_power_kw: connectorPowerKw,
       eta: eta.toTimeString().slice(0, 5),
+      // Promo fields — passed through from station data
+      is_promoted: best.is_promoted,
+      discount_pct: best.discount_pct,
+      price_per_kwh: best.price_per_kwh,
+      promo_ends_at: best.promo_ends_at ? best.promo_ends_at.toISOString() : null,
     });
 
     coveredKm += distToStation;
@@ -261,6 +268,10 @@ router.post("/routes", async (req, res): Promise<void> => {
       id: stationsTable.id, name: stationsTable.name, address: stationsTable.address,
       lat: stationsTable.lat, lng: stationsTable.lng, power_kw: stationsTable.power_kw,
       connectors: stationsTable.connectors,
+      is_promoted: stationsTable.is_promoted,
+      discount_pct: stationsTable.discount_pct,
+      price_per_kwh: stationsTable.price_per_kwh,
+      promo_ends_at: stationsTable.promo_ends_at,
     })
     .from(stationsTable)
     .where(eq(stationsTable.status, "free"));

@@ -19,6 +19,7 @@ export const stationsTable = pgTable("stations", {
   source: stationSourceEnum("source").notNull().default("mock"),
   is_promoted: integer("is_promoted").notNull().default(0), // 0=false, 1=true
   discount_pct: integer("discount_pct").notNull().default(0),
+  promo_ends_at: timestamp("promo_ends_at", { withTimezone: true }),
   amenities: json("amenities").$type<string[]>().default([]),
   updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

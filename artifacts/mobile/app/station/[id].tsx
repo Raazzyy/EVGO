@@ -26,6 +26,7 @@ import { useColors } from '@/hooks/useColors';
 import { useApp } from '@/contexts/AppContext';
 import { ConnectorBadge, ConnectorIcon } from '@/components/ConnectorBadge';
 import { GradientButton } from '@/components/GradientButton';
+import { PromoCountdown } from '@/components/PromoCountdown';
 
 interface Connector {
   type: string;
@@ -157,6 +158,64 @@ export default function StationDetailScreen() {
         </LinearGradient>
 
         <View style={styles.content}>
+          {/* ── Promo banner (promoted stations only) ──────────────────── */}
+          {(station as any).is_promoted === 1 && (station as any).discount_pct > 0 && (() => {
+            const disc = (station as any).discount_pct as number;
+            const origPrice = Math.round(station.price_per_kwh / (1 - disc / 100));
+            const newPrice  = Math.round(station.price_per_kwh);
+            const savings   = origPrice - newPrice;
+            const promoEndsAt = (station as any).promo_ends_at as string | null;
+            return (
+              <Animated.View entering={FadeInDown.delay(30).springify()}>
+                <LinearGradient
+                  colors={['#1E1B4B', '#2563EB', '#7C3AED']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.promoCard}
+                >
+                  {/* Badges */}
+                  <View style={styles.promoBadgesRow}>
+                    <View style={styles.promoTopBadge}>
+                      <Feather name="award" size={11} color="#1E1B4B" />
+                      <Text style={styles.promoTopBadgeText}>ТОП СТАНЦИЯ</Text>
+                    </View>
+                    <View style={styles.promoDiscBadge}>
+                      <Text style={styles.promoDiscText}>-{disc}% СУПЕР СКИДКА</Text>
+                    </View>
+                  </View>
+                  {/* Price comparison */}
+                  <View style={styles.promoPriceRow}>
+                    <View>
+                      <Text style={styles.promoPriceLabelSmall}>СТАРАЯ ЦЕНА</Text>
+                      <Text style={styles.promoOldPrice}>{origPrice.toLocaleString('ru-RU')}</Text>
+                    </View>
+                    <Feather name="arrow-right" size={18} color="rgba(255,255,255,0.4)" />
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={styles.promoPriceLabelSmall}>НОВАЯ ЦЕНА</Text>
+                      <Text style={styles.promoNewPrice}>{newPrice.toLocaleString('ru-RU')}</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.promoUnit}>сум/кВт·ч</Text>
+                  {/* Savings badge */}
+                  <View style={styles.promoSavingsBadge}>
+                    <Feather name="trending-down" size={13} color="#92400E" />
+                    <Text style={styles.promoSavingsText}>
+                      Вы экономите {savings.toLocaleString('ru-RU')} сум с кВт·ч
+                    </Text>
+                  </View>
+                  {/* Countdown */}
+                  {promoEndsAt && (
+                    <View style={styles.promoCountdownRow}>
+                      <Text style={styles.promoCountdownLabel}>АКЦИЯ ДЕЙСТВУЕТ</Text>
+                      <PromoCountdown endsAt={promoEndsAt} />
+                      <Text style={styles.promoCountdownLabel}>до конца</Text>
+                    </View>
+                  )}
+                </LinearGradient>
+              </Animated.View>
+            );
+          })()}
+
           {/* Quick stats row */}
           <View style={[styles.card, { backgroundColor: colors.card, shadowColor: '#000' }]}>
             <View style={styles.statsRow}>
@@ -724,5 +783,110 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Inter_600SemiBold',
     color: '#fff',
+  },
+  // ── Promo card ──────────────────────────────────────────────────────────
+  promoCard: {
+    borderRadius: 20,
+    padding: 18,
+    marginBottom: 2,
+    shadowColor: '#7C3AED',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 8,
+    overflow: 'hidden',
+  },
+  promoBadgesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  promoTopBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#FBBF24',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+  promoTopBadgeText: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    color: '#1E1B4B',
+  },
+  promoDiscBadge: {
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+  promoDiscText: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
+    color: '#fff',
+  },
+  promoPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  promoPriceLabelSmall: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.6)',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  promoOldPrice: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 20,
+    color: 'rgba(255,255,255,0.5)',
+    textDecorationLine: 'line-through',
+  },
+  promoNewPrice: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 32,
+    color: '#fff',
+    lineHeight: 38,
+  },
+  promoUnit: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.6)',
+    marginBottom: 14,
+  },
+  promoSavingsBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+    marginBottom: 14,
+  },
+  promoSavingsText: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 13,
+    color: '#92400E',
+  },
+  promoCountdownRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: 'rgba(0,0,0,0.25)',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
+  },
+  promoCountdownLabel: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.6)',
+    letterSpacing: 0.5,
   },
 });
