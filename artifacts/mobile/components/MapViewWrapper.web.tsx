@@ -19,6 +19,8 @@ export interface MapApi {
   zoomIn: () => void;
   zoomOut: () => void;
   locate: () => void;
+  /** Navigation camera follow — no-op on web (Leaflet has no heading/pitch). */
+  followUser: (lat: number, lng: number, heading: number) => void;
   /** Returns pixel coords of lat/lng relative to the map container's top-left corner. */
   projectPoint: (lat: number, lng: number) => Promise<{ x: number; y: number } | null>;
 }
@@ -67,6 +69,10 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
             () => {},
           );
         }
+      },
+      // Leaflet has no heading/pitch — pan + zoom without rotation
+      followUser: (lat: number, lng: number, _heading: number) => {
+        mapRef.current?.setView([lat, lng], 17, { animate: true, duration: 0.8 });
       },
       projectPoint: async (lat, lng) => {
         const map = mapRef.current;

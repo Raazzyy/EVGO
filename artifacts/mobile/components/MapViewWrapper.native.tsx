@@ -22,6 +22,11 @@ export interface MapApi {
   zoomIn:  () => void;
   zoomOut: () => void;
   locate:  () => void;
+  /**
+   * Navigation camera follow — centers on the user, tilts with heading.
+   * Called every GPS tick during active navigation.
+   */
+  followUser: (lat: number, lng: number, heading: number) => void;
   /** Pixel coords of lat/lng relative to the MapView's top-left corner. */
   projectPoint: (lat: number, lng: number) => Promise<{ x: number; y: number } | null>;
 }
@@ -124,6 +129,20 @@ export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
         };
         mapRef.current?.animateToRegion(next, 400);
         regionRef.current = next;
+      },
+      followUser(lat: number, lng: number, heading: number) {
+        // animateCamera supports heading + pitch on both iOS and Android.
+        // zoom=17 ≈ street level; altitude=500 is the iOS equivalent.
+        mapRef.current?.animateCamera(
+          {
+            center:   { latitude: lat, longitude: lng },
+            heading:  heading >= 0 ? heading : 0,
+            pitch:    45,
+            zoom:     17,
+            altitude: 500,
+          },
+          { duration: 800 },
+        );
       },
       async projectPoint(lat, lng) {
         const map = mapRef.current;

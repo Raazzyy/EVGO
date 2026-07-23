@@ -8,7 +8,7 @@ import { useRouter } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
 import { useApp } from '@/contexts/AppContext';
 import { useGetRoute } from '@workspace/api-client-react';
-import { MapViewWrapper } from '@/components/MapViewWrapper';
+import { MapViewWrapper, MapApi } from '@/components/MapViewWrapper';
 
 // ── Pure helpers ──────────────────────────────────────────────────────────
 
@@ -97,6 +97,9 @@ export default function NavigateScreen() {
   const topPad    = Platform.OS === 'web' ? 20 : insets.top;
   const bottomPad = Platform.OS === 'web' ? 34 : insets.bottom;
 
+  // ── Map ref (camera follow) ────────────────────────────────────────────
+  const mapRef = useRef<MapApi>(null);
+
   // ── React state ────────────────────────────────────────────────────────
   const [currentStepIdx, setCurrentStepIdx] = useState(0);
   const [speedKmh,       setSpeedKmh]       = useState(0);
@@ -108,6 +111,7 @@ export default function NavigateScreen() {
   const polylineRef     = useRef<Array<[number, number]>>([]);
   const routeRef        = useRef<any>(null);
   const locationSubRef  = useRef<Location.LocationSubscription | null>(null);
+  const headingRef      = useRef(0); // last known bearing (degrees, 0=North)
   // announcedRef[stepIdx] = { far, near }
   const announcedRef    = useRef<Record<number, { far: boolean; near: boolean }>>({});
   // off-route detection
@@ -234,10 +238,14 @@ export default function NavigateScreen() {
         {
           accuracy:         Location.Accuracy.BestForNavigation,
           timeInterval:     1_000,
-          distanceInterval: 10,
+          distanceInterval: 5,
         },
         (loc) => {
-          const { latitude: lat, longitude: lng, speed } = loc.coords;
+          const { latitude: lat, longitude: lng, speed, heading } = loc.coords;
+
+          // Camera follow — update heading ref and animate
+          if (heading != null && heading >= 0) headingRef.current = heading;
+          mapRef.current?.followUser(lat, lng, headingRef.current);
 
           // Live speed
           setSpeedKmh(speed != null && speed >= 0 ? Math.round(speed * 3.6) : 0);
@@ -401,8 +409,9 @@ export default function NavigateScreen() {
   // ── Render ─────────────────────────────────────────────────────────────
   return (
     <View style={styles.container}>
-      {/* Full-screen map */}
+      {/* Full-screen map — ref used for camera follow during navigation */}
       <MapViewWrapper
+        ref={mapRef}
         stations={[]}
         onStationPress={() => {}}
         routePoints={routePoints}

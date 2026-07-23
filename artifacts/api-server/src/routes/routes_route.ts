@@ -58,7 +58,7 @@ async function fetchRoadPolyline(
     const waypointsParam = middle.length
       ? `&waypoints=${middle.map((w) => `${w.lat},${w.lng}`).join("|")}`
       : "";
-    const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${origin}&destination=${destination}${waypointsParam}&mode=driving&key=${apikey}`;
+    const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${origin}&destination=${destination}${waypointsParam}&mode=driving&language=ru&key=${apikey}`;
     console.log(`[google-directions] GET origin=${origin} dest=${destination} stops=${middle.length}`);
     const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
     if (!res.ok) {
