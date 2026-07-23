@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput,
   TouchableOpacity, Alert, ActivityIndicator, Platform,
+  Modal, FlatList,
 } from 'react-native';
 import * as Location from 'expo-location';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
@@ -85,7 +86,9 @@ export default function NewRouteScreen() {
   const insets  = useSafeAreaInsets();
   const router  = useRouter();
   const qc      = useQueryClient();
-  const { selectedVehicleId, setActiveRouteId } = useApp();
+  const { selectedVehicleId, setSelectedVehicleId, setActiveRouteId } = useApp();
+  const [carPickerVisible, setCarPickerVisible] = useState(false);
+  const [pendingVehicleId, setPendingVehicleId] = useState<number | null>(null);
   const mapRef  = useRef<MapApi>(null);
 
   const params = useLocalSearchParams<{
@@ -257,12 +260,13 @@ export default function NewRouteScreen() {
 
         {/* ── Car card ────────────────────────────────────────────────── */}
         <Animated.View entering={FadeInDown.delay(60).springify()}>
-          <TouchableOpacity
-            style={[styles.card, { backgroundColor: colors.card }]}
-            onPress={() => router.push('/cars')}
-            activeOpacity={0.8}
-          >
-            <View style={styles.carRow}>
+          <View style={[styles.card, { backgroundColor: colors.card }]}>
+            {/* Car row — tap opens inline picker */}
+            <TouchableOpacity
+              onPress={() => { setPendingVehicleId(selectedVehicle?.id ?? null); setCarPickerVisible(true); }}
+              activeOpacity={0.8}
+              style={styles.carRow}
+            >
               <View style={[styles.carIcon, { backgroundColor: colors.muted }]}>
                 <Feather name="truck" size={18} color={colors.primary} />
               </View>
@@ -276,8 +280,9 @@ export default function NewRouteScreen() {
                 </Text>
               </View>
               <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
-            </View>
+            </TouchableOpacity>
 
+            {/* Battery input — standalone, NOT wrapped in car-press handler */}
             {!routeResult && (
               <>
                 <View style={[styles.divider, { backgroundColor: colors.border }]} />
@@ -294,8 +299,80 @@ export default function NewRouteScreen() {
                 </View>
               </>
             )}
-          </TouchableOpacity>
+          </View>
         </Animated.View>
+
+        {/* ── Car picker modal ─────────────────────────────────────────── */}
+        <Modal
+          visible={carPickerVisible}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setCarPickerVisible(false)}
+        >
+          <TouchableOpacity
+            style={styles.pickerBackdrop}
+            activeOpacity={1}
+            onPress={() => setCarPickerVisible(false)}
+          />
+          <View style={[styles.pickerSheet, { backgroundColor: colors.card }]}>
+            <View style={[styles.pickerHandle, { backgroundColor: colors.mutedForeground }]} />
+            <Text style={[styles.pickerTitle, { color: colors.text }]}>Выберите автомобиль</Text>
+
+            <FlatList
+              data={vehicles}
+              keyExtractor={(v) => String(v.id)}
+              style={{ maxHeight: 320 }}
+              renderItem={({ item }) => {
+                const isSelected = item.id === pendingVehicleId;
+                return (
+                  <TouchableOpacity
+                    onPress={() => setPendingVehicleId(item.id)}
+                    activeOpacity={0.8}
+                    style={[
+                      styles.pickerItem,
+                      { borderColor: colors.border },
+                      isSelected && { backgroundColor: '#EEF2FF', borderColor: '#2563EB' },
+                    ]}
+                  >
+                    <View style={[styles.pickerItemIcon, { backgroundColor: isSelected ? '#DBEAFE' : colors.muted }]}>
+                      <Feather name="truck" size={18} color={isSelected ? '#2563EB' : colors.mutedForeground} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.pickerItemName, { color: colors.text }]}>{item.name}</Text>
+                      <Text style={[styles.pickerItemSub, { color: colors.mutedForeground }]}>
+                        {item.battery_kwh} кВт·ч · {item.range_km} км · {item.connector_type}
+                      </Text>
+                    </View>
+                    {isSelected && <Feather name="check-circle" size={20} color="#2563EB" />}
+                  </TouchableOpacity>
+                );
+              }}
+              ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+              contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 16 }}
+            />
+
+            <View style={[styles.pickerFooter, { borderTopColor: colors.border }]}>
+              <TouchableOpacity
+                disabled={!pendingVehicleId}
+                onPress={() => {
+                  if (pendingVehicleId) setSelectedVehicleId(pendingVehicleId);
+                  setCarPickerVisible(false);
+                }}
+                activeOpacity={0.85}
+                style={[styles.pickerConfirmWrap, { opacity: pendingVehicleId ? 1 : 0.4 }]}
+              >
+                <LinearGradient
+                  colors={['#2563EB', '#7C3AED']}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                  style={styles.pickerConfirmBtn}
+                >
+                  <Feather name="check" size={18} color="#fff" />
+                  <Text style={styles.pickerConfirmText}>Выбрать автомобиль</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
 
         {/* ── Insufficient charge warning ──────────────────────────── */}
         {routeResult?.insufficient_charge && (
@@ -757,4 +834,42 @@ const styles = StyleSheet.create({
   goBtnText: { color: '#fff', fontSize: 15, fontFamily: 'Inter_700Bold' },
   loadingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 16 },
   loadingText: { fontSize: 14, fontFamily: 'Inter_400Regular' },
+  // Car picker modal
+  pickerBackdrop: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  pickerSheet: {
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    paddingTop: 12,
+    shadowColor: '#000', shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.12, shadowRadius: 20, elevation: 24,
+  },
+  pickerHandle: {
+    width: 36, height: 4, borderRadius: 2, opacity: 0.3,
+    alignSelf: 'center', marginBottom: 16,
+  },
+  pickerTitle: {
+    fontSize: 18, fontFamily: 'Inter_700Bold',
+    textAlign: 'center', marginBottom: 4, paddingHorizontal: 16,
+  },
+  pickerItem: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    padding: 14, borderRadius: 14, borderWidth: 1.5,
+  },
+  pickerItemIcon: {
+    width: 42, height: 42, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+  pickerItemName: { fontSize: 15, fontFamily: 'Inter_600SemiBold' },
+  pickerItemSub: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  pickerFooter: {
+    borderTopWidth: 1, padding: 16,
+    paddingBottom: Platform.OS === 'ios' ? 32 : 16,
+  },
+  pickerConfirmWrap: { borderRadius: 16, overflow: 'hidden' },
+  pickerConfirmBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 10, paddingVertical: 16,
+  },
+  pickerConfirmText: { color: '#fff', fontSize: 16, fontFamily: 'Inter_700Bold' },
 });
