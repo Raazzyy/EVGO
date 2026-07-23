@@ -22,6 +22,11 @@ interface SearchResult {
   range_km?: number;
 }
 
+interface PopularGroup {
+  make: string;
+  vehicles: SearchResult[];
+}
+
 // Normalize connector types to enum values the API accepts
 function normalizeConnector(ct: string): 'CCS2' | 'CHAdeMO' | 'Type2' | 'GB-T' {
   const c = (ct || '').toUpperCase();
@@ -54,6 +59,8 @@ export default function CarsScreen() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [noResults, setNoResults] = useState(false);
+  const [popular, setPopular] = useState<PopularGroup[]>([]);
+  const [popularLoading, setPopularLoading] = useState(false);
 
   const deleteMutation = useDeleteVehicle({
     mutation: {
@@ -81,6 +88,22 @@ export default function CarsScreen() {
     setResults([]);
     setNoResults(false);
   }, []);
+
+  const openModal = useCallback(async () => {
+    setModalVisible(true);
+    setQuery('');
+    setResults([]);
+    setNoResults(false);
+    if (popular.length === 0) {
+      setPopularLoading(true);
+      try {
+        const res = await fetch(`${API_BASE}/api/vehicles/popular`);
+        const json = await res.json();
+        if (Array.isArray(json)) setPopular(json as PopularGroup[]);
+      } catch { /* silently ignore */ }
+      finally { setPopularLoading(false); }
+    }
+  }, [popular.length]);
 
   const handleSearch = useCallback(async (text: string) => {
     setQuery(text);
@@ -255,7 +278,7 @@ export default function CarsScreen() {
         </View>
 
         {/* Add button */}
-        <TouchableOpacity activeOpacity={0.8} style={styles.addButton} onPress={() => setModalVisible(true)}>
+        <TouchableOpacity activeOpacity={0.8} style={styles.addButton} onPress={openModal}>
           <LinearGradient
             colors={['#2563EB', '#7C3AED']}
             start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
@@ -301,45 +324,96 @@ export default function CarsScreen() {
             )}
           </View>
 
-          <FlatList
-            data={results}
-            keyExtractor={(_, i) => String(i)}
-            contentContainerStyle={{ padding: 16, gap: 10 }}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                activeOpacity={0.85}
-                style={[styles.resultCard, { backgroundColor: colors.card }]}
-                onPress={() => handleAddVehicle(item)}
-                disabled={createVehicle.isPending}
-              >
-                <View style={[styles.resultIcon, { backgroundColor: colors.muted }]}>
-                  <Feather name="zap" size={20} color={colors.primary} />
-                </View>
-                <View style={{ flex: 1, gap: 3 }}>
-                  <Text style={[{ fontSize: 15, fontFamily: 'Inter_600SemiBold', color: colors.text }]}>{item.name}</Text>
-                  <Text style={[{ fontSize: 12, fontFamily: 'Inter_400Regular', color: colors.mutedForeground }]}>
-                    {item.connector_type}
-                    {item.battery_kwh ? ` · ${item.battery_kwh} кВт·ч` : ''}
-                    {item.range_km ? ` · ${item.range_km} км` : ''}
-                  </Text>
-                </View>
-                {createVehicle.isPending
-                  ? <ActivityIndicator size="small" color={colors.primary} />
-                  : <Feather name="plus-circle" size={22} color={colors.primary} />}
-              </TouchableOpacity>
-            )}
-            ListEmptyComponent={
-              noResults && query.length >= 2
-                ? <Text style={[{ textAlign: 'center', padding: 32, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-                    Не найдено. Попробуйте другой запрос.
-                  </Text>
-                : query.length < 2
-                  ? <Text style={[{ textAlign: 'center', padding: 40, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
-                      Введите марку и модель
+          {/* Search results OR popular list */}
+          {query.length >= 2 ? (
+            /* ── Search results ─────────────────────────────────────────── */
+            <FlatList
+              data={results}
+              keyExtractor={(_, i) => String(i)}
+              contentContainerStyle={{ padding: 16, gap: 10 }}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={[styles.resultCard, { backgroundColor: colors.card }]}
+                  onPress={() => handleAddVehicle(item)}
+                  disabled={createVehicle.isPending}
+                >
+                  <View style={[styles.resultIcon, { backgroundColor: colors.muted }]}>
+                    <Feather name="zap" size={20} color={colors.primary} />
+                  </View>
+                  <View style={{ flex: 1, gap: 3 }}>
+                    <Text style={[{ fontSize: 15, fontFamily: 'Inter_600SemiBold', color: colors.text }]}>{item.name}</Text>
+                    <Text style={[{ fontSize: 12, fontFamily: 'Inter_400Regular', color: colors.mutedForeground }]}>
+                      {item.connector_type}
+                      {item.battery_kwh ? ` · ${item.battery_kwh} кВт·ч` : ''}
+                      {item.range_km ? ` · ${item.range_km} км` : ''}
                     </Text>
-                  : null
-            }
-          />
+                  </View>
+                  {createVehicle.isPending
+                    ? <ActivityIndicator size="small" color={colors.primary} />
+                    : <Feather name="plus-circle" size={22} color={colors.primary} />}
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={
+                noResults
+                  ? <Text style={[{ textAlign: 'center', padding: 32, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                      Не найдено. Попробуйте другой запрос.
+                    </Text>
+                  : searching ? null : (
+                    <Text style={[{ textAlign: 'center', padding: 32, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                      Поиск…
+                    </Text>
+                  )
+              }
+            />
+          ) : (
+            /* ── Popular vehicles grouped by make ───────────────────────── */
+            <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
+              {popularLoading ? (
+                <ActivityIndicator color={colors.primary} style={{ marginTop: 32 }} />
+              ) : popular.length === 0 ? (
+                <Text style={[{ textAlign: 'center', padding: 40, color: colors.mutedForeground, fontFamily: 'Inter_400Regular' }]}>
+                  Введите марку и модель для поиска
+                </Text>
+              ) : (
+                popular.map(group => (
+                  <View key={group.make} style={{ marginBottom: 20 }}>
+                    {/* Make header */}
+                    <View style={[styles.makeHeader, { borderBottomColor: colors.border }]}>
+                      <View style={[styles.makeIconBox, { backgroundColor: colors.muted }]}>
+                        <Feather name="zap" size={14} color={colors.primary} />
+                      </View>
+                      <Text style={[styles.makeTitle, { color: colors.text }]}>{group.make}</Text>
+                    </View>
+                    {/* Model list */}
+                    {group.vehicles.map((item, idx) => (
+                      <TouchableOpacity
+                        key={idx}
+                        activeOpacity={0.75}
+                        style={[styles.popularRow, {
+                          backgroundColor: colors.card,
+                          borderTopWidth: idx === 0 ? 0 : 1,
+                          borderTopColor: colors.border,
+                        }]}
+                        onPress={() => handleAddVehicle(item)}
+                        disabled={createVehicle.isPending}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text style={[{ fontSize: 14, fontFamily: 'Inter_500Medium', color: colors.text }]}>{item.name}</Text>
+                          <Text style={[{ fontSize: 11, fontFamily: 'Inter_400Regular', color: colors.mutedForeground, marginTop: 2 }]}>
+                            {item.connector_type}
+                            {item.battery_kwh ? ` · ${item.battery_kwh} кВт·ч` : ''}
+                            {item.range_km ? ` · ${Math.round(item.range_km)} км` : ''}
+                          </Text>
+                        </View>
+                        <Feather name="plus" size={18} color={colors.primary} />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ))
+              )}
+            </ScrollView>
+          )}
         </View>
       </Modal>
     </View>
@@ -414,4 +488,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
   },
   resultIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  makeHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingBottom: 8, marginBottom: 4, borderBottomWidth: 1,
+  },
+  makeIconBox: { width: 24, height: 24, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
+  makeTitle: { fontSize: 13, fontFamily: 'Inter_700Bold', letterSpacing: 0.5, textTransform: 'uppercase' },
+  popularRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingVertical: 11, paddingHorizontal: 14,
+  },
 });

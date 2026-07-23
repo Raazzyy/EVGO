@@ -457,7 +457,7 @@ export default function MapScreen() {
       </Animated.View>
 
       {/* Map controls */}
-      <View style={styles.mapControls} pointerEvents="box-none">
+      <View style={[styles.mapControls, { pointerEvents: 'box-none' }]}>
         <TouchableOpacity style={styles.mapBtn} onPress={() => mapRef.current?.locate()} activeOpacity={0.8}>
           <Feather name="navigation" size={18} color="#1E293B" />
         </TouchableOpacity>

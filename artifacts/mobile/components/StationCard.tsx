@@ -128,7 +128,7 @@ export function StationCard({
     >
       {/* ── TOP BADGE: ТОП СТАНЦИЯ ──────────────────────────────────── */}
       {is_promoted && (
-        <View style={styles.topBadgeWrap} pointerEvents="none">
+        <View style={[styles.topBadgeWrap, { pointerEvents: 'none' }]}>
           <LinearGradient
             colors={['#F59E0B', '#D97706']}
             start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
@@ -142,7 +142,7 @@ export function StationCard({
 
       {/* ── DISCOUNT corner badge ─────────────────────────────────────── */}
       {discount_pct > 0 && (
-        <View style={styles.discCornerWrap} pointerEvents="none">
+        <View style={[styles.discCornerWrap, { pointerEvents: 'none' }]}>
           <View style={styles.discCorner}>
             <Text style={styles.discCornerText}>-{discount_pct}%</Text>
           </View>
@@ -190,7 +190,7 @@ export function StationCard({
         </View>
 
         {/* Rating chip — only promoted */}
-        {rating && (
+        {!!rating && (
           <View style={[styles.chip, { backgroundColor: '#FFFBEB' }]}>
             <Feather name="star" size={11} color="#F59E0B" />
             <Text style={[styles.chipText, { color: '#D97706' }]}>{rating}</Text>

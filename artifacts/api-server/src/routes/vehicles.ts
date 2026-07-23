@@ -136,8 +136,58 @@ function parseBatteryCapacity(
   return { kwh: 60, estimated: true };
 }
 
+// ── Popular vehicles list (built from VEHICLE_OVERRIDES, grouped by make) ─
+// GET /vehicles/popular
+const POPULAR_MAKES = ["BYD", "Hyundai", "Kia", "Tesla", "Chevrolet", "Volkswagen",
+  "Nissan", "BMW", "Audi", "Porsche", "Mercedes-Benz", "Volvo", "Polestar", "Mitsubishi"];
+
+function buildPopularList() {
+  const list: Array<{ name: string; battery_kwh: number; range_km: number; connector_type: string; current_battery_pct: null }> = [];
+  for (const [pattern, specs] of Object.entries(VEHICLE_OVERRIDES)) {
+    // Only use entries with a specific model (not catch-alls like "volkswagen id.")
+    if (!pattern.includes(" ") || pattern.endsWith(".")) continue;
+    const words = pattern.split(" ");
+    const make = words[0][0].toUpperCase() + words[0].slice(1);
+    const model = words.slice(1).map(w => w[0].toUpperCase() + w.slice(1)).join(" ");
+    // map known lowercase make prefixes → proper display names
+    const makeDisplay =
+      make === "Byd" ? "BYD"
+      : make === "Mercedes-benz" ? "Mercedes-Benz"
+      : make;
+    list.push({
+      name: `${makeDisplay} ${model}`,
+      battery_kwh: specs.battery_kwh,
+      range_km: specs.range_km ?? 300,
+      connector_type: specs.connector_type,
+      current_battery_pct: null,
+    });
+  }
+  return list;
+}
+
+router.get("/vehicles/popular", (_req, res): void => {
+  const list = buildPopularList();
+  // Group by make for the client
+  const byMake: Record<string, typeof list> = {};
+  for (const v of list) {
+    const make = v.name.split(" ")[0];
+    if (!byMake[make]) byMake[make] = [];
+    byMake[make].push(v);
+  }
+  // Sort makes by POPULAR_MAKES order
+  const sorted = POPULAR_MAKES
+    .filter(m => byMake[m])
+    .map(make => ({ make, vehicles: byMake[make] }));
+  // Append any makes not in POPULAR_MAKES
+  for (const [make, vehicles] of Object.entries(byMake)) {
+    if (!POPULAR_MAKES.includes(make)) sorted.push({ make, vehicles });
+  }
+  res.json(sorted);
+});
+
 // ── Search endpoint ───────────────────────────────────────────────────────
 // GET /vehicles/search?q=
+// Always calls API Ninjas, merges with DB cache, deduplicates by make+model.
 router.get("/vehicles/search", async (req, res): Promise<void> => {
   const q = (req.query.q as string | undefined)?.trim();
   if (!q || q.length < 2) {
@@ -145,14 +195,15 @@ router.get("/vehicles/search", async (req, res): Promise<void> => {
     return;
   }
 
-  // 1. Pull cache — always merge with API results (no short-circuit on cache hit)
+  // 1. Pull DB cache matching the query (no early return — always continues to API)
   const cached = await db
     .select()
     .from(vehiclesTable)
     .where(ilike(vehiclesTable.name, `%${q}%`));
+  console.log(`[vehicles/search] q="${q}" — cache hit: ${cached.length} rows`);
 
-  // 2. Always hit /v1/electricvehicle — parallel: by make AND by model
-  //    limit=30 (API Ninjas max) so wide makes (BYD, Hyundai …) don't get truncated.
+  // 2. Always hit /v1/electricvehicle — two parallel requests: by make AND by model
+  //    limit=30 (API Ninjas max per request) so wide brands don't get truncated
   const apiKey = process.env.EV_API_KEY;
   const apiRows: (typeof vehiclesTable.$inferSelect)[] = [];
 
@@ -166,7 +217,6 @@ router.get("/vehicles/search", async (req, res): Promise<void> => {
         fetch(`${evBase}?model=${encodeURIComponent(q)}&limit=30`, { headers, signal: AbortSignal.timeout(5000) }),
       ]);
 
-      // Collect results from both calls
       const raw: ApiNinjasEV[] = [];
       for (const result of [byMake, byModel]) {
         if (result.status === "fulfilled" && result.value.ok) {
@@ -174,8 +224,9 @@ router.get("/vehicles/search", async (req, res): Promise<void> => {
           if (Array.isArray(json)) raw.push(...json);
         }
       }
+      console.log(`[vehicles/search] API Ninjas returned: ${raw.length} raw records`);
 
-      // Dedupe by "make model" (year intentionally excluded — same vehicle, different years)
+      // Dedupe by "make model" (year excluded — same car, different years)
       const seen = new Set<string>();
       const deduped = raw.filter(v => {
         const key = `${v.make} ${v.model}`.toLowerCase().trim();
@@ -183,10 +234,8 @@ router.get("/vehicles/search", async (req, res): Promise<void> => {
         seen.add(key);
         return true;
       });
+      console.log(`[vehicles/search] after dedup: ${deduped.length} unique models`);
 
-      // Map to our schema:
-      //   • battery_capacity may be a non-numeric string on the basic plan → parseBatteryCapacity()
-      //   • range is in miles → convert to km; fall back to 300 mi if absent
       const mapped = deduped.map(v => {
         const name = `${v.make} ${v.model}`;
         const { kwh } = parseBatteryCapacity(v.battery_capacity, name);
@@ -200,7 +249,7 @@ router.get("/vehicles/search", async (req, res): Promise<void> => {
         return applyOverride(base);
       });
 
-      // Upsert into cache (insert new, skip existing; update specs if override differs)
+      // Upsert into cache (insert new; update specs if override gives better data)
       for (const v of mapped) {
         const existing = await db
           .select()
@@ -211,12 +260,8 @@ router.get("/vehicles/search", async (req, res): Promise<void> => {
           const [row] = await db.insert(vehiclesTable).values(v).returning();
           apiRows.push(row);
         } else {
-          // Update cached row if override gives better spec data
           const cur = existing[0];
-          if (
-            cur.battery_kwh !== v.battery_kwh ||
-            cur.connector_type !== v.connector_type
-          ) {
+          if (cur.battery_kwh !== v.battery_kwh || cur.connector_type !== v.connector_type) {
             const [updated] = await db
               .update(vehiclesTable)
               .set({ battery_kwh: v.battery_kwh, connector_type: v.connector_type, range_km: v.range_km })
@@ -230,17 +275,17 @@ router.get("/vehicles/search", async (req, res): Promise<void> => {
       }
     } catch (err: any) {
       console.error("[vehicles/search] API Ninjas error:", err?.message ?? err);
-      // Fall through to cache-only
     }
+  } else {
+    console.warn("[vehicles/search] EV_API_KEY not set — returning cache only");
   }
 
-  // 3. Merge: API-sourced rows + cached rows not covered by API, apply overrides to all
+  // 3. Merge API rows + cache rows not already covered; apply overrides to all
   const apiNames = new Set(apiRows.map(v => v.name.toLowerCase()));
   const cacheOnly = cached.filter(v => !apiNames.has(v.name.toLowerCase()));
   const merged = [...apiRows, ...cacheOnly];
-
-  // Apply overrides to cached rows too (in case they were stored with defaults)
   const result = merged.map(v => applyOverride({ ...v, range_km: v.range_km ?? 300 }));
+  console.log(`[vehicles/search] final result: ${result.length} (${apiRows.length} from API, ${cacheOnly.length} cache-only)`);
 
   res.json(result);
 });
