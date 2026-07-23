@@ -46,13 +46,13 @@ export default function SessionsScreen() {
   });
 
   function handleStop(id: number) {
+    if (Platform.OS === 'web') {
+      if (window.confirm('Завершить зарядку сейчас?')) stopMutation.mutate({ id });
+      return;
+    }
     Alert.alert('Остановить сессию', 'Завершить зарядку сейчас?', [
       { text: 'Отмена', style: 'cancel' },
-      {
-        text: 'Остановить',
-        style: 'destructive',
-        onPress: () => stopMutation.mutate({ id }),
-      },
+      { text: 'Остановить', style: 'destructive', onPress: () => stopMutation.mutate({ id }) },
     ]);
   }
 

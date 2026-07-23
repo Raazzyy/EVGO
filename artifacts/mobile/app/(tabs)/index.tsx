@@ -178,10 +178,10 @@ export default function MapScreen() {
     >
       {[
         { id: 'all', label: 'Все' },
+        { id: 'free', label: 'Свободные' },
         { id: 'my-cars', label: 'Мои машины' },
         { id: 'ac', label: 'AC' },
-        { id: 'dc', label: 'DC' },
-        { id: 'free', label: 'Свободные сейчас' }
+        { id: 'dc', label: 'DC' }
       ].map((f) => {
         const isActive = activeChip === f.id;
         return (

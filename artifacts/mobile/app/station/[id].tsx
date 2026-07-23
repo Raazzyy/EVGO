@@ -303,11 +303,14 @@ export default function StationDetailScreen() {
           loading={startMutation.isPending}
           disabled={station.status !== 'free'}
         />
-        {station.status === 'free' && (
-          <TouchableOpacity style={[styles.outlineBtn, { borderColor: colors.border }]} onPress={() => router.push('/route/new')}>
-            <Text style={[styles.outlineBtnText, { color: colors.text }]}>Маршрут</Text>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity
+          style={[styles.outlineBtn, { borderColor: colors.border }]}
+          onPress={() => router.push(
+            `/route/new?stationId=${station.id}&stationName=${encodeURIComponent(station.name)}&lat=${station.lat}&lng=${station.lng}` as any
+          )}
+        >
+          <Text style={[styles.outlineBtnText, { color: colors.text }]}>Маршрут</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -409,6 +412,11 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 12,
     fontFamily: 'Inter_400Regular',
+  },
+  statValueStrike: {
+    fontSize: 14,
+    fontFamily: 'Inter_500Medium',
+    textDecorationLine: 'line-through',
   },
   priceRow: {
     flexDirection: 'row',

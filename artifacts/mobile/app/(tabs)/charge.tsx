@@ -68,13 +68,15 @@ export default function ChargeScreen() {
 
   function handleStop() {
     if (!activeSession) return;
+    if (Platform.OS === 'web') {
+      if (window.confirm('Завершить зарядку сейчас?')) {
+        stopMutation.mutate({ id: activeSession.id });
+      }
+      return;
+    }
     Alert.alert('Остановить сессию', 'Вы уверены, что хотите завершить зарядку?', [
       { text: 'Отмена', style: 'cancel' },
-      {
-        text: 'Остановить',
-        style: 'destructive',
-        onPress: () => stopMutation.mutate({ id: activeSession.id }),
-      },
+      { text: 'Остановить', style: 'destructive', onPress: () => stopMutation.mutate({ id: activeSession.id }) },
     ]);
   }
 

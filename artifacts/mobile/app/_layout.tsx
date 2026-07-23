@@ -38,11 +38,7 @@ function RootLayoutNav() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen
         name="station/[id]"
-        options={{
-          title: 'Station Details',
-          headerLargeTitle: false,
-          presentation: 'card',
-        }}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="route/new"

@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
   Platform,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
@@ -23,23 +23,38 @@ import { useColors } from '@/hooks/useColors';
 import { useApp } from '@/contexts/AppContext';
 import { GradientButton } from '@/components/GradientButton';
 
+function showAlert(title: string, message: string) {
+  if (Platform.OS === 'web') { window.alert(`${title}: ${message}`); }
+  else { Alert.alert(title, message); }
+}
+
 export default function NewRouteScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const qc = useQueryClient();
-  const { selectedVehicleId, setSelectedVehicleId } = useApp();
+  const { selectedVehicleId } = useApp();
+
+  // When navigated from station detail, stationName/lat/lng are pre-filled
+  const params = useLocalSearchParams<{
+    stationId?: string;
+    stationName?: string;
+    lat?: string;
+    lng?: string;
+  }>();
+
+  const prefilledName = params.stationName ? decodeURIComponent(params.stationName) : '';
+  const prefilledLat = params.lat ? parseFloat(params.lat) : null;
+  const prefilledLng = params.lng ? parseFloat(params.lng) : null;
 
   const [origin, setOrigin] = useState('Ташкент, Узбекистан');
-  const [destination, setDestination] = useState('');
+  const [destination, setDestination] = useState(prefilledName);
   const [batteryPct, setBatteryPct] = useState('85');
-  const [originCoords, setOriginCoords] = useState({ lat: 41.2995, lng: 69.2401 });
-  const [destCoords, setDestCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [originCoords] = useState({ lat: 41.2995, lng: 69.2401 });
 
   const [routeResult, setRouteResult] = useState<any>(null);
 
   const { data: vehicles = [] } = useGetVehicles();
-
   const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId) || vehicles[0];
 
   const createRoute = useCreateRoute({
@@ -48,7 +63,7 @@ export default function NewRouteScreen() {
         qc.invalidateQueries({ queryKey: getGetRoutesQueryKey() });
         setRouteResult(res);
       },
-      onError: () => Alert.alert('Ошибка', 'Не удалось построить маршрут. Попробуйте еще раз.'),
+      onError: () => showAlert('Ошибка', 'Не удалось построить маршрут. Попробуйте еще раз.'),
     },
   });
 
@@ -60,12 +75,12 @@ export default function NewRouteScreen() {
 
   function handlePlanRoute() {
     if (!destination.trim()) {
-      Alert.alert('Пункт назначения', 'Пожалуйста, введите конечную точку.');
+      showAlert('Пункт назначения', 'Пожалуйста, введите конечную точку.');
       return;
     }
     const pct = parseFloat(batteryPct);
     if (isNaN(pct) || pct < 0 || pct > 100) {
-      Alert.alert('Неверный заряд', 'Введите заряд от 0 до 100%.');
+      showAlert('Неверный заряд', 'Введите заряд от 0 до 100%.');
       return;
     }
 
@@ -75,8 +90,8 @@ export default function NewRouteScreen() {
         destination,
         origin_lat: originCoords.lat,
         origin_lng: originCoords.lng,
-        dest_lat: 39.6542, // Mock destination lat for Samarkand etc.
-        dest_lng: 66.9597,
+        dest_lat: prefilledLat ?? 41.2995,
+        dest_lng: prefilledLng ?? 69.2401,
         vehicle_id: selectedVehicleId ?? null,
         initial_battery_pct: pct,
       },
