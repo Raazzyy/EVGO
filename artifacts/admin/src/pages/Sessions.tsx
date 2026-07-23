@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { Clock, Zap, MapPin, StopCircle } from "lucide-react";
+import { formatUzs } from "@/lib/formatUzs";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Sessions() {
@@ -127,8 +128,8 @@ export default function Sessions() {
                           <span className="text-xs text-muted-foreground italic flex items-center justify-end gap-1"><Zap className="h-3 w-3 animate-pulse text-blue-500"/> Metering...</span>
                         ) : (
                           <>
-                            <div className="text-sm font-medium">{session.energy_kwh?.toFixed(2)} kWh</div>
-                            <div className="text-xs text-muted-foreground mt-0.5">${session.cost?.toFixed(2)}</div>
+                            <div className="text-sm font-medium">{session.energy_kwh?.toFixed(2)} кВт·ч</div>
+                            <div className="text-xs text-muted-foreground mt-0.5">{formatUzs(session.cost ?? 0)}</div>
                           </>
                         )}
                       </TableCell>

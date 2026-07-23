@@ -11,6 +11,38 @@ import {
   UpdateStationStatusParams,
   GetStationsQueryParams,
 } from "@workspace/api-zod";
+import { z } from "zod";
+
+// ── Extended partial-update schema (superset of generated one) ───────────────
+const connectorSchema = z.object({
+  type: z.string(),
+  power_kw: z.number(),
+  total: z.number().int().nonnegative(),
+  available: z.number().int().nonnegative(),
+});
+
+const ExtendedStationPatch = z.object({
+  name:                 z.string().optional(),
+  address:              z.string().optional(),
+  lat:                  z.number().optional(),
+  lng:                  z.number().optional(),
+  power_kw:             z.number().positive().optional(),
+  price_per_kwh:        z.number().nonnegative().optional(),
+  cost_price_per_kwh:   z.coerce.number().nonnegative().nullable().optional(),
+  status:               z.enum(["free", "occupied", "offline"]).optional(),
+  source:               z.enum(["manual", "api", "mock"]).optional(),
+  operator_id:          z.number().int().positive().nullable().optional(),
+  connectors:           z.array(connectorSchema).optional(),
+  amenities:            z.array(z.string()).optional(),
+  photos:               z.array(z.string().url()).optional(),
+  district:             z.string().nullable().optional(),
+  region:               z.string().nullable().optional(),
+  // is_promoted stored as 0/1 integer; accept boolean or number from client
+  is_promoted:          z.union([z.boolean(), z.number().int().min(0).max(1)]).optional()
+                          .transform(v => v === true || v === 1 ? 1 : v === false || v === 0 ? 0 : undefined),
+  discount_pct:         z.number().int().min(0).max(100).optional(),
+  supports_reservation: z.boolean().optional(),
+});
 
 const router: IRouter = Router();
 
@@ -168,6 +200,31 @@ router.put("/stations/:id", async (req, res): Promise<void> => {
   const [station] = await db
     .update(stationsTable)
     .set({ ...parsed.data, updated_at: new Date() })
+    .where(eq(stationsTable.id, p.data.id))
+    .returning();
+  if (!station) { res.status(404).json({ error: "Station not found" }); return; }
+  const [op] = station.operator_id
+    ? await db.select().from(operatorsTable).where(eq(operatorsTable.id, station.operator_id))
+    : [null];
+  res.json(buildStationWithOperator(station, op ?? null));
+});
+
+// ── PATCH /stations/:id  (partial update — all extended fields accepted) ─────
+router.patch("/stations/:id", async (req, res): Promise<void> => {
+  const p = z.object({ id: z.coerce.number().int().positive() }).safeParse(req.params);
+  if (!p.success) { res.status(400).json({ error: p.error.message }); return; }
+  const parsed = ExtendedStationPatch.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const updateData: Record<string, unknown> = { ...parsed.data, updated_at: new Date() };
+  // Remove undefined values so Drizzle doesn't overwrite fields with undefined
+  for (const k of Object.keys(updateData)) {
+    if (updateData[k] === undefined) delete updateData[k];
+  }
+
+  const [station] = await db
+    .update(stationsTable)
+    .set(updateData as any)
     .where(eq(stationsTable.id, p.data.id))
     .returning();
   if (!station) { res.status(404).json({ error: "Station not found" }); return; }

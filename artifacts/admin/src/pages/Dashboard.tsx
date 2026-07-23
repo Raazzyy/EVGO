@@ -5,7 +5,8 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
   PieChart, Pie, Cell
 } from "recharts";
-import { MapPin, BatteryCharging, Users, DollarSign, Activity } from "lucide-react";
+import { MapPin, BatteryCharging, Users, Banknote, Activity } from "lucide-react";
+import { formatUzs } from "@/lib/formatUzs";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Dashboard() {
@@ -44,10 +45,10 @@ export default function Dashboard() {
   ];
 
   const statCards = [
-    { title: "Total Revenue", value: `$${stats.total_revenue.toLocaleString(undefined, {minimumFractionDigits: 2})}`, sub: `+$${stats.revenue_today.toLocaleString()} today`, icon: DollarSign },
-    { title: "Active Sessions", value: stats.active_sessions.toLocaleString(), sub: `${stats.sessions_today} total today`, icon: BatteryCharging },
-    { title: "Total Stations", value: stats.total_stations.toLocaleString(), sub: `${stats.free_stations} free right now`, icon: MapPin },
-    { title: "Total Users", value: stats.total_users.toLocaleString(), sub: "Active members", icon: Users },
+    { title: "Выручка всего", value: formatUzs(stats.total_revenue), sub: `+${formatUzs(stats.revenue_today)} сегодня`, icon: Banknote },
+    { title: "Активных сессий", value: stats.active_sessions.toLocaleString("ru-RU"), sub: `${stats.sessions_today} всего сегодня`, icon: BatteryCharging },
+    { title: "Станций", value: stats.total_stations.toLocaleString("ru-RU"), sub: `${stats.free_stations} свободно`, icon: MapPin },
+    { title: "Пользователей", value: stats.total_users.toLocaleString("ru-RU"), sub: "Активные участники", icon: Users },
   ];
 
   return (

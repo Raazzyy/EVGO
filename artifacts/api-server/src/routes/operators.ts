@@ -121,6 +121,21 @@ router.patch("/operators/:id", adminAuth, async (req, res): Promise<void> => {
   res.json({ ...safe, station_count: 0 });
 });
 
+// ── POST /api/operators/:id/ping  (stub — checks API reachability) ───────────
+router.post("/operators/:id/ping", adminAuth, async (req, res): Promise<void> => {
+  const p = z.object({ id: z.coerce.number().int().positive() }).safeParse(req.params);
+  if (!p.success) { res.status(400).json({ error: p.error.message }); return; }
+
+  const [op] = await db.select({ id: operatorsTable.id, api_type: operatorsTable.api_type, api_endpoint: operatorsTable.api_endpoint })
+    .from(operatorsTable)
+    .where(eq(operatorsTable.id, p.data.id));
+  if (!op) { res.status(404).json({ error: "Operator not found" }); return; }
+
+  // Stub: simulate a latency test; real implementation would probe api_endpoint
+  const latencyMs = Math.floor(Math.random() * 120) + 30;
+  res.json({ ok: true, latency_ms: latencyMs, api_type: op.api_type, message: "Connection successful (stub)" });
+});
+
 // ── DELETE /api/operators/:id ────────────────────────────────────────────────
 router.delete("/operators/:id", async (req, res): Promise<void> => {
   const p = DeleteOperatorParams.safeParse(req.params);
