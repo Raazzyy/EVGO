@@ -23,6 +23,9 @@ export interface StationMarker {
 interface MapViewWrapperProps {
   stations: StationMarker[];
   onStationPress: (id: number) => void;
+  userLocation?: { lat: number; lng: number } | null;
+  routePoints?: Array<{ lat: number; lng: number; label?: string; type?: 'origin' | 'stop' | 'dest' }>;
+  polylineCoords?: Array<[number, number]>;
 }
 
 const TASHKENT = {
@@ -33,7 +36,7 @@ const TASHKENT = {
 };
 
 export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
-  ({ stations, onStationPress }, ref) => {
+  ({ stations, onStationPress, userLocation }, ref) => {
     const colors = useColors();
 
     // Native map has built-in controls; expose no-ops via ref

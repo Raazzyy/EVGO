@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
 } from 'react-native';
+import Animated, { FadeInDown, Easing } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,6 +16,8 @@ import { CircularProgress } from '@/components/CircularProgress';
 import { GradientButton } from '@/components/GradientButton';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Platform } from 'react-native';
+
+const IOS_EASE = Easing.bezier(0.25, 0.46, 0.45, 0.94);
 
 export default function ChargeScreen() {
   const colors = useColors();
@@ -38,6 +41,9 @@ export default function ChargeScreen() {
       onSuccess: () => {
         setConfirmStop(false);
         qc.invalidateQueries({ queryKey: getGetSessionsQueryKey() });
+        // Navigate to receipt with session id and payment card
+        const card = encodeURIComponent((activeSession as any)?._selectedCard ?? 'Uzcard');
+        router.push(`/payment/receipt/${activeSession?.id}?card=${card}` as any);
       },
     },
   });
@@ -58,8 +64,7 @@ export default function ChargeScreen() {
   const liveEnergyKwh = parseFloat(((simElapsedS / 3600) * stationPower).toFixed(1));
   const liveCost = Math.round(liveEnergyKwh * stationPrice);
   const batteryPct = (sessionDetail as any)?.progress_pct ?? Math.min(95, 45 + (simElapsedS / SIM_DURATION_S) * 30);
-  const CAR_BATTERY = 77.4;
-  const timeToEighty = Math.max(-99, Math.round(((0.8 * CAR_BATTERY - liveEnergyKwh) / stationPower) * 60));
+  const timeToEighty = Math.max(-99, Math.round(((0.8 * 77.4 - liveEnergyKwh) / stationPower) * 60));
 
   const simH = Math.floor(simElapsedS / 3600);
   const simM = Math.floor((simElapsedS % 3600) / 60);
@@ -80,12 +85,8 @@ export default function ChargeScreen() {
           <Text style={[styles.emptyDesc, { color: colors.mutedForeground }]}>
             Найдите ближайшую станцию и нажмите «Зарядиться», чтобы начать.
           </Text>
-          <GradientButton
-            label="Найти станцию"
-            onPress={() => router.push('/')}
-            style={{ marginTop: 8 }}
-            icon={<Feather name="map-pin" size={16} color="#fff" />}
-          />
+          <GradientButton label="Найти станцию" onPress={() => router.push('/')} style={{ marginTop: 8 }}
+            icon={<Feather name="map-pin" size={16} color="#fff" />} />
         </ScrollView>
       </View>
     );
@@ -96,7 +97,7 @@ export default function ChargeScreen() {
       <View style={[styles.header, { paddingTop: topPad + 16, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Зарядка</Text>
         <View style={[styles.activePill, { backgroundColor: '#10B9811A' }]}>
-          <Text style={[styles.activePillText, { color: '#10B981' }]}>Сессия активна</Text>
+          <Text style={[styles.activePillText, { color: '#10B981' }]}>● Активна</Text>
         </View>
       </View>
 
@@ -104,26 +105,20 @@ export default function ChargeScreen() {
         contentContainerStyle={[styles.activeContent, { paddingBottom: bottomPad + 100 }]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={[styles.progressCard, { backgroundColor: colors.card }]}>
+        <Animated.View entering={FadeInDown.duration(300).easing(IOS_EASE)} style={[styles.progressCard, { backgroundColor: colors.card }]}>
           <CircularProgress
-            progress={batteryPct}
-            size={180}
-            strokeWidth={14}
+            progress={batteryPct} size={180} strokeWidth={14}
             subLabel="Заряжено"
             icon={<Feather name="zap" size={24} color={colors.primary} />}
           />
-        </View>
+        </Animated.View>
 
-        <View style={[styles.statsGrid, { backgroundColor: colors.card }]}>
+        <Animated.View entering={FadeInDown.delay(60).duration(280).easing(IOS_EASE)} style={[styles.statsGrid, { backgroundColor: colors.card }]}>
           {[
             { value: `${stationPower} кВт`, label: 'Мощность' },
             { value: `${liveEnergyKwh.toFixed(1)} кВт·ч`, label: 'Энергия' },
             { value: simTime, label: 'Время' },
-            {
-              value: timeToEighty < 0 ? `+${Math.abs(timeToEighty)} мин` : `~${timeToEighty} мин`,
-              label: 'До 80%',
-              color: timeToEighty < 0 ? '#10B981' : undefined,
-            },
+            { value: timeToEighty < 0 ? `✓ 80%` : `~${timeToEighty} мин`, label: 'До 80%', color: timeToEighty < 0 ? '#10B981' : undefined },
           ].map((item, i, arr) => (
             <React.Fragment key={i}>
               <View style={styles.statBlock}>
@@ -133,37 +128,27 @@ export default function ChargeScreen() {
               {i < arr.length - 1 && <View style={[styles.statDivider, { backgroundColor: colors.border }]} />}
             </React.Fragment>
           ))}
-        </View>
+        </Animated.View>
 
-        <View style={[styles.costCard, { backgroundColor: colors.card }]}>
-          <Text style={[styles.costValue, { color: colors.text }]}>
-            {liveCost.toLocaleString('ru-RU')} сум
-          </Text>
-          <Text style={[styles.costRate, { color: colors.mutedForeground }]}>
-            {stationPrice.toLocaleString('ru-RU')} сум/кВт·ч
-          </Text>
-        </View>
+        <Animated.View entering={FadeInDown.delay(100).duration(260).easing(IOS_EASE)} style={[styles.costCard, { backgroundColor: colors.card }]}>
+          <Text style={[styles.costValue, { color: colors.text }]}>{liveCost.toLocaleString('ru-RU')} сум</Text>
+          <Text style={[styles.costRate, { color: colors.mutedForeground }]}>{stationPrice.toLocaleString('ru-RU')} сум/кВт·ч</Text>
+        </Animated.View>
 
-        {/* ── Stop section ─────────────────────────────────────────── */}
+        {/* Stop section */}
         {!confirmStop ? (
-          <TouchableOpacity
-            onPress={() => setConfirmStop(true)}
-            activeOpacity={0.8}
-            style={{ borderRadius: 16, overflow: 'hidden' }}
-          >
-            <LinearGradient
-              colors={['#F472B6', '#EF4444']}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-              style={styles.stopBtn}
-            >
-              <Text style={styles.stopText}>Остановить сессию</Text>
-            </LinearGradient>
-          </TouchableOpacity>
+          <Animated.View entering={FadeInDown.delay(140).duration(260).easing(IOS_EASE)}>
+            <TouchableOpacity onPress={() => setConfirmStop(true)} activeOpacity={0.8} style={{ borderRadius: 16, overflow: 'hidden' }}>
+              <LinearGradient colors={['#F472B6', '#EF4444']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.stopBtn}>
+                <Text style={styles.stopText}>Остановить сессию</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </Animated.View>
         ) : (
-          <View style={[styles.confirmCard, { backgroundColor: '#FEF2F2', borderColor: '#FECACA' }]}>
+          <Animated.View entering={FadeInDown.duration(220).easing(IOS_EASE)} style={[styles.confirmCard, { backgroundColor: '#FEF2F2', borderColor: '#FECACA' }]}>
             <Text style={[styles.confirmTitle, { color: '#DC2626' }]}>Завершить зарядку?</Text>
             <Text style={[styles.confirmSub, { color: '#9CA3AF' }]}>
-              Сессия будет остановлена. Итоговая стоимость будет рассчитана.
+              Сессия будет остановлена. Итоговая стоимость: {liveCost.toLocaleString('ru-RU')} сум
             </Text>
             <View style={styles.confirmBtns}>
               <TouchableOpacity
@@ -171,18 +156,13 @@ export default function ChargeScreen() {
                 onPress={() => stopMutation.mutate({ id: activeSession.id })}
                 disabled={stopMutation.isPending}
               >
-                <Text style={styles.confirmBtnText}>
-                  {stopMutation.isPending ? 'Останавливаем...' : 'Да, остановить'}
-                </Text>
+                <Text style={styles.confirmBtnText}>{stopMutation.isPending ? 'Останавливаем…' : 'Да, остановить'}</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.confirmBtn, { backgroundColor: '#F3F4F6', flex: 1 }]}
-                onPress={() => setConfirmStop(false)}
-              >
+              <TouchableOpacity style={[styles.confirmBtn, { backgroundColor: '#F3F4F6', flex: 1 }]} onPress={() => setConfirmStop(false)}>
                 <Text style={[styles.confirmBtnText, { color: '#374151' }]}>Отмена</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </Animated.View>
         )}
 
         <TouchableOpacity style={styles.detailsLink} onPress={() => router.push(`/payment/${activeSession.id}`)}>
@@ -195,11 +175,8 @@ export default function ChargeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  headerEmpty: { paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1 },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1,
-  },
+  headerEmpty: { paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1, paddingTop: 16 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1 },
   headerTitle: { fontSize: 24, fontFamily: 'Inter_700Bold' },
   activePill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   activePillText: { fontSize: 12, fontFamily: 'Inter_500Medium' },
@@ -208,29 +185,18 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 22, fontFamily: 'Inter_700Bold' },
   emptyDesc: { fontSize: 15, fontFamily: 'Inter_400Regular', textAlign: 'center', lineHeight: 22 },
   activeContent: { padding: 16, gap: 16 },
-  progressCard: {
-    borderRadius: 20, padding: 32, alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 2,
-  },
-  statsGrid: {
-    borderRadius: 16, padding: 20, flexDirection: 'row', alignItems: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 2,
-  },
+  progressCard: { borderRadius: 20, padding: 32, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 2 },
+  statsGrid: { borderRadius: 16, padding: 20, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 2 },
   statBlock: { flex: 1, alignItems: 'center', gap: 4 },
   statValue: { fontSize: 15, fontFamily: 'Inter_700Bold', textAlign: 'center' },
   statLabel: { fontSize: 11, fontFamily: 'Inter_400Regular' },
   statDivider: { width: 1, height: 40, marginHorizontal: 2 },
-  costCard: {
-    borderRadius: 16, padding: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 2,
-  },
+  costCard: { borderRadius: 16, padding: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 2 },
   costValue: { fontSize: 22, fontFamily: 'Inter_700Bold' },
   costRate: { fontSize: 13, fontFamily: 'Inter_400Regular' },
   stopBtn: { alignItems: 'center', justifyContent: 'center', paddingVertical: 18, borderRadius: 16 },
   stopText: { fontSize: 16, fontFamily: 'Inter_600SemiBold', color: '#FFFFFF' },
-  confirmCard: {
-    borderRadius: 16, borderWidth: 1.5, padding: 20, gap: 12,
-  },
+  confirmCard: { borderRadius: 16, borderWidth: 1.5, padding: 20, gap: 12 },
   confirmTitle: { fontSize: 17, fontFamily: 'Inter_700Bold' },
   confirmSub: { fontSize: 13, fontFamily: 'Inter_400Regular', lineHeight: 18 },
   confirmBtns: { flexDirection: 'row', gap: 10 },

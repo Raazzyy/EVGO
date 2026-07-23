@@ -31,12 +31,14 @@ interface Props {
   stations: StationMarker[];
   onStationPress: (id: number) => void;
   userLocation?: { lat: number; lng: number } | null;
-  // For route preview mode: draw a polyline through these points
+  // Semantic waypoints (origin/stop/dest markers)
   routePoints?: Array<{ lat: number; lng: number; label?: string; type?: 'origin' | 'stop' | 'dest' }>;
+  // Raw road-following polyline from Yandex Router (overrides straight-line if provided)
+  polylineCoords?: Array<[number, number]>;
 }
 
 export const MapViewWrapper = forwardRef<MapApi, Props>(
-  ({ stations, onStationPress, userLocation, routePoints }, ref) => {
+  ({ stations, onStationPress, userLocation, routePoints, polylineCoords }, ref) => {
     const divRef = useRef<HTMLDivElement | null>(null);
     const mapRef = useRef<any>(null);
     const leafletRef = useRef<any>(null);
@@ -147,11 +149,15 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
       routeLayerRef.current = null;
       if (!routePoints || routePoints.length < 2) return;
 
-      const latlngs = routePoints.map((p) => [p.lat, p.lng] as [number, number]);
+      const waypointLatlngs = routePoints.map((p) => [p.lat, p.lng] as [number, number]);
+      // Use Yandex road-following polyline if available, else straight segments between waypoints
+      const roadLatlngs: [number, number][] = polylineCoords && polylineCoords.length >= 2
+        ? polylineCoords
+        : waypointLatlngs;
 
-      // Draw dashed polyline
-      const line = L.polyline(latlngs, {
-        color: '#2563EB', weight: 4, opacity: 0.85, dashArray: '10 6',
+      // Draw road polyline (solid blue line)
+      const line = L.polyline(roadLatlngs, {
+        color: '#2563EB', weight: 5, opacity: 0.9,
       }).addTo(map);
 
       // Place point markers
@@ -168,8 +174,8 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
         return m;
       });
 
-      // Fit bounds
-      map.fitBounds(latlngs, { padding: [40, 40], animate: true });
+      // Fit bounds to waypoints (not the full polyline, for better framing)
+      map.fitBounds(waypointLatlngs, { padding: [50, 50], animate: true, maxZoom: 14 });
 
       const group = L.layerGroup([line, ...pointMarkers]).addTo(map);
       routeLayerRef.current = group;

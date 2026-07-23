@@ -131,7 +131,8 @@ export default function NewRouteScreen() {
     return h > 0 ? `${h} ч ${m} мин` : `${m} мин`;
   }
 
-  const bottomPad = Platform.OS === 'web' ? 84 + 16 : insets.bottom;
+  // Extra padding so the button clears the tab bar on both platforms
+  const bottomPad = Platform.OS === 'web' ? 100 : insets.bottom + 84;
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
   const isPending = createRoute.isPending || deleteRoute.isPending;
 

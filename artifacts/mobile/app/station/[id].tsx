@@ -8,7 +8,9 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  Modal,
 } from 'react-native';
+import Animated, { FadeIn, FadeInDown, Easing } from 'react-native-reanimated';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -41,6 +43,8 @@ export default function StationDetailScreen() {
   const { userId, setActiveSessionId } = useApp();
   const [selectedConnector, setSelectedConnector] = useState<string | null>(null);
   const [isFavorite, setIsFavorite] = useState(false);
+  const [cardModalVisible, setCardModalVisible] = useState(false);
+  const [selectedCard, setSelectedCard] = useState('Uzcard');
 
   const stationId = id ? Number(id) : NaN;
   const { data: station, isLoading } = useGetStation(stationId, {
@@ -68,6 +72,13 @@ export default function StationDetailScreen() {
       Alert.alert('Станция недоступна', 'Эта станция сейчас не в сети.');
       return;
     }
+    // Open card selection modal first
+    setCardModalVisible(true);
+  }
+
+  function confirmCharge() {
+    if (!station) return;
+    setCardModalVisible(false);
     startMutation.mutate({
       data: {
         station_id: station.id,
@@ -312,6 +323,81 @@ export default function StationDetailScreen() {
           <Text style={[styles.outlineBtnText, { color: colors.text }]}>Маршрут</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Card Selection Modal */}
+      <Modal
+        visible={cardModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setCardModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <Animated.View entering={FadeInDown.duration(300).easing(Easing.bezier(0.25, 0.46, 0.45, 0.94))} style={[styles.modalSheet, { backgroundColor: colors.card }]}>
+            {/* Handle */}
+            <View style={[styles.modalHandle, { backgroundColor: colors.mutedForeground, opacity: 0.25 }]} />
+
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Выберите карту</Text>
+            <Text style={[styles.modalSub, { color: colors.mutedForeground }]}>
+              Оплата спишется после завершения зарядки
+            </Text>
+
+            {[
+              { id: 'Uzcard', label: 'Uzcard', emoji: '🟦', suffix: '•••• 4521' },
+              { id: 'Humo', label: 'Humo', emoji: '🟩', suffix: '•••• 8934' },
+              { id: 'Visa', label: 'Visa', emoji: '💳', suffix: '•••• 1177' },
+              { id: 'Mastercard', label: 'Mastercard', emoji: '🔴', suffix: '•••• 6623' },
+            ].map(card => (
+              <TouchableOpacity
+                key={card.id}
+                onPress={() => setSelectedCard(card.id)}
+                style={[
+                  styles.cardOption,
+                  {
+                    borderColor: selectedCard === card.id ? colors.primary : colors.border,
+                    backgroundColor: selectedCard === card.id ? `${colors.primary}10` : colors.background,
+                  },
+                ]}
+              >
+                <Text style={styles.cardEmoji}>{card.emoji}</Text>
+                <View style={styles.cardInfo}>
+                  <Text style={[styles.cardLabel, { color: colors.text }]}>{card.label}</Text>
+                  <Text style={[styles.cardSuffix, { color: colors.mutedForeground }]}>{card.suffix}</Text>
+                </View>
+                {selectedCard === card.id && (
+                  <View style={[styles.cardCheck, { backgroundColor: colors.primary }]}>
+                    <Feather name="check" size={12} color="#fff" />
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))}
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalCancelBtn, { backgroundColor: colors.muted }]}
+                onPress={() => setCardModalVisible(false)}
+              >
+                <Text style={[styles.modalCancelText, { color: colors.mutedForeground }]}>Отмена</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalConfirmBtn, { overflow: 'hidden', flex: 1, borderRadius: 14 }]}
+                onPress={confirmCharge}
+                disabled={startMutation.isPending}
+              >
+                <LinearGradient
+                  colors={[colors.gradientStart, colors.gradientEnd]}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                  style={styles.modalConfirmGradient}
+                >
+                  {startMutation.isPending
+                    ? <ActivityIndicator color="#fff" />
+                    : <Text style={styles.modalConfirmText}>Зарядиться</Text>
+                  }
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -554,5 +640,81 @@ const styles = StyleSheet.create({
   outlineBtnText: {
     fontSize: 16,
     fontFamily: 'Inter_600SemiBold',
+  },
+  // Card selection modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 24,
+    paddingBottom: 36,
+    gap: 14,
+  },
+  modalHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 4,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontFamily: 'Inter_700Bold',
+  },
+  modalSub: {
+    fontSize: 14,
+    fontFamily: 'Inter_400Regular',
+    marginTop: -6,
+  },
+  cardOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1.5,
+  },
+  cardEmoji: { fontSize: 24 },
+  cardInfo: { flex: 1 },
+  cardLabel: { fontSize: 16, fontFamily: 'Inter_600SemiBold' },
+  cardSuffix: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 1 },
+  cardCheck: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 6,
+  },
+  modalCancelBtn: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCancelText: {
+    fontSize: 15,
+    fontFamily: 'Inter_500Medium',
+  },
+  modalConfirmBtn: {},
+  modalConfirmGradient: {
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+  },
+  modalConfirmText: {
+    fontSize: 16,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#fff',
   },
 });

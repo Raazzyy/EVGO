@@ -4,7 +4,7 @@ import {
   TouchableOpacity, Platform, PanResponder, Dimensions,
 } from 'react-native';
 import Animated, {
-  useSharedValue, useAnimatedStyle, withSpring, withTiming,
+  useSharedValue, useAnimatedStyle, withTiming, Easing,
   FadeInDown, FadeInRight, Layout,
 } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
@@ -22,18 +22,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SHEET_MIN = 190;
 const SHEET_MAX = SCREEN_HEIGHT * 0.65;
+const IOS_EASE = Easing.bezier(0.25, 0.46, 0.45, 0.94);
 const STATUS_ORDER: Record<string, number> = { free: 0, occupied: 1, offline: 2 };
-
 type FilterStatus = 'all' | 'my-cars' | 'ac' | 'dc' | 'free';
 
 const DEFAULT_FILTERS: FiltersState = {
-  connectorTypes: [],
-  availability: 'all',
-  amenities: [],
-  minPowerKw: 3,
-  maxPowerKw: 350,
-  maxPriceSum: 5000,
-  vehicleId: null,
+  connectorTypes: [], availability: 'all', amenities: [],
+  minPowerKw: 3, maxPowerKw: 350, maxPriceSum: 5000, vehicleId: null,
 };
 
 export default function MapScreen() {
@@ -48,49 +43,42 @@ export default function MapScreen() {
   const [filtersVisible, setFiltersVisible] = useState(false);
   const [activeFilters, setActiveFilters] = useState<FiltersState>(DEFAULT_FILTERS);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [isExpanded, setIsExpanded] = useState(false); // state not ref → triggers re-renders
 
-  // Sheet animation via Reanimated
+  // Sheet animation — smooth iOS timing
   const sheetHeight = useSharedValue(SHEET_MIN);
-  const expanded = useRef(false);
-
-  const sheetStyle = useAnimatedStyle(() => ({
-    height: sheetHeight.value,
-  }));
+  const sheetStyle = useAnimatedStyle(() => ({ height: sheetHeight.value }));
 
   function openSheet() {
-    expanded.current = true;
-    sheetHeight.value = withSpring(SHEET_MAX, { damping: 20, stiffness: 200 });
+    setIsExpanded(true);
+    sheetHeight.value = withTiming(SHEET_MAX, { duration: 380, easing: IOS_EASE });
   }
   function closeSheet() {
-    expanded.current = false;
-    sheetHeight.value = withSpring(SHEET_MIN, { damping: 20, stiffness: 200 });
+    setIsExpanded(false);
+    sheetHeight.value = withTiming(SHEET_MIN, { duration: 320, easing: IOS_EASE });
   }
 
-  // Swipe pan responder on the sheet handle
+  // Swipe gesture
+  const gestureStart = useRef(SHEET_MIN);
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dy) > 5,
+      onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dy) > 6,
+      onPanResponderGrant: () => {
+        gestureStart.current = sheetHeight.value as number;
+      },
       onPanResponderMove: (_, gs) => {
-        const base = expanded.current ? SHEET_MAX : SHEET_MIN;
-        const next = Math.max(SHEET_MIN, Math.min(SHEET_MAX, base - gs.dy));
+        const next = Math.max(SHEET_MIN, Math.min(SHEET_MAX, gestureStart.current - gs.dy));
         sheetHeight.value = next;
       },
       onPanResponderRelease: (_, gs) => {
-        if (gs.dy < -40) openSheet();
-        else if (gs.dy > 40) closeSheet();
-        else {
-          // snap back
-          sheetHeight.value = withSpring(
-            expanded.current ? SHEET_MAX : SHEET_MIN,
-            { damping: 20, stiffness: 200 }
-          );
-        }
+        if (gs.dy < -50 || sheetHeight.value > (SHEET_MIN + SHEET_MAX) / 2) openSheet();
+        else closeSheet();
       },
     })
   ).current;
 
-  // Request geolocation on mount
+  // Geolocation on mount
   useEffect(() => {
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -104,73 +92,40 @@ export default function MapScreen() {
   const { data: vehicles = [] } = useGetVehicles();
   const defaultVehicle = vehicles.find((v) => v.id === selectedVehicleId) ?? vehicles[0];
 
-  const { data: stationsData } = useGetStations(undefined, {
-    query: { refetchInterval: 30_000 },
-  });
-
+  const { data: stationsData } = useGetStations(undefined, { query: { refetchInterval: 30_000 } });
   const allStations = useMemo(() => (stationsData?.nearby ?? []) as any[], [stationsData]);
   const promotedFromApi = useMemo(() => (stationsData?.promoted ?? []) as any[], [stationsData]);
 
-  // ── Apply chip filter ────────────────────────────────────────────────
-  const applyChipFilter = useCallback(
-    <T extends { status: string; connectors?: unknown }>(list: T[]): T[] => {
-      if (activeChip === 'free') return list.filter((s) => s.status === 'free');
-      if (activeChip === 'my-cars' && defaultVehicle?.connector_type) {
-        return list.filter((s) => {
-          const conns = ((s as any).connectors ?? []) as any[];
-          return conns.some((c) => c.type === defaultVehicle.connector_type);
-        });
-      }
-      if (activeChip === 'ac') {
-        return list.filter((s) => {
-          const conns = ((s as any).connectors ?? []) as any[];
-          return conns.some((c) => ['Type2', 'Type 2', 'AC'].includes(c.type));
-        });
-      }
-      if (activeChip === 'dc') {
-        return list.filter((s) => {
-          const conns = ((s as any).connectors ?? []) as any[];
-          return conns.some((c) => ['CCS2', 'CHAdeMO', 'GB/T', 'GB-T', 'DC'].includes(c.type));
-        });
-      }
-      return list;
-    },
-    [activeChip, defaultVehicle]
-  );
+  const applyChipFilter = useCallback(<T extends { status: string }>(list: T[]): T[] => {
+    if (activeChip === 'free') return list.filter(s => s.status === 'free');
+    if (activeChip === 'my-cars' && defaultVehicle?.connector_type) {
+      return list.filter(s => ((s as any).connectors ?? []).some((c: any) => c.type === defaultVehicle.connector_type));
+    }
+    if (activeChip === 'ac') return list.filter(s => ((s as any).connectors ?? []).some((c: any) => ['Type2', 'Type 2', 'AC'].includes(c.type)));
+    if (activeChip === 'dc') return list.filter(s => ((s as any).connectors ?? []).some((c: any) => ['CCS2', 'CHAdeMO', 'GB/T', 'DC'].includes(c.type)));
+    return list;
+  }, [activeChip, defaultVehicle]);
 
-  // ── Apply FiltersSheet filters ───────────────────────────────────────
-  const applySheetFilter = useCallback(
-    (list: any[]): any[] => {
-      let r = list;
-      if (activeFilters.availability === 'free') r = r.filter((s) => s.status === 'free');
-      if (activeFilters.availability === 'busy') r = r.filter((s) => s.status === 'occupied');
-      if (activeFilters.connectorTypes.length > 0) {
-        r = r.filter((s) => {
-          const conns: any[] = s.connectors ?? [];
-          return conns.some((c) => activeFilters.connectorTypes.includes(c.type));
-        });
-      }
-      r = r.filter((s) => s.power_kw >= activeFilters.minPowerKw && s.power_kw <= activeFilters.maxPowerKw);
-      r = r.filter((s) => s.price_per_kwh <= activeFilters.maxPriceSum);
-      return r;
-    },
-    [activeFilters]
-  );
+  const applySheetFilter = useCallback((list: any[]): any[] => {
+    let r = list;
+    if (activeFilters.availability === 'free') r = r.filter(s => s.status === 'free');
+    if (activeFilters.availability === 'busy') r = r.filter(s => s.status === 'occupied');
+    if (activeFilters.connectorTypes.length > 0)
+      r = r.filter(s => ((s.connectors ?? []) as any[]).some(c => activeFilters.connectorTypes.includes(c.type)));
+    r = r.filter(s => s.power_kw >= activeFilters.minPowerKw && s.power_kw <= activeFilters.maxPowerKw);
+    r = r.filter(s => s.price_per_kwh <= activeFilters.maxPriceSum);
+    return r;
+  }, [activeFilters]);
 
-  const hasActiveFilters =
-    activeFilters.connectorTypes.length > 0 ||
-    activeFilters.availability !== 'all' ||
-    activeFilters.amenities.length > 0 ||
-    activeFilters.maxPriceSum < 5000 ||
-    activeFilters.minPowerKw > 3 ||
-    activeFilters.maxPowerKw < 350;
+  const hasActiveFilters = activeFilters.connectorTypes.length > 0 || activeFilters.availability !== 'all'
+    || activeFilters.amenities.length > 0 || activeFilters.maxPriceSum < 5000
+    || activeFilters.minPowerKw > 3 || activeFilters.maxPowerKw < 350;
 
-  // ── Filtered + sorted (free first) ──────────────────────────────────
   const filteredStations = useMemo(() => {
     let r = allStations;
     if (search.trim()) {
       const q = search.toLowerCase();
-      r = r.filter((s) => s.name.toLowerCase().includes(q) || s.address.toLowerCase().includes(q));
+      r = r.filter(s => s.name.toLowerCase().includes(q) || s.address.toLowerCase().includes(q));
     }
     r = applyChipFilter(r);
     r = applySheetFilter(r);
@@ -183,39 +138,33 @@ export default function MapScreen() {
   const promotedStations = useMemo(() => {
     if (!search.trim()) return promotedFromApi;
     const q = search.toLowerCase();
-    return promotedFromApi.filter((s) => s.name.toLowerCase().includes(q) || s.address.toLowerCase().includes(q));
+    return promotedFromApi.filter(s => s.name.toLowerCase().includes(q) || s.address.toLowerCase().includes(q));
   }, [promotedFromApi, search]);
 
-  const markers = useMemo(
-    () =>
-      filteredStations.map((s) => ({
-        id: s.id, lat: s.lat, lng: s.lng,
-        name: s.name, status: s.status,
-        power_kw: s.power_kw, price_per_kwh: s.price_per_kwh,
-      })),
-    [filteredStations]
-  );
+  const markers = useMemo(() => filteredStations.map(s => ({
+    id: s.id, lat: s.lat, lng: s.lng, name: s.name, status: s.status,
+    power_kw: s.power_kw, price_per_kwh: s.price_per_kwh,
+  })), [filteredStations]);
 
   const topOffset = Platform.OS === 'web' ? 0 : insets.top;
   const bottomPad = Platform.OS === 'web' ? 34 + 84 : insets.bottom + 100;
 
-  // ── TOP BAR (bell only on right now) ────────────────────────────────
+  const routeFor = (s: any) =>
+    `/route/new?stationId=${s.id}&stationName=${encodeURIComponent(s.name)}&lat=${s.lat}&lng=${s.lng}` as any;
+
+  // ── TOP BAR ────────────────────────────────────────────────────────────
   const TopBar = (
     <View style={[styles.topBar, { top: topOffset + 8 }]}>
       <Text style={[styles.logo, { color: colors.primary }]}>iON</Text>
       <View style={[styles.segmentControl, { backgroundColor: colors.card }]}>
-        {(['map', 'list'] as const).map((mode) => (
+        {(['map', 'list'] as const).map(mode => (
           <TouchableOpacity
             key={mode}
             onPress={() => setViewMode(mode)}
             style={[styles.segmentBtn, viewMode === mode && styles.segmentBtnActive]}
           >
             {viewMode === mode && (
-              <LinearGradient
-                colors={[colors.gradientStart, colors.gradientEnd]}
-                style={StyleSheet.absoluteFill}
-                borderRadius={100}
-              />
+              <LinearGradient colors={[colors.gradientStart, colors.gradientEnd]} style={StyleSheet.absoluteFill} borderRadius={100} />
             )}
             <Text style={[styles.segmentText, { color: viewMode === mode ? '#fff' : colors.mutedForeground }]}>
               {mode === 'map' ? 'Карта' : 'Список'}
@@ -223,77 +172,40 @@ export default function MapScreen() {
           </TouchableOpacity>
         ))}
       </View>
-      <TouchableOpacity
-        style={[styles.iconBtn, { backgroundColor: colors.card }]}
-        onPress={() => router.push('/notifications')}
-      >
+      <TouchableOpacity style={[styles.iconBtn, { backgroundColor: colors.card }]} onPress={() => router.push('/notifications')}>
         <Feather name="bell" size={18} color={colors.text} />
       </TouchableOpacity>
     </View>
   );
 
-  // ── FILTER CHIPS ROW (filter icon is first) ──────────────────────────
+  // ── FILTER CHIPS (filter icon first) ──────────────────────────────────
   const FilterChips = (
     <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
+      horizontal showsHorizontalScrollIndicator={false}
       style={[styles.filterScroll, { top: topOffset + 60 }]}
       contentContainerStyle={styles.filterRow}
     >
-      {/* Filter button — first item */}
       <TouchableOpacity
         onPress={() => setFiltersVisible(true)}
-        style={[
-          styles.filterPill,
-          {
-            backgroundColor: hasActiveFilters ? 'transparent' : colors.card,
-            borderColor: hasActiveFilters ? 'transparent' : colors.border,
-          },
-        ]}
+        style={[styles.filterPill, { backgroundColor: hasActiveFilters ? 'transparent' : colors.card, borderColor: hasActiveFilters ? 'transparent' : colors.border }]}
       >
-        {hasActiveFilters && (
-          <LinearGradient
-            colors={[colors.gradientStart, colors.gradientEnd]}
-            style={StyleSheet.absoluteFill}
-            borderRadius={20}
-          />
-        )}
-        <Feather
-          name="sliders"
-          size={14}
-          color={hasActiveFilters ? '#fff' : colors.text}
-          style={{ position: 'relative', zIndex: 1 }}
-        />
-        <Text style={[styles.filterText, { color: hasActiveFilters ? '#fff' : colors.text }]}>
-          Фильтры{hasActiveFilters ? ' ●' : ''}
-        </Text>
+        {hasActiveFilters && <LinearGradient colors={[colors.gradientStart, colors.gradientEnd]} style={StyleSheet.absoluteFill} borderRadius={20} />}
+        <Feather name="sliders" size={14} color={hasActiveFilters ? '#fff' : colors.text} style={{ position: 'relative', zIndex: 1 }} />
+        <Text style={[styles.filterText, { color: hasActiveFilters ? '#fff' : colors.text }]}>Фильтры{hasActiveFilters ? ' ●' : ''}</Text>
       </TouchableOpacity>
 
-      {/* Chip filters */}
       {([
-        { id: 'all', label: 'Все' },
-        { id: 'free', label: 'Свободные' },
-        { id: 'my-cars', label: 'Мои машины' },
-        { id: 'ac', label: 'AC' },
-        { id: 'dc', label: 'DC' },
-      ] as { id: FilterStatus; label: string }[]).map((f) => {
+        { id: 'all', label: 'Все' }, { id: 'free', label: 'Свободные' },
+        { id: 'my-cars', label: 'Мои машины' }, { id: 'ac', label: 'AC' }, { id: 'dc', label: 'DC' },
+      ] as { id: FilterStatus; label: string }[]).map(f => {
         const isActive = activeChip === f.id;
         return (
           <TouchableOpacity
             key={f.id}
             onPress={() => setActiveChip(f.id)}
-            style={[
-              styles.filterPill,
-              { backgroundColor: isActive ? 'transparent' : colors.card, borderColor: isActive ? 'transparent' : colors.border },
-            ]}
+            style={[styles.filterPill, { backgroundColor: isActive ? 'transparent' : colors.card, borderColor: isActive ? 'transparent' : colors.border }]}
           >
-            {isActive && (
-              <LinearGradient
-                colors={[colors.gradientStart, colors.gradientEnd]}
-                style={StyleSheet.absoluteFill}
-                borderRadius={20}
-              />
-            )}
+            {isActive && <LinearGradient colors={[colors.gradientStart, colors.gradientEnd]} style={StyleSheet.absoluteFill} borderRadius={20} />}
             <Text style={[styles.filterText, { color: isActive ? '#fff' : colors.text }]}>{f.label}</Text>
           </TouchableOpacity>
         );
@@ -301,7 +213,7 @@ export default function MapScreen() {
     </ScrollView>
   );
 
-  // ── LIST MODE ────────────────────────────────────────────────────────
+  // ── LIST VIEW ──────────────────────────────────────────────────────────
   if (viewMode === 'list') {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, paddingTop: topOffset }]}>
@@ -311,16 +223,10 @@ export default function MapScreen() {
             <Feather name="search" size={16} color={colors.mutedForeground} />
             <TextInput
               style={[styles.searchText, { color: colors.text }]}
-              placeholder="Поиск станций…"
-              placeholderTextColor={colors.mutedForeground}
-              value={search}
-              onChangeText={setSearch}
+              placeholder="Поиск станций…" placeholderTextColor={colors.mutedForeground}
+              value={search} onChangeText={setSearch}
             />
-            {search ? (
-              <TouchableOpacity onPress={() => setSearch('')}>
-                <Feather name="x" size={16} color={colors.mutedForeground} />
-              </TouchableOpacity>
-            ) : null}
+            {search ? <TouchableOpacity onPress={() => setSearch('')}><Feather name="x" size={16} color={colors.mutedForeground} /></TouchableOpacity> : null}
           </View>
         </View>
         {FilterChips}
@@ -329,46 +235,34 @@ export default function MapScreen() {
           showsVerticalScrollIndicator={false}
         >
           {filteredStations.map((s, i) => (
-            <Animated.View key={s.id} entering={FadeInDown.delay(i * 40).springify()} layout={Layout.springify()}>
-              <StationCard
-                station={s}
-                onPress={() => router.push(`/station/${s.id}`)}
-                onRoute={() =>
-                  router.push(
-                    `/route/new?stationId=${s.id}&stationName=${encodeURIComponent(s.name)}&lat=${s.lat}&lng=${s.lng}` as any
-                  )
-                }
-              />
+            <Animated.View
+              key={s.id}
+              entering={FadeInDown.delay(i * 35).duration(300).easing(IOS_EASE)}
+              layout={Layout.duration(250).easing(IOS_EASE)}
+            >
+              <StationCard station={s} onPress={() => router.push(`/station/${s.id}`)} onRoute={() => router.push(routeFor(s))} />
             </Animated.View>
           ))}
         </ScrollView>
-        <FiltersSheet
-          visible={filtersVisible}
-          onClose={() => setFiltersVisible(false)}
-          onApply={(f) => setActiveFilters(f)}
-        />
+        <FiltersSheet visible={filtersVisible} onClose={() => setFiltersVisible(false)} onApply={(f) => setActiveFilters(f)} />
       </View>
     );
   }
 
-  // ── MAP MODE ─────────────────────────────────────────────────────────
+  // ── MAP VIEW ───────────────────────────────────────────────────────────
   return (
     <View style={styles.container}>
       <MapViewWrapper
-        ref={mapRef}
-        stations={markers}
-        userLocation={userLocation}
-        onStationPress={(id) => router.push(`/station/${id}`)}
+        ref={mapRef} stations={markers} userLocation={userLocation}
+        onStationPress={id => router.push(`/station/${id}`)}
       />
-
       {TopBar}
       {FilterChips}
 
       {/* Bottom sheet with swipe */}
       <Animated.View style={[styles.sheet, { backgroundColor: colors.card }, sheetStyle]}>
-        {/* Handle — swipeable area */}
         <View style={styles.handleArea} {...panResponder.panHandlers}>
-          <TouchableOpacity onPress={() => (expanded.current ? closeSheet() : openSheet())} activeOpacity={1}>
+          <TouchableOpacity onPress={() => isExpanded ? closeSheet() : openSheet()} activeOpacity={1}>
             <View style={[styles.handle, { backgroundColor: colors.mutedForeground, opacity: 0.3 }]} />
           </TouchableOpacity>
         </View>
@@ -377,9 +271,9 @@ export default function MapScreen() {
           style={styles.sheetScroll}
           contentContainerStyle={[styles.sheetContent, { paddingBottom: bottomPad }]}
           showsVerticalScrollIndicator={false}
-          scrollEnabled={expanded.current}
+          scrollEnabled={isExpanded}
         >
-          {expanded.current ? (
+          {isExpanded ? (
             <>
               {promotedStations.length > 0 && (
                 <>
@@ -389,70 +283,49 @@ export default function MapScreen() {
                       <Text style={[styles.adBadgeText, { color: colors.mutedForeground }]}>Реклама</Text>
                     </View>
                   </View>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.promoScroll}
-                  >
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.promoScroll}>
                     {promotedStations.map((s, i) => (
-                      <Animated.View key={s.id} entering={FadeInRight.delay(i * 60).springify()} style={{ width: 280, marginRight: 12 }}>
-                        <StationCard
-                          station={s}
-                          onPress={() => router.push(`/station/${s.id}`)}
-                          onRoute={() =>
-                            router.push(
-                              `/route/new?stationId=${s.id}&stationName=${encodeURIComponent(s.name)}&lat=${s.lat}&lng=${s.lng}` as any
-                            )
-                          }
-                          compact={true}
-                          discount_pct={(s as any).discount_pct}
-                          is_promoted={true}
-                          amenities={(s as any).amenities}
-                        />
+                      <Animated.View key={s.id} entering={FadeInRight.delay(i * 50).duration(280).easing(IOS_EASE)} style={{ width: 280, marginRight: 12 }}>
+                        <StationCard station={s} onPress={() => router.push(`/station/${s.id}`)} onRoute={() => router.push(routeFor(s))}
+                          compact={true} discount_pct={(s as any).discount_pct} is_promoted={true} amenities={(s as any).amenities} />
                       </Animated.View>
                     ))}
                   </ScrollView>
                 </>
               )}
               <Text style={[styles.sectionTitle, { color: colors.text, marginTop: 16, marginBottom: 12 }]}>
-                {activeChip === 'free' ? 'Свободные станции' :
-                 activeChip === 'ac' ? 'AC станции' :
-                 activeChip === 'dc' ? 'DC станции' : 'Рядом с вами'}
+                {activeChip === 'free' ? 'Свободные станции' : activeChip === 'ac' ? 'AC станции' : activeChip === 'dc' ? 'DC станции' : 'Рядом с вами'}
               </Text>
               {filteredStations.map((s, i) => (
-                <Animated.View key={s.id} entering={FadeInDown.delay(i * 35).springify()} layout={Layout.springify()}>
-                  <StationCard
-                    station={s}
-                    onPress={() => router.push(`/station/${s.id}`)}
-                    onRoute={() =>
-                      router.push(
-                        `/route/new?stationId=${s.id}&stationName=${encodeURIComponent(s.name)}&lat=${s.lat}&lng=${s.lng}` as any
-                      )
-                    }
-                    discount_pct={(s as any).discount_pct}
-                  />
+                <Animated.View key={s.id} entering={FadeInDown.delay(i * 30).duration(280).easing(IOS_EASE)} layout={Layout.duration(220).easing(IOS_EASE)}>
+                  <StationCard station={s} onPress={() => router.push(`/station/${s.id}`)} onRoute={() => router.push(routeFor(s))} discount_pct={(s as any).discount_pct} />
                 </Animated.View>
               ))}
             </>
           ) : (
-            filteredStations[0] && (
-              <Animated.View entering={FadeInDown.springify()}>
+            // Collapsed: show ALL stations in a scroll, not just first one
+            filteredStations.length > 0 && (
+              <Animated.View entering={FadeInDown.duration(280).easing(IOS_EASE)}>
                 <StationCard
                   station={filteredStations[0]}
                   onPress={() => router.push(`/station/${filteredStations[0].id}`)}
-                  onRoute={() =>
-                    router.push(
-                      `/route/new?stationId=${filteredStations[0].id}&stationName=${encodeURIComponent(filteredStations[0].name)}&lat=${filteredStations[0].lat}&lng=${filteredStations[0].lng}` as any
-                    )
-                  }
+                  onRoute={() => router.push(routeFor(filteredStations[0]))}
                 />
+                {filteredStations.length > 1 && (
+                  <TouchableOpacity onPress={openSheet} style={styles.showMoreBtn}>
+                    <Text style={[styles.showMoreText, { color: colors.primary }]}>
+                      + ещё {filteredStations.length - 1} станций
+                    </Text>
+                    <Feather name="chevron-up" size={14} color={colors.primary} />
+                  </TouchableOpacity>
+                )}
               </Animated.View>
             )
           )}
         </ScrollView>
       </Animated.View>
 
-      {/* Map controls — rendered AFTER sheet */}
+      {/* Map controls — after sheet in DOM */}
       <View style={styles.mapControls} pointerEvents="box-none">
         <TouchableOpacity style={styles.mapBtn} onPress={() => mapRef.current?.locate()} activeOpacity={0.8}>
           <Feather name="navigation" size={18} color="#1E293B" />
@@ -468,62 +341,28 @@ export default function MapScreen() {
         </View>
       </View>
 
-      <FiltersSheet
-        visible={filtersVisible}
-        onClose={() => setFiltersVisible(false)}
-        onApply={(f) => setActiveFilters(f)}
-      />
+      <FiltersSheet visible={filtersVisible} onClose={() => setFiltersVisible(false)} onApply={(f) => setActiveFilters(f)} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  topBar: {
-    position: 'absolute', left: 16, right: 16, zIndex: 20,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-  },
+  topBar: { position: 'absolute', left: 16, right: 16, zIndex: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   logo: { fontSize: 22, fontFamily: 'Inter_700Bold' },
-  segmentControl: {
-    flexDirection: 'row', borderRadius: 100, padding: 4,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12, shadowRadius: 8, elevation: 4,
-  },
-  segmentBtn: {
-    paddingHorizontal: 16, paddingVertical: 6, borderRadius: 100,
-    alignItems: 'center', justifyContent: 'center',
-    position: 'relative', overflow: 'hidden',
-  },
+  segmentControl: { flexDirection: 'row', borderRadius: 100, padding: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 8, elevation: 4 },
+  segmentBtn: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 100, alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' },
   segmentBtnActive: {},
   segmentText: { fontSize: 13, fontFamily: 'Inter_600SemiBold', position: 'relative', zIndex: 1 },
-  iconBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1, shadowRadius: 4, elevation: 2,
-  },
+  iconBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 },
   filterScroll: { position: 'absolute', left: 0, right: 0, zIndex: 20 },
   filterRow: { paddingHorizontal: 16, gap: 8 },
-  filterPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06, shadowRadius: 3, elevation: 1,
-    position: 'relative', overflow: 'hidden',
-  },
+  filterPill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 3, elevation: 1, position: 'relative', overflow: 'hidden' },
   filterText: { fontSize: 13, fontFamily: 'Inter_500Medium', position: 'relative', zIndex: 1 },
   searchWrap: { paddingHorizontal: 16, marginBottom: 8 },
-  searchInput: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, borderWidth: 1,
-  },
+  searchInput: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, borderWidth: 1 },
   searchText: { flex: 1, fontSize: 15, fontFamily: 'Inter_400Regular' },
-  sheet: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    shadowColor: '#000', shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.1, shadowRadius: 16, elevation: 20,
-  },
+  sheet: { position: 'absolute', bottom: 0, left: 0, right: 0, borderTopLeftRadius: 24, borderTopRightRadius: 24, shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.1, shadowRadius: 16, elevation: 20 },
   handleArea: { alignItems: 'center', paddingTop: 12, paddingBottom: 8, width: '100%' },
   handle: { width: 36, height: 4, borderRadius: 2 },
   sheetScroll: { flex: 1 },
@@ -533,21 +372,11 @@ const styles = StyleSheet.create({
   adBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   adBadgeText: { fontSize: 10, fontFamily: 'Inter_600SemiBold' },
   promoScroll: { paddingBottom: 4 },
-  mapControls: {
-    position: 'absolute', right: 12, bottom: SHEET_MIN + 16,
-    alignItems: 'center', gap: 10, zIndex: 30,
-  },
-  mapBtn: {
-    width: 44, height: 44, borderRadius: 12, backgroundColor: '#FFFFFF',
-    alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15, shadowRadius: 6, elevation: 4,
-  },
-  zoomGroup: {
-    borderRadius: 12, overflow: 'hidden', backgroundColor: '#FFFFFF',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15, shadowRadius: 6, elevation: 4,
-  },
+  showMoreBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12 },
+  showMoreText: { fontSize: 14, fontFamily: 'Inter_500Medium' },
+  mapControls: { position: 'absolute', right: 12, bottom: SHEET_MIN + 16, alignItems: 'center', gap: 10, zIndex: 30 },
+  mapBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 6, elevation: 4 },
+  zoomGroup: { borderRadius: 12, overflow: 'hidden', backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 6, elevation: 4 },
   zoomBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   zoomDivider: { height: 1, backgroundColor: '#E2E8F0', width: 44 },
 });
