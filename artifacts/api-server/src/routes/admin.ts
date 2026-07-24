@@ -204,12 +204,27 @@ router.get("/admin/finance", adminAuth, async (req, res): Promise<void> => {
       .leftJoin(stationsTable, eq(stationsTable.id, sessionsTable.station_id))
       .where(and(filter, sql`${stationsTable.cost_price_per_kwh} is not null`));
 
+    // Coverage: % of stations with cost_price_per_kwh set
+    const [coverageRow] = await db
+      .select({
+        total:     count(),
+        with_cost: sql<number>`cast(count(${stationsTable.cost_price_per_kwh}) as int)`,
+      })
+      .from(stationsTable);
+
     const totalRev    = parseFloat(String(aggRow?.total_revenue ?? 0));
     const totalKwhV   = parseFloat(String(aggRow?.total_kwh ?? 0));
     const sessCnt     = Number(aggRow?.session_count ?? 0);
     const estCost     = Math.round(parseFloat(String(costRow?.estimated_cost ?? 0)));
     const estProfit   = Math.round(totalRev - estCost);
     const marginPct   = totalRev > 0 ? Math.round(((totalRev - estCost) / totalRev) * 1000) / 10 : 0;
+
+    // stations_with_cost_pct — coverage of cost_price_per_kwh
+    const totalStations = Number(coverageRow?.total ?? 0);
+    const withCost      = Number(coverageRow?.with_cost ?? 0);
+    const stationsWithCostPct = totalStations > 0
+      ? Math.round((withCost / totalStations) * 1000) / 10
+      : 0;
 
     // Build sparse rows first, then zero-fill to every calendar day in [fd, td]
     const sparseDaily = dailyRows.map(r => ({
@@ -231,6 +246,7 @@ router.get("/admin/finance", adminAuth, async (req, res): Promise<void> => {
         estimated_profit: estProfit,
         margin_pct:       marginPct,
       },
+      stations_with_cost_pct: stationsWithCostPct,
       daily: zeroPadDaily(sparseDaily, fd, td),
     };
   }
@@ -396,6 +412,7 @@ router.get("/admin/finance", adminAuth, async (req, res): Promise<void> => {
     from: fromDate.toISOString(),
     to:   toDate.toISOString(),
     summary: mainSummary,
+    stations_with_cost_pct: mainStats.stations_with_cost_pct,
     daily:   mainDaily,
     compare: compareResult,
     top_stations: topStations.map(s => ({

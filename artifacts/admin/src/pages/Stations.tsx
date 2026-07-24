@@ -232,12 +232,25 @@ function LivePricePreview({ form, onChange }: { form: DrawerForm; onChange: (k: 
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-3">
         <div className="space-y-1.5">
-          <Label className="text-xs">Закупочная (сум)</Label>
+          <Label className={`text-xs flex items-center gap-1 ${!form.cost_price_per_kwh ? "text-amber-600" : ""}`}>
+            Закупочная (сум)
+            {!form.cost_price_per_kwh && (
+              <AlertTriangle className="h-3 w-3 text-amber-500" />
+            )}
+          </Label>
           <Input
             type="number" step="100" placeholder="1 000"
             value={form.cost_price_per_kwh}
             onChange={(e) => handleCostChange(e.target.value)}
+            className={!form.cost_price_per_kwh
+              ? "border-amber-400 focus-visible:ring-amber-400 bg-amber-50/50 dark:bg-amber-950/20"
+              : ""}
           />
+          {!form.cost_price_per_kwh && (
+            <p className="text-[11px] text-amber-600 leading-snug">
+              Без закупочной цены оценка прибыли будет неполной
+            </p>
+          )}
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs">Маржа (%)</Label>

@@ -62,6 +62,7 @@ interface FinanceData {
   from: string;
   to: string;
   summary: PeriodSummary;
+  stations_with_cost_pct: number;
   daily:               DailyStat[];
   compare: {
     from: string;
@@ -157,8 +158,9 @@ interface KpiProps {
   warn?: boolean;
   iconBg?: string;
   delta?: number | null;
+  alert?: string;  // inline warning message shown below value
 }
-function KpiCard({ icon: Icon, label, value, sub, demo, warn, iconBg = "bg-primary/10 text-primary", delta }: KpiProps) {
+function KpiCard({ icon: Icon, label, value, sub, demo, warn, iconBg = "bg-primary/10 text-primary", delta, alert }: KpiProps) {
   return (
     <Card className="shadow-sm border-none bg-white dark:bg-card">
       <CardContent className="p-5">
@@ -173,6 +175,12 @@ function KpiCard({ icon: Icon, label, value, sub, demo, warn, iconBg = "bg-prima
               {delta !== undefined && delta !== null && <DeltaBadge delta={delta} />}
             </div>
             {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
+            {alert && (
+              <div className="flex items-center gap-1.5 mt-2 text-amber-700 dark:text-amber-400">
+                <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+                <p className="text-xs leading-snug">{alert}</p>
+              </div>
+            )}
           </div>
           <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${iconBg}`}>
             <Icon className="h-5 w-5" />
@@ -672,9 +680,12 @@ export default function Finance() {
                   icon={TrendingDown} demo
                   label="Себестоимость (оценка)"
                   value={formatUzs(s!.estimated_cost)}
-                  sub="По закупочной цене станций"
+                  sub={`По закупочной цене станций · охват ${data.stations_with_cost_pct ?? 0}%`}
                   iconBg="bg-amber-50 text-amber-700"
                   delta={cs ? calcDelta(s!.estimated_cost, cs.estimated_cost) : undefined}
+                  alert={(data.stations_with_cost_pct ?? 0) < 80
+                    ? `Только ${data.stations_with_cost_pct ?? 0}% станций имеют закупочную цену — оценка занижена`
+                    : undefined}
                 />
                 <KpiCard
                   icon={TrendingUp} demo
