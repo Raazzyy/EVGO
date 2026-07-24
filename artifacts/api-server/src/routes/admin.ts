@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { createHmac, timingSafeEqual } from "crypto";
-import { eq, count, sum, gte, lte, and, sql } from "drizzle-orm";
-import { db, stationsTable, sessionsTable, usersTable, operatorsTable, adminUsersTable, vehiclesTable } from "@workspace/db";
+import { eq, count, sum, gte, lte, and, sql, avg } from "drizzle-orm";
+import { db, stationsTable, sessionsTable, usersTable, operatorsTable, adminUsersTable, vehiclesTable, userVehiclesTable } from "@workspace/db";
 import { AdminLoginBody } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -225,16 +225,154 @@ router.get("/admin/finance", adminAuth, async (req, res): Promise<void> => {
     .groupBy(sessionsTable.connector_type)
     .orderBy(sql`count(*) desc`);
 
+  const sessionFilter = and(
+    eq(sessionsTable.status, "completed"),
+    gte(sessionsTable.started_at, fromDate),
+    lte(sessionsTable.started_at, toDate),
+  );
+
+  // ── Operator breakdown ─────────────────────────────────────────────────────
+  const operatorBreakdown = await db
+    .select({
+      operator_id: operatorsTable.id,
+      name:        operatorsTable.name,
+      revenue:     sum(sessionsTable.cost),
+      sessions:    count(),
+      kwh:         sum(sessionsTable.energy_kwh),
+    })
+    .from(sessionsTable)
+    .leftJoin(stationsTable, eq(stationsTable.id, sessionsTable.station_id))
+    .leftJoin(operatorsTable, eq(operatorsTable.id, stationsTable.operator_id))
+    .where(sessionFilter)
+    .groupBy(operatorsTable.id, operatorsTable.name)
+    .orderBy(sql`sum(${sessionsTable.cost}) desc nulls last`)
+    .limit(20);
+
+  // ── Hourly distribution ───────────────────────────────────────────────────
+  const hourlyRows = await db
+    .select({
+      hour:     sql<number>`extract(hour from ${sessionsTable.started_at})::int`,
+      sessions: count(),
+      kwh:      sum(sessionsTable.energy_kwh),
+    })
+    .from(sessionsTable)
+    .where(sessionFilter)
+    .groupBy(sql`extract(hour from ${sessionsTable.started_at})`)
+    .orderBy(sql`extract(hour from ${sessionsTable.started_at})`);
+
+  // ── Average session duration (seconds) ────────────────────────────────────
+  const [durationAgg] = await db
+    .select({
+      avg_sec: sql<number>`avg(extract(epoch from (${sessionsTable.ended_at} - ${sessionsTable.started_at})))`,
+    })
+    .from(sessionsTable)
+    .where(and(sessionFilter, sql`${sessionsTable.ended_at} is not null`));
+
+  // ── Cost estimates via station cost_price_per_kwh ─────────────────────────
+  const [costAgg] = await db
+    .select({
+      estimated_cost: sql<number>`sum(${sessionsTable.energy_kwh} * ${stationsTable.cost_price_per_kwh}::float)`,
+    })
+    .from(sessionsTable)
+    .leftJoin(stationsTable, eq(stationsTable.id, sessionsTable.station_id))
+    .where(and(sessionFilter, sql`${stationsTable.cost_price_per_kwh} is not null`));
+
+  const estimatedCost   = Math.round(parseFloat(String(costAgg?.estimated_cost ?? 0)));
+  const estimatedProfit = Math.round(totalRevenue - estimatedCost);
+  const marginPct = totalRevenue > 0
+    ? Math.round(((totalRevenue - estimatedCost) / totalRevenue) * 1000) / 10
+    : 0;
+
+  // ── User stats ────────────────────────────────────────────────────────────
+  const [totalUsersAgg] = await db.select({ total: count() }).from(usersTable);
+  const [newUsersAgg]   = await db
+    .select({ count: count() })
+    .from(usersTable)
+    .where(and(gte(usersTable.created_at, fromDate), lte(usersTable.created_at, toDate)));
+
+  const topUsersRows = await db
+    .select({
+      user_id:  sessionsTable.user_id,
+      sessions: count(),
+      kwh:      sum(sessionsTable.energy_kwh),
+      spent:    sum(sessionsTable.cost),
+    })
+    .from(sessionsTable)
+    .where(and(sessionFilter, sql`${sessionsTable.user_id} is not null`))
+    .groupBy(sessionsTable.user_id)
+    .orderBy(sql`sum(${sessionsTable.energy_kwh}) desc nulls last`)
+    .limit(10);
+
+  // Retention: % of active users who had > 1 session
+  const retentionRows = await db
+    .select({
+      user_id:       sessionsTable.user_id,
+      session_count: count(),
+    })
+    .from(sessionsTable)
+    .where(and(sessionFilter, sql`${sessionsTable.user_id} is not null`))
+    .groupBy(sessionsTable.user_id);
+
+  const totalActiveUsers   = retentionRows.length;
+  const returningUsers     = retentionRows.filter(r => Number(r.session_count) > 1).length;
+  const retentionPct = totalActiveUsers > 0
+    ? Math.round((returningUsers / totalActiveUsers) * 1000) / 10
+    : 0;
+
+  // ── Vehicle stats ─────────────────────────────────────────────────────────
+  const [totalVehiclesAgg] = await db.select({ count: count() }).from(userVehiclesTable);
+
+  const topModels = await db
+    .select({
+      make:  vehiclesTable.make,
+      model: vehiclesTable.model,
+      count: count(),
+    })
+    .from(userVehiclesTable)
+    .leftJoin(vehiclesTable, eq(vehiclesTable.id, userVehiclesTable.vehicle_id))
+    .where(sql`${vehiclesTable.make} is not null`)
+    .groupBy(vehiclesTable.make, vehiclesTable.model)
+    .orderBy(sql`count(*) desc`)
+    .limit(10);
+
+  // ── Low-traffic stations (all stations, not derived from top-20 revenue) ──
+  const stationSessionCounts = await db
+    .select({
+      id:            stationsTable.id,
+      name:          stationsTable.name,
+      session_count: sql<number>`cast(count(${sessionsTable.id}) as int)`,
+    })
+    .from(stationsTable)
+    .leftJoin(
+      sessionsTable,
+      and(
+        eq(sessionsTable.station_id, stationsTable.id),
+        eq(sessionsTable.status, "completed"),
+        gte(sessionsTable.started_at, fromDate),
+        lte(sessionsTable.started_at, toDate),
+      )
+    )
+    .groupBy(stationsTable.id, stationsTable.name)
+    .orderBy(sql`count(${sessionsTable.id}) asc`);
+
+  const lowTrafficStations = stationSessionCounts
+    .filter(s => s.session_count < 3)
+    .slice(0, 15);
+
   res.json({
     period,
     from: fromDate.toISOString(),
     to:   toDate.toISOString(),
     summary: {
-      total_revenue:  Math.round(totalRevenue),
-      total_kwh:      Math.round(totalKwh * 10) / 10,
-      session_count:  sessionCount,
-      avg_check:      Math.round(avgCheck),
-      unique_users:   Number(agg?.unique_users ?? 0),
+      total_revenue:     Math.round(totalRevenue),
+      total_kwh:         Math.round(totalKwh * 10) / 10,
+      session_count:     sessionCount,
+      avg_check:         Math.round(avgCheck),
+      unique_users:      Number(agg?.unique_users ?? 0),
+      avg_duration_sec:  Math.round(parseFloat(String(durationAgg?.avg_sec ?? 0))),
+      estimated_cost:    estimatedCost,
+      estimated_profit:  estimatedProfit,
+      margin_pct:        marginPct,
     },
     daily: dailyRows.map(r => ({
       day:      r.day,
@@ -249,12 +387,51 @@ router.get("/admin/finance", adminAuth, async (req, res): Promise<void> => {
       sessions:   Number(s.sessions),
       kwh:        Math.round(parseFloat(String(s.kwh ?? 0)) * 10) / 10,
     })),
+    operator_breakdown: operatorBreakdown.map(o => ({
+      operator_id: o.operator_id,
+      name:        o.name ?? "Независимая",
+      revenue:     Math.round(parseFloat(String(o.revenue ?? 0))),
+      sessions:    Number(o.sessions),
+      kwh:         Math.round(parseFloat(String(o.kwh ?? 0)) * 10) / 10,
+    })),
+    hourly_distribution: (() => {
+      const hourMap = new Map(hourlyRows.map(r => [Number(r.hour), r]));
+      return Array.from({ length: 24 }, (_, h) => {
+        const r = hourMap.get(h);
+        return {
+          hour:     h,
+          sessions: r ? Number(r.sessions) : 0,
+          kwh:      r ? Math.round(parseFloat(String(r.kwh ?? 0)) * 10) / 10 : 0,
+        };
+      });
+    })(),
+    user_stats: {
+      total_registered: Number(totalUsersAgg?.total ?? 0),
+      new_in_period:    Number(newUsersAgg?.count ?? 0),
+      active_in_period: Number(agg?.unique_users ?? 0),
+      retention_pct:    retentionPct,
+      top_users: topUsersRows.map(u => ({
+        user_id:  u.user_id ?? "anon",
+        sessions: Number(u.sessions),
+        kwh:      Math.round(parseFloat(String(u.kwh ?? 0)) * 10) / 10,
+        spent:    Math.round(parseFloat(String(u.spent ?? 0))),
+      })),
+    },
+    vehicle_stats: {
+      total_user_vehicles: Number(totalVehiclesAgg?.count ?? 0),
+      top_models: topModels.map(m => ({
+        make:  m.make ?? "Unknown",
+        model: m.model ?? "Unknown",
+        count: Number(m.count),
+      })),
+    },
     top_vehicles:    topVehicles.map(v => ({ connector_type: v.connector_type, count: Number(v.count) })),
     connector_split: connectorSplit.map(c => ({
       connector_type: c.connector_type ?? "unknown",
       sessions:       Number(c.sessions),
       revenue:        Math.round(parseFloat(String(c.revenue ?? 0))),
     })),
+    low_traffic_stations: lowTrafficStations,
   });
 });
 

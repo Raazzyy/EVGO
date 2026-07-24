@@ -12,6 +12,7 @@ import {
   LogOut,
   Tag,
   Image,
+  TrendingUp,
 } from "lucide-react";
 import {
   Sidebar,
@@ -45,15 +46,16 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   }
 
   const navItems = [
-    { label: "Dashboard", icon: LayoutDashboard, path: "/" },
-    { label: "Станции", icon: MapPin, path: "/stations" },
-    { label: "Операторы", icon: Briefcase, path: "/operators" },
-    { label: "Сессии", icon: BatteryCharging, path: "/sessions" },
-    { label: "Пользователи", icon: Users, path: "/users" },
-    { label: "Промо", icon: Tag, path: "/promos" },
-    { label: "Баннеры", icon: Image, path: "/banners" },
-    { label: "Автомобили", icon: Car, path: "/vehicles" },
-    { label: "Поддержка", icon: LifeBuoy, path: "/support" },
+    { label: "Dashboard",    icon: LayoutDashboard, path: "/" },
+    { label: "Финансы",      icon: TrendingUp,      path: "/finance" },
+    { label: "Станции",      icon: MapPin,           path: "/stations" },
+    { label: "Операторы",    icon: Briefcase,        path: "/operators" },
+    { label: "Сессии",       icon: BatteryCharging,  path: "/sessions" },
+    { label: "Пользователи", icon: Users,            path: "/users" },
+    { label: "Промо",        icon: Tag,              path: "/promos" },
+    { label: "Баннеры",      icon: Image,            path: "/banners" },
+    { label: "Автомобили",   icon: Car,              path: "/vehicles" },
+    { label: "Поддержка",    icon: LifeBuoy,         path: "/support" },
   ];
 
   const handleLogout = () => {

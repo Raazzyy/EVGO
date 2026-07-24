@@ -20,6 +20,7 @@ import Support from '@/pages/Support';
 import Vehicles from '@/pages/Vehicles';
 import Promos from '@/pages/Promos';
 import Banners from '@/pages/Banners';
+import Finance from '@/pages/Finance';
 
 const queryClient = new QueryClient();
 
@@ -70,6 +71,11 @@ function Router() {
       <Route path="/banners">
         <AdminLayout>
           <Banners />
+        </AdminLayout>
+      </Route>
+      <Route path="/finance">
+        <AdminLayout>
+          <Finance />
         </AdminLayout>
       </Route>
       <Route component={NotFound} />
