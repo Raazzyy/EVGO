@@ -12,7 +12,7 @@
  * - locate → animateToRegion on userLocation
  * - projectPoint → pointForCoordinate (used by StationQuickView overlay in index.tsx)
  */
-import React, { forwardRef, useImperativeHandle, useRef, useEffect, useState, useMemo } from 'react';
+import React, { forwardRef, useImperativeHandle, useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import { StyleSheet, View, Text } from 'react-native';
 import MapView, { Marker, Polyline, Callout, Region } from 'react-native-maps';
 import { Feather } from '@expo/vector-icons';
@@ -102,6 +102,16 @@ export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
     // Prevent MapView.onPress from clearing selection right after a Marker press.
     // react-native-maps fires both Marker.onPress AND MapView.onPress on the same tap.
     const markerJustPressed = useRef(false);
+
+    // Keep the latest onStationPress in a ref so markers never need to re-render
+    // when the parent changes the callback. With tracksViewChanges=false the native
+    // view won't re-render anyway, but the ref ensures the JS closure is always fresh.
+    const onStationPressRef = useRef(onStationPress);
+    useEffect(() => { onStationPressRef.current = onStationPress; }, [onStationPress]);
+
+    // Same for onMapPress
+    const onMapPressRef = useRef(onMapPress);
+    useEffect(() => { onMapPressRef.current = onMapPress; }, [onMapPress]);
 
     // ── Imperative API ──────────────────────────────────────────────────
     useImperativeHandle(ref, () => ({
@@ -257,7 +267,7 @@ export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
         }}
         onPress={() => {
           if (markerJustPressed.current) return; // swallow map-tap that piggybacks a marker tap
-          onMapPress?.();
+          onMapPressRef.current?.();
         }}
         showsUserLocation
         showsMyLocationButton={false}
@@ -278,7 +288,7 @@ export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
                 markerJustPressed.current = true;
                 // MapView.onPress fires ≈ a frame later; clear the flag after 200 ms
                 setTimeout(() => { markerJustPressed.current = false; }, 200);
-                onStationPress(s.id);
+                onStationPressRef.current(s.id);
               }}
               // tracksViewChanges=false prevents expensive re-renders on each map move
               tracksViewChanges={false}

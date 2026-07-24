@@ -617,8 +617,13 @@ export default function MapScreen() {
     is_promoted: !!(s as any).is_promoted,
   })), [filteredStations]);
 
+  // Use a ref so handleStationPress never changes — this keeps MapViewWrapper
+  // and all its markers stable (no re-render when a station is selected).
+  const selectedStationIdRef2 = useRef<number | null>(selectedStationId);
+  selectedStationIdRef2.current = selectedStationId;
+
   const handleStationPress = useCallback((id: number) => {
-    if (selectedStationId === id) {
+    if (selectedStationIdRef2.current === id) {
       // Second tap on the same pin → go to full page
       setSelectedStationId(null);
       setMarkerPos(null);
@@ -627,7 +632,8 @@ export default function MapScreen() {
       // First tap → show quick-view card
       setSelectedStationId(id);
     }
-  }, [selectedStationId, router]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router]); // stable — does NOT depend on selectedStationId
 
   const selectedStation = useMemo<QuickViewStation | null>(() => {
     if (selectedStationId == null) return null;
@@ -647,10 +653,16 @@ export default function MapScreen() {
     computeMarkerPos(selectedStation.lat, selectedStation.lng);
   }, [selectedStation?.id]);
 
+  // Debounce projectPoint during map pan — without debounce this fires ~60×/sec
+  // and floods the JS bridge with async calls, causing visible jank.
+  const regionChangeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleRegionChange = useCallback(() => {
     const s = selectedStationRef.current;
     if (!s) return;
-    mapRef.current?.projectPoint(s.lat, s.lng).then(pos => { if (pos) setMarkerPos(pos); });
+    if (regionChangeTimer.current) clearTimeout(regionChangeTimer.current);
+    regionChangeTimer.current = setTimeout(() => {
+      mapRef.current?.projectPoint(s.lat, s.lng).then((pos: { x: number; y: number } | null) => { if (pos) setMarkerPos(pos); });
+    }, 50); // ≈ 3 frames — smooth enough, cheap enough
   }, []);
 
   const topOffset  = Platform.OS === 'web' ? 0 : insets.top;
