@@ -108,6 +108,7 @@ router.get("/admin/dashboard", adminAuth, async (_req, res): Promise<void> => {
 
 // ── Finance summary ───────────────────────────────────────────────────────────
 // GET /api/admin/finance?period=day|week|month|custom&from=ISO&to=ISO
+//                       &compare_from=ISO&compare_to=ISO  (optional compare window)
 router.get("/admin/finance", adminAuth, async (req, res): Promise<void> => {
   const period = (req.query.period as string) ?? "month";
   const now = new Date();
@@ -133,46 +134,134 @@ router.get("/admin/finance", adminAuth, async (req, res): Promise<void> => {
     fromDate = new Date(now); fromDate.setDate(now.getDate() - 30);
   }
 
-  // ── Core aggregates from sessions ─────────────────────────────────────────
-  const [agg] = await db
-    .select({
-      total_revenue:   sum(sessionsTable.cost),
-      total_kwh:       sum(sessionsTable.energy_kwh),
-      session_count:   count(),
-      unique_users:    sql<number>`cast(count(distinct ${sessionsTable.user_id}) as int)`,
-    })
-    .from(sessionsTable)
-    .where(
-      and(
-        eq(sessionsTable.status, "completed"),
-        gte(sessionsTable.started_at, fromDate),
-        lte(sessionsTable.started_at, toDate),
-      )
+  // ── Helper: zero-pad daily series to every calendar day in [fd, td] ────────
+  function zeroPadDaily(
+    rows: { day: string; revenue: number; kwh: number; sessions: number }[],
+    fd: Date,
+    td: Date,
+  ): { day: string; revenue: number; kwh: number; sessions: number }[] {
+    const dayMap = new Map(rows.map(r => [r.day, r]));
+    const result: { day: string; revenue: number; kwh: number; sessions: number }[] = [];
+    // Iterate over UTC calendar days so the day strings match DB output
+    const cur = new Date(Date.UTC(fd.getUTCFullYear(), fd.getUTCMonth(), fd.getUTCDate()));
+    const last = new Date(Date.UTC(td.getUTCFullYear(), td.getUTCMonth(), td.getUTCDate()));
+    while (cur <= last) {
+      const dayStr = cur.toISOString().slice(0, 10);
+      const r = dayMap.get(dayStr);
+      result.push({
+        day:      dayStr,
+        revenue:  r ? Math.round(parseFloat(String(r.revenue  ?? 0))) : 0,
+        kwh:      r ? Math.round(parseFloat(String(r.kwh      ?? 0)) * 10) / 10 : 0,
+        sessions: r ? Number(r.sessions) : 0,
+      });
+      cur.setUTCDate(cur.getUTCDate() + 1);
+    }
+    return result;
+  }
+
+  // ── Helper: build summary + daily for any date window ─────────────────────
+  async function fetchPeriodStats(fd: Date, td: Date) {
+    const filter = and(
+      eq(sessionsTable.status, "completed"),
+      gte(sessionsTable.started_at, fd),
+      lte(sessionsTable.started_at, td),
     );
 
-  const totalRevenue  = parseFloat(String(agg?.total_revenue  ?? 0));
-  const totalKwh      = parseFloat(String(agg?.total_kwh      ?? 0));
-  const sessionCount  = Number(agg?.session_count ?? 0);
-  const avgCheck      = sessionCount > 0 ? totalRevenue / sessionCount : 0;
+    const [aggRow] = await db
+      .select({
+        total_revenue:   sum(sessionsTable.cost),
+        total_kwh:       sum(sessionsTable.energy_kwh),
+        session_count:   count(),
+        unique_users:    sql<number>`cast(count(distinct ${sessionsTable.user_id}) as int)`,
+      })
+      .from(sessionsTable)
+      .where(filter);
 
-  // ── Daily time-series (revenue + sessions per day) ─────────────────────────
-  const dailyRows = await db
-    .select({
-      day:     sql<string>`to_char(date_trunc('day', ${sessionsTable.started_at}), 'YYYY-MM-DD')`,
-      revenue: sum(sessionsTable.cost),
-      kwh:     sum(sessionsTable.energy_kwh),
-      sessions: count(),
-    })
-    .from(sessionsTable)
-    .where(
-      and(
-        eq(sessionsTable.status, "completed"),
-        gte(sessionsTable.started_at, fromDate),
-        lte(sessionsTable.started_at, toDate),
-      )
-    )
-    .groupBy(sql`date_trunc('day', ${sessionsTable.started_at})`)
-    .orderBy(sql`date_trunc('day', ${sessionsTable.started_at})`);
+    const dailyRows = await db
+      .select({
+        day:     sql<string>`to_char(date_trunc('day', ${sessionsTable.started_at}), 'YYYY-MM-DD')`,
+        revenue: sum(sessionsTable.cost),
+        kwh:     sum(sessionsTable.energy_kwh),
+        sessions: count(),
+      })
+      .from(sessionsTable)
+      .where(filter)
+      .groupBy(sql`date_trunc('day', ${sessionsTable.started_at})`)
+      .orderBy(sql`date_trunc('day', ${sessionsTable.started_at})`);
+
+    const [durationRow] = await db
+      .select({
+        avg_sec: sql<number>`avg(extract(epoch from (${sessionsTable.ended_at} - ${sessionsTable.started_at})))`,
+      })
+      .from(sessionsTable)
+      .where(and(filter, sql`${sessionsTable.ended_at} is not null`));
+
+    const [costRow] = await db
+      .select({
+        estimated_cost: sql<number>`sum(${sessionsTable.energy_kwh} * ${stationsTable.cost_price_per_kwh}::float)`,
+      })
+      .from(sessionsTable)
+      .leftJoin(stationsTable, eq(stationsTable.id, sessionsTable.station_id))
+      .where(and(filter, sql`${stationsTable.cost_price_per_kwh} is not null`));
+
+    const totalRev    = parseFloat(String(aggRow?.total_revenue ?? 0));
+    const totalKwhV   = parseFloat(String(aggRow?.total_kwh ?? 0));
+    const sessCnt     = Number(aggRow?.session_count ?? 0);
+    const estCost     = Math.round(parseFloat(String(costRow?.estimated_cost ?? 0)));
+    const estProfit   = Math.round(totalRev - estCost);
+    const marginPct   = totalRev > 0 ? Math.round(((totalRev - estCost) / totalRev) * 1000) / 10 : 0;
+
+    // Build sparse rows first, then zero-fill to every calendar day in [fd, td]
+    const sparseDaily = dailyRows.map(r => ({
+      day:      r.day,
+      revenue:  Math.round(parseFloat(String(r.revenue ?? 0))),
+      kwh:      Math.round(parseFloat(String(r.kwh ?? 0)) * 10) / 10,
+      sessions: Number(r.sessions),
+    }));
+
+    return {
+      summary: {
+        total_revenue:    Math.round(totalRev),
+        total_kwh:        Math.round(totalKwhV * 10) / 10,
+        session_count:    sessCnt,
+        avg_check:        sessCnt > 0 ? Math.round(totalRev / sessCnt) : 0,
+        unique_users:     Number(aggRow?.unique_users ?? 0),
+        avg_duration_sec: Math.round(parseFloat(String(durationRow?.avg_sec ?? 0))),
+        estimated_cost:   estCost,
+        estimated_profit: estProfit,
+        margin_pct:       marginPct,
+      },
+      daily: zeroPadDaily(sparseDaily, fd, td),
+    };
+  }
+
+  // ── Main period: summary + daily via helper ───────────────────────────────
+  const mainStats = await fetchPeriodStats(fromDate, toDate);
+  const { summary: mainSummary, daily: mainDaily } = mainStats;
+
+  // Legacy aliases still referenced below
+  const totalRevenue = mainSummary.total_revenue;
+  const totalKwh     = mainSummary.total_kwh;
+  const sessionCount = mainSummary.session_count;
+
+  // ── Compare period (optional) ─────────────────────────────────────────────
+  const compareFromStr = req.query.compare_from as string | undefined;
+  const compareToStr   = req.query.compare_to   as string | undefined;
+  let compareResult: { from: string; to: string; summary: typeof mainSummary; daily: typeof mainDaily } | null = null;
+  if (compareFromStr && compareToStr) {
+    const cFrom = new Date(compareFromStr);
+    const cTo   = new Date(compareToStr);
+    if (!isNaN(cFrom.getTime()) && !isNaN(cTo.getTime())) {
+      const cStats = await fetchPeriodStats(cFrom, cTo);
+      compareResult = { from: cFrom.toISOString(), to: cTo.toISOString(), ...cStats };
+    }
+  }
+
+  const sessionFilter = and(
+    eq(sessionsTable.status, "completed"),
+    gte(sessionsTable.started_at, fromDate),
+    lte(sessionsTable.started_at, toDate),
+  );
 
   // ── Top-20 stations by revenue ─────────────────────────────────────────────
   const topStations = await db
@@ -185,23 +274,14 @@ router.get("/admin/finance", adminAuth, async (req, res): Promise<void> => {
     })
     .from(sessionsTable)
     .leftJoin(stationsTable, eq(stationsTable.id, sessionsTable.station_id))
-    .where(
-      and(
-        eq(sessionsTable.status, "completed"),
-        gte(sessionsTable.started_at, fromDate),
-        lte(sessionsTable.started_at, toDate),
-      )
-    )
+    .where(sessionFilter)
     .groupBy(sessionsTable.station_id, stationsTable.name)
     .orderBy(sql`sum(${sessionsTable.cost}) desc nulls last`)
     .limit(20);
 
   // ── Top-10 vehicle models by connector type ────────────────────────────────
   const topVehicles = await db
-    .select({
-      connector_type: vehiclesTable.connector_type,
-      count:          count(),
-    })
+    .select({ connector_type: vehiclesTable.connector_type, count: count() })
     .from(vehiclesTable)
     .groupBy(vehiclesTable.connector_type)
     .orderBy(sql`count(*) desc`)
@@ -209,27 +289,11 @@ router.get("/admin/finance", adminAuth, async (req, res): Promise<void> => {
 
   // ── Connector split from sessions ──────────────────────────────────────────
   const connectorSplit = await db
-    .select({
-      connector_type: sessionsTable.connector_type,
-      sessions:       count(),
-      revenue:        sum(sessionsTable.cost),
-    })
+    .select({ connector_type: sessionsTable.connector_type, sessions: count(), revenue: sum(sessionsTable.cost) })
     .from(sessionsTable)
-    .where(
-      and(
-        eq(sessionsTable.status, "completed"),
-        gte(sessionsTable.started_at, fromDate),
-        lte(sessionsTable.started_at, toDate),
-      )
-    )
+    .where(sessionFilter)
     .groupBy(sessionsTable.connector_type)
     .orderBy(sql`count(*) desc`);
-
-  const sessionFilter = and(
-    eq(sessionsTable.status, "completed"),
-    gte(sessionsTable.started_at, fromDate),
-    lte(sessionsTable.started_at, toDate),
-  );
 
   // ── Operator breakdown ─────────────────────────────────────────────────────
   const operatorBreakdown = await db
@@ -260,29 +324,6 @@ router.get("/admin/finance", adminAuth, async (req, res): Promise<void> => {
     .groupBy(sql`extract(hour from ${sessionsTable.started_at})`)
     .orderBy(sql`extract(hour from ${sessionsTable.started_at})`);
 
-  // ── Average session duration (seconds) ────────────────────────────────────
-  const [durationAgg] = await db
-    .select({
-      avg_sec: sql<number>`avg(extract(epoch from (${sessionsTable.ended_at} - ${sessionsTable.started_at})))`,
-    })
-    .from(sessionsTable)
-    .where(and(sessionFilter, sql`${sessionsTable.ended_at} is not null`));
-
-  // ── Cost estimates via station cost_price_per_kwh ─────────────────────────
-  const [costAgg] = await db
-    .select({
-      estimated_cost: sql<number>`sum(${sessionsTable.energy_kwh} * ${stationsTable.cost_price_per_kwh}::float)`,
-    })
-    .from(sessionsTable)
-    .leftJoin(stationsTable, eq(stationsTable.id, sessionsTable.station_id))
-    .where(and(sessionFilter, sql`${stationsTable.cost_price_per_kwh} is not null`));
-
-  const estimatedCost   = Math.round(parseFloat(String(costAgg?.estimated_cost ?? 0)));
-  const estimatedProfit = Math.round(totalRevenue - estimatedCost);
-  const marginPct = totalRevenue > 0
-    ? Math.round(((totalRevenue - estimatedCost) / totalRevenue) * 1000) / 10
-    : 0;
-
   // ── User stats ────────────────────────────────────────────────────────────
   const [totalUsersAgg] = await db.select({ total: count() }).from(usersTable);
   const [newUsersAgg]   = await db
@@ -305,17 +346,14 @@ router.get("/admin/finance", adminAuth, async (req, res): Promise<void> => {
 
   // Retention: % of active users who had > 1 session
   const retentionRows = await db
-    .select({
-      user_id:       sessionsTable.user_id,
-      session_count: count(),
-    })
+    .select({ user_id: sessionsTable.user_id, session_count: count() })
     .from(sessionsTable)
     .where(and(sessionFilter, sql`${sessionsTable.user_id} is not null`))
     .groupBy(sessionsTable.user_id);
 
-  const totalActiveUsers   = retentionRows.length;
-  const returningUsers     = retentionRows.filter(r => Number(r.session_count) > 1).length;
-  const retentionPct = totalActiveUsers > 0
+  const totalActiveUsers = retentionRows.length;
+  const returningUsers   = retentionRows.filter(r => Number(r.session_count) > 1).length;
+  const retentionPct     = totalActiveUsers > 0
     ? Math.round((returningUsers / totalActiveUsers) * 1000) / 10
     : 0;
 
@@ -323,11 +361,7 @@ router.get("/admin/finance", adminAuth, async (req, res): Promise<void> => {
   const [totalVehiclesAgg] = await db.select({ count: count() }).from(userVehiclesTable);
 
   const topModels = await db
-    .select({
-      make:  vehiclesTable.make,
-      model: vehiclesTable.model,
-      count: count(),
-    })
+    .select({ make: vehiclesTable.make, model: vehiclesTable.model, count: count() })
     .from(userVehiclesTable)
     .leftJoin(vehiclesTable, eq(vehiclesTable.id, userVehiclesTable.vehicle_id))
     .where(sql`${vehiclesTable.make} is not null`)
@@ -335,7 +369,7 @@ router.get("/admin/finance", adminAuth, async (req, res): Promise<void> => {
     .orderBy(sql`count(*) desc`)
     .limit(10);
 
-  // ── Low-traffic stations (all stations, not derived from top-20 revenue) ──
+  // ── Low-traffic stations ──────────────────────────────────────────────────
   const stationSessionCounts = await db
     .select({
       id:            stationsTable.id,
@@ -355,31 +389,15 @@ router.get("/admin/finance", adminAuth, async (req, res): Promise<void> => {
     .groupBy(stationsTable.id, stationsTable.name)
     .orderBy(sql`count(${sessionsTable.id}) asc`);
 
-  const lowTrafficStations = stationSessionCounts
-    .filter(s => s.session_count < 3)
-    .slice(0, 15);
+  const lowTrafficStations = stationSessionCounts.filter(s => s.session_count < 3).slice(0, 15);
 
   res.json({
     period,
     from: fromDate.toISOString(),
     to:   toDate.toISOString(),
-    summary: {
-      total_revenue:     Math.round(totalRevenue),
-      total_kwh:         Math.round(totalKwh * 10) / 10,
-      session_count:     sessionCount,
-      avg_check:         Math.round(avgCheck),
-      unique_users:      Number(agg?.unique_users ?? 0),
-      avg_duration_sec:  Math.round(parseFloat(String(durationAgg?.avg_sec ?? 0))),
-      estimated_cost:    estimatedCost,
-      estimated_profit:  estimatedProfit,
-      margin_pct:        marginPct,
-    },
-    daily: dailyRows.map(r => ({
-      day:      r.day,
-      revenue:  Math.round(parseFloat(String(r.revenue ?? 0))),
-      kwh:      Math.round(parseFloat(String(r.kwh ?? 0)) * 10) / 10,
-      sessions: Number(r.sessions),
-    })),
+    summary: mainSummary,
+    daily:   mainDaily,
+    compare: compareResult,
     top_stations: topStations.map(s => ({
       station_id: s.station_id,
       name:       s.name ?? "Unknown",
@@ -408,7 +426,7 @@ router.get("/admin/finance", adminAuth, async (req, res): Promise<void> => {
     user_stats: {
       total_registered: Number(totalUsersAgg?.total ?? 0),
       new_in_period:    Number(newUsersAgg?.count ?? 0),
-      active_in_period: Number(agg?.unique_users ?? 0),
+      active_in_period: mainSummary.unique_users,
       retention_pct:    retentionPct,
       top_users: topUsersRows.map(u => ({
         user_id:  u.user_id ?? "anon",
