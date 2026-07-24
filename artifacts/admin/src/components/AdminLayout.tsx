@@ -9,7 +9,9 @@ import {
   Users, 
   LifeBuoy, 
   Car,
-  LogOut 
+  LogOut,
+  Tag,
+  Image,
 } from "lucide-react";
 import {
   Sidebar,
@@ -44,12 +46,14 @@ export function AdminLayout({ children }: AdminLayoutProps) {
 
   const navItems = [
     { label: "Dashboard", icon: LayoutDashboard, path: "/" },
-    { label: "Stations", icon: MapPin, path: "/stations" },
-    { label: "Operators", icon: Briefcase, path: "/operators" },
-    { label: "Sessions", icon: BatteryCharging, path: "/sessions" },
-    { label: "Users", icon: Users, path: "/users" },
-    { label: "Vehicles", icon: Car, path: "/vehicles" },
-    { label: "Support", icon: LifeBuoy, path: "/support" },
+    { label: "Станции", icon: MapPin, path: "/stations" },
+    { label: "Операторы", icon: Briefcase, path: "/operators" },
+    { label: "Сессии", icon: BatteryCharging, path: "/sessions" },
+    { label: "Пользователи", icon: Users, path: "/users" },
+    { label: "Промо", icon: Tag, path: "/promos" },
+    { label: "Баннеры", icon: Image, path: "/banners" },
+    { label: "Автомобили", icon: Car, path: "/vehicles" },
+    { label: "Поддержка", icon: LifeBuoy, path: "/support" },
   ];
 
   const handleLogout = () => {

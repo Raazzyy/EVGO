@@ -7,6 +7,17 @@ import { adminAuth } from "./admin";
 const router: IRouter = Router();
 
 // ── Validation schemas ────────────────────────────────────────────────────────
+// Accepts full ISO-8601 OR browser datetime-local "YYYY-MM-DDTHH:mm".
+// refine prevents RangeError from bubbling as 500; invalid input returns 400.
+const flexDatetime = z
+  .string()
+  .refine(
+    (v) => /Z|[+-]\d{2}:\d{2}$/.test(v) || !isNaN(new Date(v).getTime()),
+    { message: "Invalid datetime value" },
+  )
+  .transform((v) => (/Z|[+-]\d{2}:\d{2}$/.test(v) ? v : new Date(v).toISOString()))
+  .pipe(z.string().datetime());
+
 const BannerBody = z.object({
   title:             z.string().min(1),
   subtitle:          z.string().optional().nullable(),
@@ -17,11 +28,11 @@ const BannerBody = z.object({
   cta_text:          z.string().optional().nullable(),
   cta_target:        z.string().optional().nullable(),
   show_countdown:    z.boolean().default(false),
-  countdown_ends_at: z.string().datetime().optional().nullable(),
+  countdown_ends_at: flexDatetime.optional().nullable(),
   priority:          z.number().int().default(0),
   is_active:         z.boolean().default(true),
-  starts_at:         z.string().datetime().optional().nullable(),
-  ends_at:           z.string().datetime().optional().nullable(),
+  starts_at:         flexDatetime.optional().nullable(),
+  ends_at:           flexDatetime.optional().nullable(),
 });
 
 const BannerIdParam = z.object({ id: z.coerce.number().int().positive() });

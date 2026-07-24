@@ -18,6 +18,8 @@ import Sessions from '@/pages/Sessions';
 import Users from '@/pages/Users';
 import Support from '@/pages/Support';
 import Vehicles from '@/pages/Vehicles';
+import Promos from '@/pages/Promos';
+import Banners from '@/pages/Banners';
 
 const queryClient = new QueryClient();
 
@@ -58,6 +60,16 @@ function Router() {
       <Route path="/support">
         <AdminLayout>
           <Support />
+        </AdminLayout>
+      </Route>
+      <Route path="/promos">
+        <AdminLayout>
+          <Promos />
+        </AdminLayout>
+      </Route>
+      <Route path="/banners">
+        <AdminLayout>
+          <Banners />
         </AdminLayout>
       </Route>
       <Route component={NotFound} />
