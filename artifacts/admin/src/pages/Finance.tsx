@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
 import { formatUzs, formatUzsRaw } from "@/lib/formatUzs";
+import { exportXlsx } from "@/lib/exportXlsx";
 
 // ── API helpers ────────────────────────────────────────────────────────────────
 function apiBase() {
@@ -358,6 +359,72 @@ export default function Finance() {
     })));
   }
 
+  function exportAllXlsx() {
+    if (!data) return;
+    const periodLabel = data.period === "custom"
+      ? `${data.from.slice(0, 10)}_${data.to.slice(0, 10)}`
+      : data.period;
+
+    exportXlsx(`finance_report_${periodLabel}.xlsx`, [
+      {
+        name: "Финансы",
+        rows: [
+          // Summary block
+          { Показатель: "Оборот (сум)",                Значение: data.summary.total_revenue },
+          { Показатель: "Себестоимость оценка (сум)",  Значение: data.summary.estimated_cost },
+          { Показатель: "Валовая прибыль оценка (сум)",Значение: data.summary.estimated_profit },
+          { Показатель: "Маржа (%)",                   Значение: data.summary.margin_pct },
+          { Показатель: "Сессий",                      Значение: data.summary.session_count },
+          { Показатель: "кВт·ч",                       Значение: data.summary.total_kwh },
+          { Показатель: "Средний чек (сум)",           Значение: data.summary.avg_check },
+          { Показатель: "Уникальных пользователей",    Значение: data.summary.unique_users },
+        ],
+        numericKeys: ["Значение"],
+      },
+      {
+        name: "Станции",
+        rows: data.top_stations.map((s, i) => ({
+          "№":        i + 1,
+          Станция:    s.name,
+          "Оборот (сум)": s.revenue,
+          Сессии:     s.sessions,
+          "кВт·ч":    s.kwh,
+        })),
+        numericKeys: ["№", "Оборот (сум)", "Сессии", "кВт·ч"],
+      },
+      {
+        name: "Потребление",
+        rows: data.hourly_distribution.map(h => ({
+          Час:      `${h.hour}:00`,
+          Сессии:   h.sessions,
+          "кВт·ч":  h.kwh,
+        })),
+        numericKeys: ["Сессии", "кВт·ч"],
+      },
+      {
+        name: "Пользователи",
+        rows: data.user_stats.top_users.map((u, i) => ({
+          "№":           i + 1,
+          "ID пользователя": u.user_id,
+          Сессии:        u.sessions,
+          "кВт·ч":       u.kwh,
+          "Потрачено (сум)": u.spent,
+        })),
+        numericKeys: ["№", "Сессии", "кВт·ч", "Потрачено (сум)"],
+      },
+      {
+        name: "Автомобили",
+        rows: data.vehicle_stats.top_models.map((m, i) => ({
+          "№":    i + 1,
+          Марка:  m.make,
+          Модель: m.model,
+          Кол_во: m.count,
+        })),
+        numericKeys: ["№", "Кол_во"],
+      },
+    ]);
+  }
+
   const s = data?.summary;
 
   return (
@@ -380,6 +447,15 @@ export default function Finance() {
         </div>
         <div className="flex items-center gap-2">
           <PeriodFilter state={periodState} onChange={setPeriodState} />
+          {data && (
+            <Button
+              variant="outline" size="sm"
+              className="h-9 text-xs gap-1.5 text-emerald-700 border-emerald-200 hover:bg-emerald-50 dark:text-emerald-400 dark:border-emerald-800 dark:hover:bg-emerald-950"
+              onClick={exportAllXlsx}
+            >
+              <Download className="h-3.5 w-3.5" /> XLSX
+            </Button>
+          )}
           <Button variant="outline" size="icon" onClick={fetchData} disabled={loading}>
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           </Button>
