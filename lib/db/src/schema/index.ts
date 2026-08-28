@@ -4,6 +4,8 @@ export * from "./vehicles";
 export * from "./routes";
 export * from "./sessions";
 export * from "./users";
+export * from "./otp_codes";
+export * from "./refresh_tokens";
 export * from "./payment_methods";
 export * from "./admin_users";
 export * from "./support_tickets";
