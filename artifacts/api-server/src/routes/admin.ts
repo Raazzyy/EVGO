@@ -7,8 +7,16 @@ import { AdminLoginBody } from "@workspace/api-zod";
 const router: IRouter = Router();
 
 // ── Token helpers ──────────────────────────────────────────────────────────────
-const JWT_SECRET = (): string =>
-  process.env.ADMIN_JWT_SECRET ?? "ion_admin_fallback_dev_secret_change_me";
+/** Время жизни админ-токена. Токен без срока — это вечный ключ от админки. */
+const TOKEN_TTL_MS = 12 * 60 * 60 * 1000; // 12 часов
+
+const JWT_SECRET = (): string => {
+  const secret = process.env.ADMIN_JWT_SECRET;
+  // Fallback-секрета быть не должно: с известным значением токены подделывает
+  // кто угодно. Наличие переменной проверяется при старте (index.ts).
+  if (!secret) throw new Error("ADMIN_JWT_SECRET is not set");
+  return secret;
+};
 
 function signToken(email: string): string {
   const payload = Buffer.from(`${email}:${Date.now()}`).toString("base64url");
@@ -25,8 +33,19 @@ function verifyToken(token: string): string | null {
     const expBuf = Buffer.from(expected);
     if (sigBuf.length !== expBuf.length) return null;
     if (!timingSafeEqual(sigBuf, expBuf)) return null;
-    const [email] = Buffer.from(payload, "base64url").toString().split(":");
-    return email ?? null;
+
+    // payload = "<email>:<issuedAt>". Email может содержать ":", поэтому режем
+    // по последнему разделителю, а не по первому.
+    const decoded  = Buffer.from(payload, "base64url").toString();
+    const sepIndex = decoded.lastIndexOf(":");
+    if (sepIndex < 1) return null;
+
+    const email    = decoded.slice(0, sepIndex);
+    const issuedAt = Number(decoded.slice(sepIndex + 1));
+    if (!email || !Number.isFinite(issuedAt)) return null;
+    if (Date.now() - issuedAt > TOKEN_TTL_MS) return null; // протух
+
+    return email;
   } catch {
     return null;
   }

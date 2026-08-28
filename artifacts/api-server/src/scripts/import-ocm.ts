@@ -8,17 +8,14 @@
  * Adds external_id column and unique index on first run if missing.
  */
 
-import pg from 'pg';
+// Пул берём из @workspace/db, а не поднимаем свой: `pg` не значится в
+// зависимостях api-server, и при строгой раскладке pnpm импорт не резолвится.
+import { pool } from '@workspace/db';
 
-const { Pool } = pg;
+const OCM_API_KEY = process.env.OCM_API_KEY;
 
-const OCM_API_KEY  = process.env.OCM_API_KEY;
-const DATABASE_URL = process.env.DATABASE_URL;
-
-if (!OCM_API_KEY)  { console.error('❌  OCM_API_KEY is not set'); process.exit(1); }
-if (!DATABASE_URL) { console.error('❌  DATABASE_URL is not set'); process.exit(1); }
-
-const pool = new Pool({ connectionString: DATABASE_URL });
+if (!OCM_API_KEY) { console.error('❌  OCM_API_KEY is not set'); process.exit(1); }
+// DATABASE_URL проверяется при импорте @workspace/db.
 
 // ── OCM connection-type ID → human label ─────────────────────────────────────
 const CONN_LABEL: Record<number, string> = {

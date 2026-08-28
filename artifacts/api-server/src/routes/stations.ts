@@ -50,7 +50,8 @@ function buildStationWithOperator(s: typeof stationsTable.$inferSelect, op: type
   return {
     ...s,
     operator: op ? { id: op.id, name: op.name, logo_url: op.logo_url, station_count: 0 } : undefined,
-    distance_km: null,
+    // Заполняется ниже, когда в запросе есть координаты пользователя.
+    distance_km: null as number | null,
   };
 }
 

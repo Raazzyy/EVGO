@@ -10,6 +10,7 @@ import {
 } from "@workspace/api-zod";
 import { z } from "zod";
 import { adminAuth } from "./admin";
+import { encryptSecret } from "../lib/secrets";
 
 const router: IRouter = Router();
 
@@ -48,7 +49,7 @@ router.get("/operators", async (_req, res): Promise<void> => {
 });
 
 // ── POST /api/operators ──────────────────────────────────────────────────────
-router.post("/operators", async (req, res): Promise<void> => {
+router.post("/operators", adminAuth, async (req, res): Promise<void> => {
   const parsed = CreateOperatorBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -88,7 +89,7 @@ router.get("/operators/:id", async (req, res): Promise<void> => {
 });
 
 // ── PUT /api/operators/:id  (legacy full-replace, keeps backward compat) ─────
-router.put("/operators/:id", async (req, res): Promise<void> => {
+router.put("/operators/:id", adminAuth, async (req, res): Promise<void> => {
   const p = UpdateOperatorParams.safeParse(req.params);
   if (!p.success) { res.status(400).json({ error: p.error.message }); return; }
   const parsed = UpdateOperatorBody.safeParse(req.body);
@@ -109,9 +110,23 @@ router.patch("/operators/:id", adminAuth, async (req, res): Promise<void> => {
   const parsed = ExtendedOperatorPatch.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
+  // Учётные данные операторов не должны лежать в БД открытым текстом.
+  const patch: Record<string, unknown> = { ...parsed.data };
+  if (typeof patch["api_credentials"] === "string" && patch["api_credentials"] !== "") {
+    try {
+      patch["api_credentials"] = encryptSecret(patch["api_credentials"] as string);
+    } catch (err) {
+      res.status(503).json({
+        error: "Credentials encryption is not configured",
+        detail: err instanceof Error ? err.message : String(err),
+      });
+      return;
+    }
+  }
+
   const [op] = await db
     .update(operatorsTable)
-    .set(parsed.data as any)
+    .set(patch as any)
     .where(eq(operatorsTable.id, p.data.id))
     .returning();
   if (!op) { res.status(404).json({ error: "Operator not found" }); return; }
@@ -137,7 +152,7 @@ router.post("/operators/:id/ping", adminAuth, async (req, res): Promise<void> =>
 });
 
 // ── DELETE /api/operators/:id ────────────────────────────────────────────────
-router.delete("/operators/:id", async (req, res): Promise<void> => {
+router.delete("/operators/:id", adminAuth, async (req, res): Promise<void> => {
   const p = DeleteOperatorParams.safeParse(req.params);
   if (!p.success) { res.status(400).json({ error: p.error.message }); return; }
   await db.delete(operatorsTable).where(eq(operatorsTable.id, p.data.id));

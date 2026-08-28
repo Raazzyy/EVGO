@@ -47,3 +47,17 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Секреты
+.env
+.env.*
+!.env.example
+
+# Вложения из чата Replit и архивы исходников — раздували репозиторий
+# и однажды унесли в историю боевые API-ключи.
+attached_assets/
+*.zip
+
+# Симлинки Claude Code на .agents/skills — с абсолютными путями этой машины,
+# у других разработчиков они нерабочие. Сами скиллы лежат в .agents/skills.
+.claude/

@@ -1,45 +1,124 @@
-# [Project name]
+# iON — агрегатор зарядных станций для электромобилей (Узбекистан)
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Показывает на карте все зарядные станции страны, строит маршрут с остановками
+под запас хода конкретного автомобиля и — в перспективе — позволяет оплачивать
+зарядку у станций партнёров с внутреннего баланса.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- `pnpm --filter @workspace/api-server run dev` — API-сервер (сборка + запуск)
+- `pnpm --filter @workspace/mobile run dev` — Expo: iOS, Android и веб
+- `pnpm --filter @workspace/admin run dev` — админ-панель (Vite)
+- `pnpm run typecheck` — типы по всем пакетам
+- `pnpm run build` — typecheck + сборка всего
+- `pnpm --filter @workspace/api-spec run codegen` — перегенерировать хуки и
+  Zod-схемы из OpenAPI. **Запускать после каждой правки `openapi.yaml`**
+- `pnpm --filter @workspace/db run push` — применить изменения схемы БД (только dev)
+- `pnpm --filter @workspace/api-server run import:ocm` — импорт станций из OpenChargeMap
+
+### Переменные окружения
+
+| Переменная | Обязательна | Зачем |
+|---|---|---|
+| `DATABASE_URL` | да | Postgres |
+| `PORT` | да | Порт API-сервера |
+| `ADMIN_JWT_SECRET` | да | Подпись админ-токенов. **Без неё сервер не стартует** |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | нет | Мастер-вход в админку в обход таблицы `admin_users` |
+| `CREDENTIALS_ENCRYPTION_KEY` | нет | 32 байта в base64. Без неё нельзя сохранить `operators.api_credentials` |
+| `YANDEX_JS_API_KEY`, `YANDEX_GEOCODER_KEY`, `YANDEX_ROUTER_KEY` | нет | Карты и геокодер для веба |
+| `GOOGLE_MAPS_ANDROID_KEY`, `GOOGLE_MAPS_IOS_KEY`, `GOOGLE_DIRECTIONS_KEY` | нет | Карты и маршруты в мобильном приложении |
+| `EV_API_KEY` | нет | API Ninjas, живой поиск электромобилей |
+
+Секреты генерируются так:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- API: Express 5, сборка esbuild в CJS-бандл
+- БД: PostgreSQL + Drizzle ORM
+- Мобильное приложение: Expo Router v6, React Native. Карты — `react-native-maps`
+  на устройстве, Leaflet в браузере
+- Админка: Vite + React + shadcn/ui
+- Валидация: Zod (`zod/v4`), `drizzle-zod`
+- Кодогенерация API: Orval из OpenAPI-спецификации
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+| Что | Где |
+|---|---|
+| Схема БД — источник правды | `lib/db/src/schema/` |
+| Контракт API — источник правды | `lib/api-spec/openapi.yaml` |
+| Сгенерированные Zod-схемы | `lib/api-zod/src/generated/` (**не править руками**) |
+| Сгенерированные React-хуки | `lib/api-client-react/` (**не править руками**) |
+| Маршруты API | `artifacts/api-server/src/routes/` |
+| Экраны приложения | `artifacts/mobile/app/` |
+| Цвета и тема приложения | `artifacts/mobile/constants/colors.ts` |
+| Страницы админки | `artifacts/admin/src/pages/` |
+| Аудит, план и задачи | `docs/` |
+| Заметки агента о проекте | `.agents/memory/` |
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- **Типы генерируются из OpenAPI, а не пишутся руками.** Поэтому любая правка
+  контракта начинается с `openapi.yaml` и заканчивается прогоном codegen, иначе
+  клиент и сервер разъезжаются молча.
+- **Расчёт остановок на маршруте — свой, на бэкенде.** Картографические API
+  отдают только геометрию пути; «где заряжаться конкретной машине с её запасом
+  хода» считается в `routes_route.ts`. Это главная техническая ценность проекта.
+- **Две картографические библиотеки.** На устройстве Google Maps через
+  `react-native-maps`, в браузере Leaflet — платформенные обёртки лежат рядом:
+  `MapViewWrapper.native.tsx` и `MapViewWrapper.web.tsx`.
+- **Статусы станций пока проставляются вручную** через админку. Это заглушка до
+  интеграции с операторами по OCPI — см. `docs/audit-and-roadmap.md`, этап 5.
+- **Учётные данные операторов шифруются** (AES-256-GCM, `lib/secrets.ts`).
+  Записи без префикса `v1:` остались от прежней plaintext-схемы и читаются как
+  есть; при следующей перезаписи шифруются.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Карта и список станций: фильтры по коннектору, мощности, цене, оператору
+- Блок «Рекомендуем» с пометкой «Реклама» — отдельно от выдачи «Рядом с вами»
+- Детали станции, бронирование коннектора с автоосвобождением по таймауту
+- Маршруты с рекомендованными остановками и пошаговой навигацией
+- «Мои автомобили»: каталог из 1189 EV, поиск понимает кириллицу и опечатки
+- Сессии зарядки, история, чеки, избранное, уведомления, поддержка
+- Админка: станции, операторы, сессии, пользователи, промо, баннеры, финансы
+
+Чего ещё нет: аутентификации пользователей, кошелька и реальной оплаты,
+интеграции с операторами, push-уведомлений, узбекского языка.
+Полный список — `docs/tasks.md`.
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- Общение и комментарии в коде — на русском
+- Задачи ведутся в `docs/tasks.md`, дневные списки — в `docs/daily/`
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- **`is_promoted` хранится числом 0/1, а не boolean.** В JSX всегда писать
+  `{!!is_promoted && …}` — при голом `{is_promoted && …}` и значении `0`
+  React Native выводит текст «0» и роняет экран. Поправить тип — задача 60.
+- **Деньги лежат в `real`** (`sessions.cost`, `users.total_spent`,
+  `stations.price_per_kwh`). Это число с плавающей точкой, оно теряет копейки.
+  Перевод в `bigint`/тийины — задача 30, до начала работ по кошельку.
+- **Изменения схемы БД требуют перезапуска API-сервера.**
+- **Полилинии маршрутов надо прореживать** до 4000 точек в
+  `MapViewWrapper.native.tsx` — иначе `react-native-maps` падает с
+  `RangeError: Property storage exceeds 196607 properties`.
+- **Новый роут, импортирующий `zod` напрямую**, требует `zod` в зависимостях
+  `api-server` **и** в списке externals в `build.mjs` — иначе esbuild соберёт
+  вторую копию.
+- **`minimumReleaseAge: 1440`** в `pnpm-workspace.yaml` — защита от атак через
+  цепочку поставок npm. Не отключать; свежий пакет добавлять в
+  `minimumReleaseAgeExclude` только при реальной необходимости.
 
 ## Pointers
 
-- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+- Аудит состояния, план по этапам и оценки — `docs/audit-and-roadmap.md`
+- Спецификация платежей (Payme, Click, Uzum) — `docs/payments-uzbekistan.md`
+- Полный список задач — `docs/tasks.md`
+- См. skill `pnpm-workspace` про устройство воркспейса и настройку TypeScript

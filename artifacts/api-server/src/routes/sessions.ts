@@ -1,6 +1,13 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
-import { db, sessionsTable, stationsTable, operatorsTable } from "@workspace/db";
+import {
+  db,
+  sessionsTable,
+  stationsTable,
+  operatorsTable,
+  connectorsTable,
+  connectorWatchersTable,
+} from "@workspace/db";
 import {
   StartSessionBody,
   GetSessionParams,

@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+# Новый пуш в ту же ветку отменяет предыдущий прогон — незачем занимать
+# раннеры проверкой заведомо устаревшего коммита.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck:
+    name: Typecheck (backend, admin, libs)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck libs
+        run: pnpm run typecheck:libs
+
+      - name: Typecheck api-server
+        run: pnpm --filter @workspace/api-server run typecheck
+
+      - name: Typecheck admin
+        run: pnpm --filter @workspace/admin run typecheck
+
+      - name: Typecheck mockup-sandbox
+        run: pnpm --filter @workspace/mockup-sandbox run typecheck
+
+      - name: Typecheck scripts
+        run: pnpm --filter ./scripts run typecheck
+
+  typecheck-mobile:
+    name: Typecheck (mobile)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # ВРЕМЕННО не блокирует сборку: в мобильном пакете есть накопленные ошибки
+    # типов, не связанные с текущими правками (задача 97 в docs/tasks.md).
+    # Как только они будут исправлены — убрать continue-on-error и перенести
+    # шаг в джобу выше.
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck mobile
+        run: pnpm --filter @workspace/mobile run typecheck
