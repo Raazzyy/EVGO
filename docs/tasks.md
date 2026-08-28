@@ -1,9 +1,12 @@
 # iON — все задачи
 
-**Обновлено:** 28.08.2026 · **Всего:** 97
+**Обновлено:** 28.08.2026 · **Всего:** 98 · **Сделано:** 26
 **Источник:** [audit-and-roadmap.md](./audit-and-roadmap.md), [payments-uzbekistan.md](./payments-uzbekistan.md)
 
-Метки: 🔴 блокирует остальное · 🟡 нужен ответ извне · ⚡ можно делать прямо сейчас
+Метки: ✅ сделано · ⏸ ПАУЗА, ждём внешнего ответа · 🔴 блокирует остальное ·
+🟡 нужен ответ извне · ⚡ можно делать прямо сейчас
+
+**Готово: 26 из 98.** Закрыт этап 0 целиком и весь этап 1, кроме задачи 10.
 
 ---
 
@@ -11,36 +14,36 @@
 
 **Этап 0. Безопасность и гигиена**
 
-1. ⚡ Вычистить `attached_assets/` и `ion-ev-source.zip` из истории git через `git filter-repo`, force-push
-2. ⚡ Добавить в `.gitignore`: `attached_assets/`, `*.zip`, `.env`, `.env.*`
-3. ⚡ `admin.ts` — проверка срока жизни токена (12 часов), сейчас токен вечный
-4. ⚡ `admin.ts` — убрать fallback-секрет `ion_admin_fallback_dev_secret_change_me`, падать при старте без `ADMIN_JWT_SECRET`
-5. ⚡ Зашифровать `operators.api_credentials` — сейчас plaintext
-6. ⚡🔴 `GET /api/payment-methods` — добавить фильтр по `user_id`, сейчас отдаёт карты всех пользователей
-7. ⚡ Заполнить `replit.md` реальным описанием проекта
-8. ⚡ GitHub Actions: `pnpm run typecheck` на каждый push
-9. ⚡ Rate limit на публичные эндпоинты API
+1. ✅ Вычистить `attached_assets/` и `ion-ev-source.zip` из истории git через `git filter-repo`, force-push
+2. ✅ Добавить в `.gitignore`: `attached_assets/`, `*.zip`, `.env`, `.env.*`
+3. ✅ `admin.ts` — проверка срока жизни токена (12 часов), сейчас токен вечный
+4. ✅ `admin.ts` — убрать fallback-секрет `ion_admin_fallback_dev_secret_change_me`, падать при старте без `ADMIN_JWT_SECRET`
+5. ✅ Зашифровать `operators.api_credentials` — сейчас plaintext
+6. ✅ `GET /api/payment-methods` — добавить фильтр по `user_id`, сейчас отдаёт карты всех пользователей
+7. ✅ Заполнить `replit.md` реальным описанием проекта
+8. ✅ GitHub Actions: `pnpm run typecheck` на каждый push
+9. ✅ Rate limit на публичные эндпоинты API
 
 **Этап 1. Аккаунты и авторизация**
 
-10. 🟡🔴 Договор с SMS-шлюзом (Eskiz.uz или Play Mobile), регистрация имени отправителя — идёт несколько дней
-11. `users`: добавить `phone` (unique), `phone_verified_at`, `language`; снять обязательность `email`
-12. Таблица `otp_codes`: телефон, хеш кода, `expires_at`, число попыток
-13. Ограничение частоты запроса кода: не чаще раза в минуту на номер, не больше 5 в час
-14. Таблица `refresh_tokens` с возможностью отзыва
-15. `POST /api/auth/request-code`
-16. `POST /api/auth/verify-code`
-17. `POST /api/auth/refresh`
-18. `POST /api/auth/logout`
-19. Middleware `requireAuth`, подставляющее `req.userId`
-20. 🔴 Пройти по всем 17 группам роутов и заменить `user_id` из тела и параметров на `req.userId`
-21. Экран ввода номера телефона
-22. Экран ввода кода с автоподстановкой из SMS
-23. Экран заполнения профиля
-24. Хранение токенов в `expo-secure-store`
-25. Убрать `DEMO_USER_ID` из `AppContext.tsx:3`, подключить реальную сессию
-26. Обработка 401 и протухшего токена, автоматический refresh
-27. Выход из аккаунта и удаление аккаунта — удаление обязательно по правилам App Store
+10. ⏸ ПАУЗА — Договор с SMS-шлюзом (Eskiz.uz или Play Mobile), регистрация имени отправителя — идёт несколько дней
+11. ✅ `users`: добавить `phone` (unique), `phone_verified_at`, `language`; снять обязательность `email`
+12. ✅ Таблица `otp_codes`: телефон, хеш кода, `expires_at`, число попыток
+13. ✅ Ограничение частоты запроса кода: не чаще раза в минуту на номер, не больше 5 в час
+14. ✅ Таблица `refresh_tokens` с возможностью отзыва
+15. ✅ `POST /api/auth/request-code`
+16. ✅ `POST /api/auth/verify-code`
+17. ✅ `POST /api/auth/refresh`
+18. ✅ `POST /api/auth/logout`
+19. ✅ Middleware `requireAuth`, подставляющее `req.userId`
+20. ✅ Пройти по всем 17 группам роутов и заменить `user_id` из тела и параметров на `req.userId`
+21. ✅ Экран ввода номера телефона
+22. ✅ Экран ввода кода с автоподстановкой из SMS
+23. ✅ Экран заполнения профиля
+24. ✅ Хранение токенов в `expo-secure-store`
+25. ✅ Убрать `DEMO_USER_ID` из `AppContext.tsx:3`, подключить реальную сессию
+26. ✅ Обработка 401 и протухшего токена, автоматический refresh
+27. ✅ Выход из аккаунта и удаление аккаунта — удаление обязательно по правилам App Store
 
 **Этап 2. Кошелёк и платежи**
 
@@ -147,8 +150,7 @@
 
 #итог 28.08.2026
 
-1. …
-2. …
+_Итог дня — в docs/daily/2026-08-28.md_
 
 _Заполняется в конце дня. Метки: ✅ сделано · ПАУЗА · ❌ отменено_
 
