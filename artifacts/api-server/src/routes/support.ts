@@ -6,22 +6,29 @@ import {
   UpdateSupportTicketBody,
   UpdateSupportTicketParams,
 } from "@workspace/api-zod";
+import { requireAuth } from "../middlewares/requireAuth";
+import { adminAuth } from "./admin";
 
 const router: IRouter = Router();
 
-router.get("/support-tickets", async (_req, res): Promise<void> => {
+router.get("/support-tickets", adminAuth, async (_req, res): Promise<void> => {
   const rows = await db.select().from(supportTicketsTable).orderBy(supportTicketsTable.created_at);
   res.json(rows);
 });
 
-router.post("/support-tickets", async (req, res): Promise<void> => {
+router.post("/support-tickets", requireAuth, async (req, res): Promise<void> => {
   const parsed = CreateSupportTicketBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
-  const [ticket] = await db.insert(supportTicketsTable).values(parsed.data).returning();
+  // Автора берём из токена, а не из тела: иначе обращение можно оставить
+  // от чужого имени.
+  const [ticket] = await db
+    .insert(supportTicketsTable)
+    .values({ ...parsed.data, user_id: req.userId as string })
+    .returning();
   res.status(201).json(ticket);
 });
 
-router.patch("/support-tickets/:id", async (req, res): Promise<void> => {
+router.patch("/support-tickets/:id", adminAuth, async (req, res): Promise<void> => {
   const p = UpdateSupportTicketParams.safeParse(req.params);
   if (!p.success) { res.status(400).json({ error: p.error.message }); return; }
   const parsed = UpdateSupportTicketBody.safeParse(req.body);

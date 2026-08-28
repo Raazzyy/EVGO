@@ -6,6 +6,8 @@ export const routeStatusEnum = pgEnum("route_status", ["active", "completed", "c
 
 export const routesTable = pgTable("routes", {
   id: serial("id").primaryKey(),
+  /** Владелец маршрута. Без него сохранённые маршруты были видны всем. */
+  user_id: text("user_id"),
   vehicle_id: integer("vehicle_id"),
   origin: text("origin").notNull(),
   destination: text("destination").notNull(),

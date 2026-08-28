@@ -1,5 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, ilike, and, or, sql, count } from "drizzle-orm";
+import { requireAuth } from "../middlewares/requireAuth";
+import { adminAuth } from "./admin";
 import { db, vehiclesTable, vehicleAliasesTable } from "@workspace/db";
 import {
   CreateVehicleBody,
@@ -308,10 +310,9 @@ const ManualVehicleBody = z.object({
   max_dc_power_kw: z.number().positive().optional(),
   body_style:      z.string().optional(),
   vehicle_type:    z.string().optional(),
-  user_id:         z.string().optional(),
 });
 
-router.post("/vehicles/manual", async (req, res): Promise<void> => {
+router.post("/vehicles/manual", requireAuth, async (req, res): Promise<void> => {
   const parsed = ManualVehicleBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   const d = parsed.data;
@@ -327,7 +328,8 @@ router.post("/vehicles/manual", async (req, res): Promise<void> => {
     range_km:      d.range_km,
     connector_type: d.connector_type,
     data_source:   "manual",
-    user_id:       d.user_id ?? null,
+    // Автор заявки — из токена: раньше поле приходило в теле запроса.
+    user_id:       req.userId as string,
     body_style:    d.body_style ?? null,
     vehicle_type:  d.vehicle_type ?? null,
     is_verified:   false,
@@ -336,14 +338,14 @@ router.post("/vehicles/manual", async (req, res): Promise<void> => {
 });
 
 // ── Admin: list manual (unverified) vehicles ──────────────────────────────
-router.get("/admin/vehicles/manual", async (req, res): Promise<void> => {
+router.get("/admin/vehicles/manual", adminAuth, async (req, res): Promise<void> => {
   const rows = await db.select().from(vehiclesTable)
     .where(sql`data_source = 'manual' AND is_verified = false`)
     .orderBy(vehiclesTable.id);
   res.json(rows);
 });
 
-router.patch("/admin/vehicles/:id/verify", async (req, res): Promise<void> => {
+router.patch<{ id: string }>("/admin/vehicles/:id/verify", adminAuth, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const [v] = await db.update(vehiclesTable)
@@ -360,7 +362,7 @@ router.get("/vehicles", async (_req, res): Promise<void> => {
   res.json(rows);
 });
 
-router.post("/vehicles", async (req, res): Promise<void> => {
+router.post("/vehicles", adminAuth, async (req, res): Promise<void> => {
   const parsed = CreateVehicleBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   const [v] = await db.insert(vehiclesTable).values(parsed.data).returning();
@@ -375,7 +377,7 @@ router.get("/vehicles/:id", async (req, res): Promise<void> => {
   res.json(v);
 });
 
-router.put("/vehicles/:id", async (req, res): Promise<void> => {
+router.put("/vehicles/:id", adminAuth, async (req, res): Promise<void> => {
   const p = UpdateVehicleParams.safeParse(req.params);
   if (!p.success) { res.status(400).json({ error: p.error.message }); return; }
   const parsed = UpdateVehicleBody.safeParse(req.body);
@@ -385,7 +387,7 @@ router.put("/vehicles/:id", async (req, res): Promise<void> => {
   res.json(v);
 });
 
-router.delete("/vehicles/:id", async (req, res): Promise<void> => {
+router.delete("/vehicles/:id", adminAuth, async (req, res): Promise<void> => {
   const p = DeleteVehicleParams.safeParse(req.params);
   if (!p.success) { res.status(400).json({ error: p.error.message }); return; }
   await db.delete(vehiclesTable).where(eq(vehiclesTable.id, p.data.id));

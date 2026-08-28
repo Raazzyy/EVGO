@@ -1,16 +1,15 @@
 import { Router, type IRouter } from "express";
 import { and, eq } from "drizzle-orm";
 import { db, favoritesTable, stationsTable } from "@workspace/db";
+import { requireAuth } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
 
-// GET /favorites?user_id=…  — list favorites with full station data
-router.get("/favorites", async (req, res): Promise<void> => {
-  const user_id = (req.query.user_id as string | undefined)?.trim();
-  if (!user_id) {
-    res.status(400).json({ error: "user_id is required" });
-    return;
-  }
+// Владелец берётся из токена. Раньше `user_id` приходил в запросе, и подстановка
+// чужого значения открывала чужое избранное.
+
+// GET /favorites — избранные станции текущего пользователя
+router.get("/favorites", requireAuth, async (req, res): Promise<void> => {
   const rows = await db
     .select({
       favorite_id: favoritesTable.id,
@@ -19,42 +18,46 @@ router.get("/favorites", async (req, res): Promise<void> => {
     })
     .from(favoritesTable)
     .innerJoin(stationsTable, eq(favoritesTable.station_id, stationsTable.id))
-    .where(eq(favoritesTable.user_id, user_id))
+    .where(eq(favoritesTable.user_id, req.userId as string))
     .orderBy(favoritesTable.created_at);
 
   res.json(rows.map(r => ({ ...r.station, favorite_id: r.favorite_id })));
 });
 
-// POST /favorites  { user_id, station_id }  — add favorite (idempotent)
-router.post("/favorites", async (req, res): Promise<void> => {
-  const { user_id, station_id } = req.body ?? {};
-  if (!user_id || !station_id) {
-    res.status(400).json({ error: "user_id and station_id are required" });
+// POST /favorites  { station_id }
+router.post("/favorites", requireAuth, async (req, res): Promise<void> => {
+  const stationId = Number(req.body?.station_id);
+  if (!Number.isInteger(stationId) || stationId <= 0) {
+    res.status(400).json({ error: "station_id is required" });
     return;
   }
-  try {
-    const [row] = await db
-      .insert(favoritesTable)
-      .values({ user_id: String(user_id), station_id: Number(station_id) })
-      .onConflictDoNothing()
-      .returning();
-    res.status(201).json(row ?? { user_id, station_id });
-  } catch (err: any) {
-    res.status(500).json({ error: err?.message ?? "Insert failed" });
-  }
+
+  const [row] = await db
+    .insert(favoritesTable)
+    .values({ user_id: req.userId as string, station_id: stationId })
+    .onConflictDoNothing()
+    .returning();
+
+  // onConflictDoNothing возвращает пусто, если запись уже была — повторное
+  // добавление в избранное не ошибка, отвечаем тем же результатом.
+  res.status(201).json(row ?? { user_id: req.userId, station_id: stationId });
 });
 
-// DELETE /favorites/:station_id?user_id=…  — remove favorite
-router.delete("/favorites/:station_id", async (req, res): Promise<void> => {
-  const station_id = Number(req.params.station_id);
-  const user_id = (req.query.user_id as string | undefined)?.trim();
-  if (!user_id || isNaN(station_id)) {
-    res.status(400).json({ error: "user_id and valid station_id are required" });
+// DELETE /favorites/:station_id
+router.delete("/favorites/:station_id", requireAuth, async (req, res): Promise<void> => {
+  const stationId = Number(req.params.station_id);
+  if (!Number.isInteger(stationId)) {
+    res.status(400).json({ error: "valid station_id is required" });
     return;
   }
+
   await db
     .delete(favoritesTable)
-    .where(and(eq(favoritesTable.user_id, user_id), eq(favoritesTable.station_id, station_id)));
+    .where(and(
+      eq(favoritesTable.user_id, req.userId as string),
+      eq(favoritesTable.station_id, stationId),
+    ));
+
   res.sendStatus(204);
 });
 

@@ -15,7 +15,21 @@ import {
   GetSessionsQueryParams,
 } from "@workspace/api-zod";
 
+import { requireAuth, requireUserOrAdmin } from "../middlewares/requireAuth";
+
 const router: IRouter = Router();
+
+/**
+ * Сессия зарядки принадлежит пользователю, который её начал. Владелец берётся
+ * из токена; администратор видит и останавливает любые — это его работа.
+ */
+function ownsSession(
+  req: { userId?: string; isAdmin?: boolean },
+  session: { user_id: string | null },
+): boolean {
+  if (req.isAdmin) return true;
+  return Boolean(req.userId) && session.user_id === req.userId;
+}
 
 async function getStationForSession(stationId: number) {
   const [row] = await db
@@ -31,14 +45,22 @@ async function getStationForSession(stationId: number) {
   };
 }
 
-router.get("/sessions", async (req, res): Promise<void> => {
+router.get("/sessions", requireUserOrAdmin, async (req, res): Promise<void> => {
   const q = GetSessionsQueryParams.safeParse(req.query);
   if (!q.success) { res.status(400).json({ error: q.error.message }); return; }
 
   const conditions = [];
   if (q.data.status) conditions.push(eq(sessionsTable.status, q.data.status));
   if (q.data.station_id) conditions.push(eq(sessionsTable.station_id, q.data.station_id));
-  if (q.data.user_id) conditions.push(eq(sessionsTable.user_id, q.data.user_id));
+
+  if (req.isAdmin) {
+    // Админке нужны все сессии, при желании — с фильтром по пользователю.
+    if (q.data.user_id) conditions.push(eq(sessionsTable.user_id, q.data.user_id));
+  } else {
+    // Пользователю — только свои. Параметр user_id из запроса игнорируется:
+    // раньше по нему можно было прочитать чужую историю зарядок.
+    conditions.push(eq(sessionsTable.user_id, req.userId as string));
+  }
 
   const rows = await db
     .select({ session: sessionsTable, station: stationsTable, operator: operatorsTable })
@@ -60,7 +82,7 @@ router.get("/sessions", async (req, res): Promise<void> => {
   res.json(result);
 });
 
-router.post("/sessions", async (req, res): Promise<void> => {
+router.post("/sessions", requireAuth, async (req, res): Promise<void> => {
   const parsed = StartSessionBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
@@ -68,7 +90,7 @@ router.post("/sessions", async (req, res): Promise<void> => {
 
   const [session] = await db.insert(sessionsTable).values({
     station_id: parsed.data.station_id,
-    user_id: parsed.data.user_id ?? null,
+    user_id: req.userId as string,
     connector_type: parsed.data.connector_type ?? null,
     connector_id: connectorId ?? null,
     payment_method_id: parsed.data.payment_method_id ?? null,
@@ -106,7 +128,7 @@ function computeProgressPct(session: typeof sessionsTable.$inferSelect, powerKw:
   return Math.min(95, Math.round((currentKwh / CAR_BATTERY_KWH) * 100));
 }
 
-router.get("/sessions/:id", async (req, res): Promise<void> => {
+router.get("/sessions/:id", requireUserOrAdmin, async (req, res): Promise<void> => {
   const p = GetSessionParams.safeParse(req.params);
   if (!p.success) { res.status(400).json({ error: p.error.message }); return; }
 
@@ -118,6 +140,7 @@ router.get("/sessions/:id", async (req, res): Promise<void> => {
     .where(eq(sessionsTable.id, p.data.id));
 
   if (!row) { res.status(404).json({ error: "Session not found" }); return; }
+  if (!ownsSession(req, row.session)) { res.status(404).json({ error: "Session not found" }); return; }
 
   const powerKw = row.station?.power_kw ?? 50;
   const progress_pct = computeProgressPct(row.session, powerKw);
@@ -134,12 +157,13 @@ router.get("/sessions/:id", async (req, res): Promise<void> => {
 });
 
 // POST /sessions/:id/pay — mock payment confirmation
-router.post("/sessions/:id/pay", async (req, res): Promise<void> => {
+router.post<{ id: string }>("/sessions/:id/pay", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "invalid id" }); return; }
 
   const [existing] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, id));
   if (!existing) { res.status(404).json({ error: "Session not found" }); return; }
+  if (!ownsSession(req, existing)) { res.status(404).json({ error: "Session not found" }); return; }
 
   // Mock: mark session as paid by setting status to completed if still active
   let session = existing;
@@ -162,12 +186,13 @@ router.post("/sessions/:id/pay", async (req, res): Promise<void> => {
   res.json({ ...session, progress_pct: 100 });
 });
 
-router.patch("/sessions/:id/stop", async (req, res): Promise<void> => {
+router.patch("/sessions/:id/stop", requireUserOrAdmin, async (req, res): Promise<void> => {
   const p = StopSessionParams.safeParse(req.params);
   if (!p.success) { res.status(400).json({ error: p.error.message }); return; }
 
   const [existing] = await db.select().from(sessionsTable).where(eq(sessionsTable.id, p.data.id));
   if (!existing) { res.status(404).json({ error: "Session not found" }); return; }
+  if (!ownsSession(req, existing)) { res.status(404).json({ error: "Session not found" }); return; }
 
   const durationHours = (Date.now() - existing.started_at.getTime()) / 3600000;
   const station = await getStationForSession(existing.station_id);

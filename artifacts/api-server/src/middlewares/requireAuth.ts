@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction, RequestHandler } from "express";
 import { verifyAccessToken } from "../lib/auth";
+import { verifyAdminToken } from "../routes/admin";
 
 /**
  * Достаёт пользователя из access-токена и кладёт его id в `req.userId`.
@@ -14,6 +15,8 @@ declare global {
   namespace Express {
     interface Request {
       userId?: string;
+      /** true, если запрос пришёл с админским токеном, а не пользовательским. */
+      isAdmin?: boolean;
     }
   }
 }
@@ -41,6 +44,40 @@ export const requireAuth: RequestHandler = (
 
   req.userId = userId;
   next();
+};
+
+/**
+ * Пропускает и пользователя, и администратора.
+ *
+ * Нужно там, где один маршрут обслуживает оба клиента: пользователь видит
+ * только свои сессии, админка — все. Различать их обязательно, иначе либо
+ * админка перестанет работать, либо любой пользователь увидит чужие данные.
+ */
+export const requireUserOrAdmin: RequestHandler = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void => {
+  const token = extractToken(req);
+  if (!token) {
+    res.status(401).json({ error: "Unauthorized", code: "token_missing" });
+    return;
+  }
+
+  const userId = verifyAccessToken(token);
+  if (userId) {
+    req.userId = userId;
+    next();
+    return;
+  }
+
+  if (verifyAdminToken(token)) {
+    req.isAdmin = true;
+    next();
+    return;
+  }
+
+  res.status(401).json({ error: "Unauthorized", code: "token_invalid" });
 };
 
 /**

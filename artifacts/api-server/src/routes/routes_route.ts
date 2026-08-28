@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import { requireAuth } from "../middlewares/requireAuth";
 import { db, routesTable, vehiclesTable, stationsTable } from "@workspace/db";
 import {
   CreateRouteBody,
@@ -367,11 +368,14 @@ function planRoute(
 }
 
 // ── GET /routes ───────────────────────────────────────────────────────────
-router.get("/routes", async (_req, res): Promise<void> => {
+router.get("/routes", requireAuth, async (req, res): Promise<void> => {
+  // Только свои маршруты: в них лежат домашний и рабочий адреса,
+  // а раньше обработчик отдавал маршруты всех пользователей подряд.
   const rows = await db
     .select({ route: routesTable, vehicle: vehiclesTable })
     .from(routesTable)
     .leftJoin(vehiclesTable, eq(routesTable.vehicle_id, vehiclesTable.id))
+    .where(eq(routesTable.user_id, req.userId as string))
     .orderBy(routesTable.created_at);
 
   // Attach polylines for active routes (parallel)
@@ -396,7 +400,7 @@ router.get("/routes", async (_req, res): Promise<void> => {
 });
 
 // ── POST /routes ──────────────────────────────────────────────────────────
-router.post("/routes", async (req, res): Promise<void> => {
+router.post("/routes", requireAuth, async (req, res): Promise<void> => {
   const parsed = CreateRouteBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
@@ -429,6 +433,7 @@ router.post("/routes", async (req, res): Promise<void> => {
   const plan = planRoute(originLat, originLng, destLat, destLng, initial_battery_pct, vehicle, allStations, mode);
 
   const [route] = await db.insert(routesTable).values({
+    user_id: req.userId as string,
     vehicle_id: vehicle_id ?? null,
     origin, destination,
     origin_lat: originLat, origin_lng: originLng,
@@ -466,14 +471,18 @@ router.post("/routes", async (req, res): Promise<void> => {
 });
 
 // ── GET /routes/:id ───────────────────────────────────────────────────────
-router.get("/routes/:id", async (req, res): Promise<void> => {
+router.get("/routes/:id", requireAuth, async (req, res): Promise<void> => {
   const p = GetRouteParams.safeParse(req.params);
   if (!p.success) { res.status(400).json({ error: p.error.message }); return; }
   const [row] = await db
     .select({ route: routesTable, vehicle: vehiclesTable })
     .from(routesTable)
     .leftJoin(vehiclesTable, eq(routesTable.vehicle_id, vehiclesTable.id))
-    .where(eq(routesTable.id, p.data.id));
+    .where(and(
+      eq(routesTable.id, p.data.id),
+      eq(routesTable.user_id, req.userId as string),
+    ));
+  // 404 и на чужой маршрут: адреса чужих поездок — не наше дело показывать.
   if (!row) { res.status(404).json({ error: "Route not found" }); return; }
   const route = row.route as any;
   const stops: any[] = route.stops ?? [];
@@ -487,10 +496,13 @@ router.get("/routes/:id", async (req, res): Promise<void> => {
 });
 
 // ── DELETE /routes/:id ────────────────────────────────────────────────────
-router.delete("/routes/:id", async (req, res): Promise<void> => {
+router.delete("/routes/:id", requireAuth, async (req, res): Promise<void> => {
   const p = DeleteRouteParams.safeParse(req.params);
   if (!p.success) { res.status(400).json({ error: p.error.message }); return; }
-  await db.delete(routesTable).where(eq(routesTable.id, p.data.id));
+  await db.delete(routesTable).where(and(
+    eq(routesTable.id, p.data.id),
+    eq(routesTable.user_id, req.userId as string),
+  ));
   res.sendStatus(204);
 });
 

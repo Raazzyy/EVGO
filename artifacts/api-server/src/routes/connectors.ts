@@ -2,7 +2,13 @@ import { Router, type IRouter } from "express";
 import { eq, and, isNull } from "drizzle-orm";
 import { db, connectorsTable, connectorWatchersTable, stationsTable, sessionsTable } from "@workspace/db";
 
+import { requireAuth } from "../middlewares/requireAuth";
+
 const router: IRouter = Router();
+
+// Бронь и отслеживание коннектора привязаны к владельцу из токена: раньше
+// user_id приходил в запросе, и чужую бронь можно было снять, подставив
+// чужой идентификатор.
 
 // ── GET /connectors?station_id=N ─────────────────────────────────────────────
 router.get("/connectors", async (req, res): Promise<void> => {
@@ -30,12 +36,11 @@ router.get("/connectors", async (req, res): Promise<void> => {
 });
 
 // ── POST /connectors/:id/reserve ─────────────────────────────────────────────
-router.post("/connectors/:id/reserve", async (req, res): Promise<void> => {
+router.post<{ id: string }>("/connectors/:id/reserve", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "invalid connector id" }); return; }
 
-  const { user_id } = req.body;
-  if (!user_id) { res.status(400).json({ error: "user_id required" }); return; }
+  const user_id = req.userId as string;
 
   const [connector] = await db.select().from(connectorsTable).where(eq(connectorsTable.id, id));
   if (!connector) { res.status(404).json({ error: "Connector not found" }); return; }
@@ -80,11 +85,11 @@ router.post("/connectors/:id/reserve", async (req, res): Promise<void> => {
 });
 
 // ── DELETE /connectors/:id/reserve ───────────────────────────────────────────
-router.delete("/connectors/:id/reserve", async (req, res): Promise<void> => {
+router.delete<{ id: string }>("/connectors/:id/reserve", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "invalid connector id" }); return; }
 
-  const { user_id } = req.body;
+  const user_id = req.userId as string;
 
   const [connector] = await db.select().from(connectorsTable).where(eq(connectorsTable.id, id));
   if (!connector) { res.status(404).json({ error: "Connector not found" }); return; }
@@ -100,9 +105,10 @@ router.delete("/connectors/:id/reserve", async (req, res): Promise<void> => {
 });
 
 // ── POST /connector-watchers ─────────────────────────────────────────────────
-router.post("/connector-watchers", async (req, res): Promise<void> => {
-  const { user_id, connector_id } = req.body;
-  if (!user_id || !connector_id) { res.status(400).json({ error: "user_id and connector_id required" }); return; }
+router.post("/connector-watchers", requireAuth, async (req, res): Promise<void> => {
+  const user_id = req.userId as string;
+  const { connector_id } = req.body ?? {};
+  if (!connector_id) { res.status(400).json({ error: "connector_id required" }); return; }
 
   // Upsert — ignore duplicate
   const existing = await db.select().from(connectorWatchersTable)
@@ -121,10 +127,10 @@ router.post("/connector-watchers", async (req, res): Promise<void> => {
 });
 
 // ── DELETE /connector-watchers ───────────────────────────────────────────────
-router.delete("/connector-watchers", async (req, res): Promise<void> => {
-  const user_id = req.query.user_id as string;
+router.delete("/connector-watchers", requireAuth, async (req, res): Promise<void> => {
+  const user_id = req.userId as string;
   const connector_id = parseInt(req.query.connector_id as string, 10);
-  if (!user_id || isNaN(connector_id)) { res.status(400).json({ error: "user_id and connector_id required" }); return; }
+  if (isNaN(connector_id)) { res.status(400).json({ error: "connector_id required" }); return; }
 
   await db.delete(connectorWatchersTable)
     .where(and(
@@ -136,11 +142,11 @@ router.delete("/connector-watchers", async (req, res): Promise<void> => {
 });
 
 // ── GET /connector-watchers?user_id=&connector_id= ──────────────────────────
-router.get("/connector-watchers", async (req, res): Promise<void> => {
-  const user_id = req.query.user_id as string;
+router.get("/connector-watchers", requireAuth, async (req, res): Promise<void> => {
+  const user_id = req.userId as string;
   const connector_id = parseInt(req.query.connector_id as string, 10);
 
-  if (!user_id || isNaN(connector_id)) { res.status(400).json({ error: "user_id and connector_id required" }); return; }
+  if (isNaN(connector_id)) { res.status(400).json({ error: "connector_id required" }); return; }
 
   const rows = await db.select().from(connectorWatchersTable)
     .where(and(

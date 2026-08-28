@@ -12,6 +12,8 @@ import {
   GetStationsQueryParams,
 } from "@workspace/api-zod";
 import { z } from "zod";
+import { optionalAuth } from "../middlewares/requireAuth";
+import { adminAuth } from "./admin";
 
 // ── Extended partial-update schema (superset of generated one) ───────────────
 const connectorSchema = z.object({
@@ -109,7 +111,7 @@ router.get("/stations", async (req, res): Promise<void> => {
   res.json({ promoted, nearby });
 });
 
-router.post("/stations", async (req, res): Promise<void> => {
+router.post("/stations", adminAuth, async (req, res): Promise<void> => {
   const parsed = CreateStationBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
   const [station] = await db.insert(stationsTable).values({
@@ -140,10 +142,11 @@ function computeConnectorProgress(startedAt: Date, powerKw: number) {
   return { progress_pct, energy_kwh, mins_to_80: minsTo80, free_at: freeAtStr };
 }
 
-router.get("/stations/:id", async (req, res): Promise<void> => {
+router.get("/stations/:id", optionalAuth, async (req, res): Promise<void> => {
   const p = GetStationParams.safeParse(req.params);
   if (!p.success) { res.status(400).json({ error: p.error.message }); return; }
-  const user_id = req.query.user_id as string | undefined;
+  // Отметка «моя сессия» ставится по владельцу из токена, а не по параметру.
+  const user_id = req.userId;
 
   const [row] = await db
     .select({ station: stationsTable, operator: operatorsTable })
@@ -193,7 +196,7 @@ router.get("/stations/:id", async (req, res): Promise<void> => {
   });
 });
 
-router.put("/stations/:id", async (req, res): Promise<void> => {
+router.put("/stations/:id", adminAuth, async (req, res): Promise<void> => {
   const p = UpdateStationParams.safeParse(req.params);
   if (!p.success) { res.status(400).json({ error: p.error.message }); return; }
   const parsed = UpdateStationBody.safeParse(req.body);
@@ -211,7 +214,7 @@ router.put("/stations/:id", async (req, res): Promise<void> => {
 });
 
 // ── PATCH /stations/:id  (partial update — all extended fields accepted) ─────
-router.patch("/stations/:id", async (req, res): Promise<void> => {
+router.patch("/stations/:id", adminAuth, async (req, res): Promise<void> => {
   const p = z.object({ id: z.coerce.number().int().positive() }).safeParse(req.params);
   if (!p.success) { res.status(400).json({ error: p.error.message }); return; }
   const parsed = ExtendedStationPatch.safeParse(req.body);
@@ -235,14 +238,14 @@ router.patch("/stations/:id", async (req, res): Promise<void> => {
   res.json(buildStationWithOperator(station, op ?? null));
 });
 
-router.delete("/stations/:id", async (req, res): Promise<void> => {
+router.delete("/stations/:id", adminAuth, async (req, res): Promise<void> => {
   const p = DeleteStationParams.safeParse(req.params);
   if (!p.success) { res.status(400).json({ error: p.error.message }); return; }
   await db.delete(stationsTable).where(eq(stationsTable.id, p.data.id));
   res.sendStatus(204);
 });
 
-router.patch("/stations/:id/status", async (req, res): Promise<void> => {
+router.patch("/stations/:id/status", adminAuth, async (req, res): Promise<void> => {
   const p = UpdateStationStatusParams.safeParse(req.params);
   if (!p.success) { res.status(400).json({ error: p.error.message }); return; }
   const parsed = UpdateStationStatusBody.safeParse(req.body);

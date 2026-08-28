@@ -1,14 +1,18 @@
 import { Router } from "express";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db, vehiclesTable, userVehiclesTable } from "@workspace/db";
 import { z } from "zod";
+import { requireAuth } from "../middlewares/requireAuth";
 
 const router = Router();
 
-// GET /user-vehicles?user_id=xxx
-router.get("/user-vehicles", async (req, res): Promise<void> => {
-  const userId = req.query.user_id as string;
-  if (!userId) { res.status(400).json({ error: "user_id required" }); return; }
+// Владелец во всех обработчиках берётся из токена. Раньше PATCH и DELETE
+// вообще не проверяли владельца: по одному id можно было отредактировать или
+// удалить чужую машину.
+
+// GET /user-vehicles — гараж текущего пользователя
+router.get("/user-vehicles", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.userId as string;
 
   const rows = await db
     .select({ uv: userVehiclesTable, v: vehiclesTable })
@@ -23,7 +27,6 @@ router.get("/user-vehicles", async (req, res): Promise<void> => {
 // POST /user-vehicles
 // Body: { user_id, vehicle_id?, name?, connector_type?, battery_kwh?, range_km?, ... }
 const CreateBody = z.object({
-  user_id:       z.string(),
   vehicle_id:    z.number().int().positive().optional(),
   name:          z.string().optional(),
   connector_type: z.enum(["CCS2", "CHAdeMO", "Type2", "GB-T"]).optional(),
@@ -38,11 +41,12 @@ const CreateBody = z.object({
   is_default:    z.boolean().optional(),
 });
 
-router.post("/user-vehicles", async (req, res): Promise<void> => {
+router.post("/user-vehicles", requireAuth, async (req, res): Promise<void> => {
   const parsed = CreateBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const { user_id, vehicle_id, name, connector_type, battery_kwh, range_km,
+  const user_id = req.userId as string;
+  const { vehicle_id, name, connector_type, battery_kwh, range_km,
           make, model, year, body_style, vehicle_type, nickname, is_default } = parsed.data;
 
   let catalogId: number;
@@ -99,38 +103,47 @@ const PatchBody = z.object({
   is_default:          z.boolean().optional(),
 });
 
-router.patch("/user-vehicles/:id", async (req, res): Promise<void> => {
+router.patch<{ id: string }>("/user-vehicles/:id", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const parsed = PatchBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
+  const userId = req.userId as string;
   const { is_default, ...rest } = parsed.data;
 
   if (is_default) {
-    const [existing] = await db.select().from(userVehiclesTable).where(eq(userVehiclesTable.id, id));
-    if (existing) {
-      await db.update(userVehiclesTable).set({ is_default: false })
-        .where(eq(userVehiclesTable.user_id, existing.user_id));
-    }
+    // Машина по умолчанию только одна — снимаем флаг с остальных своих.
+    await db.update(userVehiclesTable).set({ is_default: false })
+      .where(eq(userVehiclesTable.user_id, userId));
   }
 
   const [updated] = await db.update(userVehiclesTable)
     .set({ ...rest, ...(is_default !== undefined ? { is_default } : {}) })
-    .where(eq(userVehiclesTable.id, id))
+    .where(and(eq(userVehiclesTable.id, id), eq(userVehiclesTable.user_id, userId)))
     .returning();
 
+  // 404 и на чужую машину тоже: существование чужих записей — не наше дело
+  // сообщать, а различие ответов подсказало бы, какие id заняты.
   if (!updated) { res.status(404).json({ error: "Not found" }); return; }
   const [vehicle] = await db.select().from(vehiclesTable).where(eq(vehiclesTable.id, updated.vehicle_id));
   res.json({ ...updated, vehicle });
 });
 
 // DELETE /user-vehicles/:id
-router.delete("/user-vehicles/:id", async (req, res): Promise<void> => {
+router.delete<{ id: string }>("/user-vehicles/:id", requireAuth, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-  await db.delete(userVehiclesTable).where(eq(userVehiclesTable.id, id));
+
+  const deleted = await db.delete(userVehiclesTable)
+    .where(and(
+      eq(userVehiclesTable.id, id),
+      eq(userVehiclesTable.user_id, req.userId as string),
+    ))
+    .returning({ id: userVehiclesTable.id });
+
+  if (deleted.length === 0) { res.status(404).json({ error: "Not found" }); return; }
   res.status(204).end();
 });
 

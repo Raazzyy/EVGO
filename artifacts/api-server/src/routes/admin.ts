@@ -51,6 +51,15 @@ function verifyToken(token: string): string | null {
   }
 }
 
+/**
+ * Проверяет админский токен, ничего не отвечая клиенту.
+ * Нужна маршрутам, которые обслуживают и пользователя, и админку: список
+ * сессий у пользователя свой, у админки — общий.
+ */
+export function verifyAdminToken(token: string): string | null {
+  return verifyToken(token);
+}
+
 // ── Auth middleware ────────────────────────────────────────────────────────────
 export function adminAuth(req: Request, res: Response, next: NextFunction): void {
   const header = req.headers["authorization"] ?? "";
