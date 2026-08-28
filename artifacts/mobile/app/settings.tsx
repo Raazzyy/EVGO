@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useColors } from '@/hooks/useColors';
+import { useAuth } from '@/contexts/AuthContext';
 
 const STORAGE_KEY = '@ion_settings';
 
@@ -105,8 +106,12 @@ export default function SettingsScreen() {
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
   const bottomPad = Platform.OS === 'web' ? 34 : insets.bottom;
 
+  const { user, signOut, deleteAccount } = useAuth();
+
   const [settings, setSettings] = useState<Settings>(DEFAULTS);
   const [loaded, setLoaded] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY).then(raw => {
@@ -121,6 +126,27 @@ export default function SettingsScreen() {
     const next = { ...settings, ...patch };
     setSettings(next);
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  };
+
+  const onSignOut = async () => {
+    setBusy(true);
+    await signOut();
+    // Редирект на экран входа делает защита маршрутов в app/_layout.tsx.
+    setBusy(false);
+  };
+
+  const onDeleteAccount = async () => {
+    // Alert.alert на вебе не работает, поэтому подтверждение встроено в саму
+    // строку: первое нажатие переводит её в режим подтверждения.
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      setTimeout(() => setConfirmDelete(false), 5000);
+      return;
+    }
+
+    setBusy(true);
+    await deleteAccount();
+    setBusy(false);
   };
 
   if (!loaded) return null;
@@ -169,8 +195,38 @@ export default function SettingsScreen() {
           />
         </Section>
 
+        <Section title="Аккаунт">
+          <TouchableOpacity
+            style={[sStyles.row, { borderBottomWidth: 1, borderBottomColor: colors.border }]}
+            onPress={onSignOut}
+            disabled={busy}
+          >
+            <Feather name="log-out" size={18} color={colors.text} />
+            <Text style={[sStyles.rowLabel, { color: colors.text, flex: 1 }]}>
+              Выйти из аккаунта
+            </Text>
+          </TouchableOpacity>
+
+          {/* Удаление аккаунта обязательно по правилам App Store для
+              приложений с регистрацией. Подтверждение в два касания — чтобы
+              необратимое действие не срабатывало с первого промаха. */}
+          <TouchableOpacity style={sStyles.row} onPress={onDeleteAccount} disabled={busy}>
+            <Feather name="trash-2" size={18} color={colors.destructive} />
+            <View style={{ flex: 1 }}>
+              <Text style={[sStyles.rowLabel, { color: colors.destructive }]}>
+                {confirmDelete ? 'Нажмите ещё раз для подтверждения' : 'Удалить аккаунт'}
+              </Text>
+              <Text style={[sStyles.rowSub, { color: colors.mutedForeground }]}>
+                {confirmDelete ? 'Отменить будет нельзя' : 'Номер и профиль удаляются безвозвратно'}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </Section>
+
         <Text style={[sStyles.hint, { color: colors.mutedForeground }]}>
-          Настройки сохраняются локально на устройстве
+          {user?.phone
+            ? `Вход выполнен по номеру +${user.phone}`
+            : 'Настройки сохраняются локально на устройстве'}
         </Text>
       </ScrollView>
     </View>

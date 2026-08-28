@@ -57,6 +57,7 @@
   },
   "dependencies": {
     "@types/leaflet": "^1.9.21",
+    "expo-secure-store": "~15.0.8",
     "expo-speech": "^57.0.1",
     "leaflet": "^1.9.4",
     "react-leaflet": "^5.0.0",

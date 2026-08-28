@@ -8,6 +8,13 @@ export type BodyType<T> = T;
 
 export type AuthTokenGetter = () => Promise<string | null> | string | null;
 
+/**
+ * Вызывается, когда сервер ответил 401 на запрос с токеном.
+ * Должен обновить пару токенов и вернуть true, если это удалось —
+ * тогда исходный запрос повторяется один раз с новым токеном.
+ */
+export type AuthRefreshHandler = () => Promise<boolean>;
+
 const NO_BODY_STATUS = new Set([204, 205, 304]);
 const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 
@@ -17,6 +24,24 @@ const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 
 let _baseUrl: string | null = null;
 let _authTokenGetter: AuthTokenGetter | null = null;
+let _authRefreshHandler: AuthRefreshHandler | null = null;
+
+/**
+ * Пока идёт обновление, параллельные запросы ждут его результата, а не
+ * запускают по своему обновлению каждый. Иначе первый же экран с пятью
+ * запросами сожжёт пять refresh-токенов подряд и разлогинит пользователя.
+ */
+let _refreshInFlight: Promise<boolean> | null = null;
+
+async function refreshOnce(): Promise<boolean> {
+  if (!_authRefreshHandler) return false;
+  if (!_refreshInFlight) {
+    _refreshInFlight = _authRefreshHandler().finally(() => {
+      _refreshInFlight = null;
+    });
+  }
+  return _refreshInFlight;
+}
 
 /**
  * Set a base URL that is prepended to every relative request URL
@@ -42,6 +67,22 @@ export function setBaseUrl(url: string | null): void {
  */
 export function setAuthTokenGetter(getter: AuthTokenGetter | null): void {
   _authTokenGetter = getter;
+}
+
+/**
+ * Регистрирует обработчик обновления токена.
+ *
+ * Access-токен живёт недолго, и без этого каждый запрос после его истечения
+ * возвращал бы пользователя на экран входа. С обработчиком клиент один раз
+ * молча обновляет пару токенов и повторяет запрос.
+ *
+ * Сам обработчик обязан ходить в /auth/refresh мимо `customFetch` — иначе
+ * ответ 401 от самого refresh снова вызовет обработчик и уйдёт в рекурсию.
+ *
+ * Передайте null, чтобы отключить.
+ */
+export function setAuthRefreshHandler(handler: AuthRefreshHandler | null): void {
+  _authRefreshHandler = handler;
 }
 
 function isRequest(input: RequestInfo | URL): input is Request {
@@ -326,6 +367,14 @@ export async function customFetch<T = unknown>(
   input: RequestInfo | URL,
   options: CustomFetchOptions = {},
 ): Promise<T> {
+  return runFetch<T>(input, options, true);
+}
+
+async function runFetch<T>(
+  input: RequestInfo | URL,
+  options: CustomFetchOptions,
+  allowRefresh: boolean,
+): Promise<T> {
   input = applyBaseUrl(input);
   const { responseType = "auto", headers: headersInit, ...init } = options;
 
@@ -363,6 +412,21 @@ export async function customFetch<T = unknown>(
   const response = await fetch(input, { ...init, method, headers });
 
   if (!response.ok) {
+    // Токен протух — обновляем пару и повторяем запрос ровно один раз.
+    // Повтор возможен только для запроса, который шёл с токеном: без него
+    // 401 означает «нужно войти», а не «токен устарел».
+    if (
+      response.status === 401 &&
+      allowRefresh &&
+      _authRefreshHandler &&
+      headers.has("authorization")
+    ) {
+      const refreshed = await refreshOnce();
+      if (refreshed) {
+        return runFetch<T>(input, options, false);
+      }
+    }
+
     const errorData = await parseErrorBody(response, method);
     throw new ApiError(response, errorData, requestInfo);
   }

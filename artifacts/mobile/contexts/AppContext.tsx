@@ -1,9 +1,14 @@
 import React, { createContext, useContext, useState, type ReactNode } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 
-const DEMO_USER_ID = 'user_001';
-const DEMO_USER_NAME = 'Akbar Pulatov';
-const DEMO_USER_EMAIL = 'akbar.pulatov@example.com';
-const DEMO_USER_MEMBERSHIP = 'premium';
+/**
+ * Состояние текущего сеанса работы: активная сессия зарядки, выбранный
+ * автомобиль, активный маршрут.
+ *
+ * Данные пользователя берутся из AuthContext — раньше здесь стоял
+ * захардкоженный DEMO_USER_ID, из-за чего всё приложение работало от имени
+ * одного и того же человека.
+ */
 
 interface AppContextType {
   userId: string;
@@ -21,6 +26,8 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+
   const [activeSessionId, setActiveSessionId] = useState<number | null>(null);
   // selectedVehicleId now refers to user_vehicles.id (not vehicles/catalog id)
   const [selectedVehicleId, setSelectedVehicleId] = useState<number | null>(null);
@@ -29,10 +36,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   return (
     <AppContext.Provider
       value={{
-        userId: DEMO_USER_ID,
-        userName: DEMO_USER_NAME,
-        userEmail: DEMO_USER_EMAIL,
-        userMembership: DEMO_USER_MEMBERSHIP,
+        // Экраны за пределами (auth) рендерятся только после входа — там user
+        // всегда есть. Пустые значения нужны на время первичной загрузки.
+        userId: user?.id ?? '',
+        userName: user?.name ?? '',
+        userEmail: user?.email ?? '',
+        userMembership: user?.membership_tier ?? 'free',
         activeSessionId,
         setActiveSessionId,
         selectedVehicleId,

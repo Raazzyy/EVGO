@@ -674,6 +674,170 @@ paths:
               schema:
                 $ref: "#/components/schemas/User"
 
+  # ── Auth ──────────────────────────────────────────────────────
+  # Вход по номеру телефона с подтверждением кодом из SMS.
+  #
+  # ВНИМАНИЕ при генерации клиента: /auth/refresh нельзя вызывать через
+  # customFetch — этот же обработчик срабатывает на 401 и уйдёт в рекурсию.
+  # В мобильном приложении все три эндпоинта вызываются вручную
+  # (artifacts/mobile/lib/authApi.ts).
+  /auth/request-code:
+    post:
+      operationId: requestAuthCode
+      summary: Отправить код подтверждения на номер телефона
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone]
+              properties:
+                phone:
+                  type: string
+                  description: Любой формат, сервер нормализует к 998XXXXXXXXX
+                  example: "+998 90 123 45 67"
+      responses:
+        "200":
+          description: Код отправлен
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sent, expires_in_seconds, resend_after_seconds]
+                properties:
+                  sent: { type: boolean }
+                  expires_in_seconds: { type: integer }
+                  resend_after_seconds: { type: integer }
+        "400": { description: Неверный номер }
+        "429": { description: Слишком часто — см. retry_after_seconds }
+        "502": { description: SMS-шлюз недоступен }
+
+  /auth/verify-code:
+    post:
+      operationId: verifyAuthCode
+      summary: Проверить код и получить пару токенов
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, code]
+              properties:
+                phone: { type: string }
+                code:
+                  type: string
+                  pattern: "^[0-9]{6}$"
+                device:
+                  type: string
+                  description: Подпись устройства для списка сессий
+      responses:
+        "200":
+          description: Вход выполнен
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [access_token, refresh_token, expires_in_seconds, is_new_user, user]
+                properties:
+                  access_token: { type: string }
+                  refresh_token: { type: string }
+                  expires_in_seconds: { type: integer }
+                  is_new_user: { type: boolean }
+                  user: { $ref: "#/components/schemas/User" }
+        "400": { description: Неверный или истёкший код }
+        "429": { description: Слишком много попыток }
+
+  /auth/refresh:
+    post:
+      operationId: refreshAuthToken
+      summary: Обновить пару токенов
+      description: >
+        Старый refresh-токен гасится, выдаётся новый. Вызывать в обход
+        сгенерированного клиента — иначе 401 отсюда снова запустит обновление.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: { type: string }
+      responses:
+        "200":
+          description: Новая пара токенов
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [access_token, refresh_token, expires_in_seconds]
+                properties:
+                  access_token: { type: string }
+                  refresh_token: { type: string }
+                  expires_in_seconds: { type: integer }
+        "401": { description: Токен отозван или истёк }
+
+  /auth/logout:
+    post:
+      operationId: logout
+      summary: Отозвать refresh-токен
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: { type: string }
+      responses:
+        "204": { description: Сессия закрыта }
+
+  /auth/me:
+    get:
+      operationId: getMe
+      summary: Профиль текущего пользователя
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401": { description: Требуется вход }
+    patch:
+      operationId: updateMe
+      summary: Изменить свой профиль
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                email: { type: string, format: email }
+                language: { type: string, enum: [uz, ru, en] }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401": { description: Требуется вход }
+    delete:
+      operationId: deleteMe
+      summary: Удалить свой аккаунт
+      description: >
+        Обязательно по правилам App Store. Персональные данные стираются,
+        сессии зарядок остаются обезличенными для сверки с операторами.
+      responses:
+        "204": { description: Аккаунт удалён }
+        "401": { description: Требуется вход }
+
   # ── Payment Methods ───────────────────────────────────────────
   /payment-methods:
     get:

@@ -1,0 +1,216 @@
+import React, { useCallback, useMemo, useState } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { useColors } from '@/hooks/useColors';
+import { GradientButton } from '@/components/GradientButton';
+import { requestCode, AuthApiError } from '@/lib/authApi';
+
+/** Коды операторов Узбекистана — те же, что принимает сервер. */
+const UZ_OPERATOR_CODES = ['33', '77', '88', '90', '91', '93', '94', '95', '97', '98', '99'];
+
+/** Разбивает 9 цифр на группы: 90 123 45 67 */
+function formatLocal(digits: string): string {
+  const d = digits.slice(0, 9);
+  const parts = [d.slice(0, 2), d.slice(2, 5), d.slice(5, 7), d.slice(7, 9)].filter(Boolean);
+  return parts.join(' ');
+}
+
+export default function PhoneScreen() {
+  const colors = useColors();
+  const router = useRouter();
+
+  const [digits, setDigits] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+
+  const isComplete = digits.length === 9;
+  const operatorOk = digits.length < 2 || UZ_OPERATOR_CODES.includes(digits.slice(0, 2));
+  const canSubmit = isComplete && operatorOk && !pending;
+
+  const hint = useMemo(() => {
+    if (!operatorOk) return 'Такого кода оператора нет в Узбекистане';
+    return 'Отправим SMS с кодом подтверждения';
+  }, [operatorOk]);
+
+  const onChange = useCallback((text: string) => {
+    setDigits(text.replace(/\D/g, '').slice(0, 9));
+    setError(null);
+  }, []);
+
+  const onSubmit = useCallback(async () => {
+    if (!canSubmit) return;
+
+    setPending(true);
+    setError(null);
+
+    const phone = `998${digits}`;
+
+    try {
+      await requestCode(phone);
+      if (Platform.OS !== 'web') {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+      router.push({ pathname: '/(auth)/code', params: { phone } });
+    } catch (err) {
+      const e = err as AuthApiError;
+
+      // «Код уже отправлен» — не ошибка: он действительно ушёл раньше,
+      // человека надо пустить на экран ввода, а не заставлять ждать впустую.
+      if (e.code === 'too_soon') {
+        router.push({ pathname: '/(auth)/code', params: { phone } });
+        return;
+      }
+
+      setError(e.message);
+      if (Platform.OS !== 'web') {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
+    } finally {
+      setPending(false);
+    }
+  }, [canSubmit, digits, router]);
+
+  return (
+    <KeyboardAvoidingView
+      style={[styles.flex, { backgroundColor: colors.background }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+      >
+        <LinearGradient
+          colors={[colors.gradientStart, colors.gradientEnd]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.logo}
+        >
+          <Ionicons name="flash" size={32} color="#fff" />
+        </LinearGradient>
+
+        <Text style={[styles.title, { color: colors.foreground }]}>Вход в iON</Text>
+        <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
+          Введите номер телефона — пароль не нужен
+        </Text>
+
+        <View
+          style={[
+            styles.field,
+            {
+              backgroundColor: colors.card,
+              borderColor: error || !operatorOk ? colors.destructive : colors.border,
+            },
+          ]}
+        >
+          <Text style={[styles.prefix, { color: colors.mutedForeground }]}>+998</Text>
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          <TextInput
+            value={formatLocal(digits)}
+            onChangeText={onChange}
+            placeholder="90 123 45 67"
+            placeholderTextColor={colors.mutedForeground}
+            keyboardType="number-pad"
+            textContentType="telephoneNumber"
+            autoComplete="tel"
+            autoFocus
+            maxLength={13} // 9 цифр + 3 пробела, с запасом
+            style={[styles.input, { color: colors.foreground }]}
+            onSubmitEditing={onSubmit}
+            returnKeyType="done"
+          />
+        </View>
+
+        <Text
+          style={[
+            styles.hint,
+            { color: error || !operatorOk ? colors.destructive : colors.mutedForeground },
+          ]}
+        >
+          {error ?? hint}
+        </Text>
+
+        <GradientButton
+          label="Получить код"
+          onPress={onSubmit}
+          loading={pending}
+          disabled={!canSubmit}
+          style={styles.submit}
+        />
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  flex: { flex: 1 },
+  scroll: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 48,
+  },
+  logo: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 28,
+  },
+  title: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 30,
+    letterSpacing: -0.5,
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 15,
+    lineHeight: 22,
+    marginBottom: 32,
+  },
+  field: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    height: 56,
+  },
+  prefix: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 17,
+  },
+  divider: {
+    width: 1,
+    height: 24,
+    marginHorizontal: 12,
+  },
+  input: {
+    flex: 1,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 17,
+    letterSpacing: 0.5,
+    // Высота на всё поле, чтобы касание попадало по инпуту, а не мимо.
+    height: '100%',
+  },
+  hint: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 10,
+    marginLeft: 4,
+  },
+  submit: { marginTop: 28 },
+});

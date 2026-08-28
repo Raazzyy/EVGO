@@ -271,4 +271,58 @@ router.get("/auth/me", requireAuth, async (req, res): Promise<void> => {
   res.json(user);
 });
 
+// ── PATCH /api/auth/me ───────────────────────────────────────────────────────
+// Профиль правит только сам владелец: id берётся из токена, а не из запроса.
+const UpdateMeBody = z.object({
+  name: z.string().trim().min(1).max(100).optional(),
+  email: z.string().email().max(200).optional(),
+  language: z.enum(["uz", "ru", "en"]).optional(),
+});
+
+router.patch("/auth/me", requireAuth, async (req, res): Promise<void> => {
+  const parsed = UpdateMeBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  if (Object.keys(parsed.data).length === 0) {
+    res.status(400).json({ error: "Нечего обновлять" });
+    return;
+  }
+
+  const [user] = await db
+    .update(usersTable)
+    .set(parsed.data)
+    .where(eq(usersTable.id, req.userId as string))
+    .returning();
+
+  if (!user) { res.status(404).json({ error: "User not found" }); return; }
+  res.json(user);
+});
+
+// ── DELETE /api/auth/me ──────────────────────────────────────────────────────
+// Удаление аккаунта обязательно по правилам App Store для приложений с
+// регистрацией. Данные пользователя обезличиваются, а не стираются целиком:
+// сессии зарядок нужны операторам для сверки расчётов.
+router.delete("/auth/me", requireAuth, async (req, res): Promise<void> => {
+  const userId = req.userId as string;
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(refreshTokensTable)
+      .set({ revoked_at: new Date() })
+      .where(and(eq(refreshTokensTable.user_id, userId), isNull(refreshTokensTable.revoked_at)));
+
+    await tx
+      .update(usersTable)
+      .set({
+        phone: null,
+        phone_verified_at: null,
+        email: null,
+        name: "Удалённый пользователь",
+      })
+      .where(eq(usersTable.id, userId));
+  });
+
+  res.sendStatus(204);
+});
+
 export default router;
