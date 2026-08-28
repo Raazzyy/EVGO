@@ -9,8 +9,12 @@
 - `pnpm --filter @workspace/api-server run dev` — API-сервер (сборка + запуск)
 - `pnpm --filter @workspace/mobile run dev` — Expo: iOS, Android и веб
 - `pnpm --filter @workspace/admin run dev` — админ-панель (Vite)
-- `pnpm run typecheck` — типы по всем пакетам
-- `pnpm run build` — typecheck + сборка всего
+- `pnpm run check` — то же, что проверяет CI: библиотеки, api-server, админка,
+  mockup-sandbox, scripts. Прогонять перед пушем
+- `pnpm run typecheck` — типы по всем пакетам, включая мобильный.
+  **Сейчас падает**: в `@workspace/mobile` 15 накопленных ошибок (задача 97)
+- `pnpm run build` — typecheck + сборка всего. **Тоже падает по той же причине**,
+  пока задача 97 не закрыта
 - `pnpm --filter @workspace/api-spec run codegen` — перегенерировать хуки и
   Zod-схемы из OpenAPI. **Запускать после каждой правки `openapi.yaml`**
 - `pnpm --filter @workspace/db run push` — применить изменения схемы БД (только dev)
