@@ -1,0 +1,109 @@
+@import "tailwindcss";
+
+/**
+ * Палитра «ночная станция».
+ *
+ * Зарядка чаще всего случается вечером и ночью, у подсвеченного столба на
+ * парковке — отсюда глубокий сине-зелёный фон вместо нейтрального тёмного.
+ * Зелёный и янтарный взяты не произвольно: ровно этими цветами в приложении
+ * помечены свободные и занятые коннекторы, так что лендинг говорит с
+ * пользователем на языке, который он уже знает. Янтарный заодно отсылает к
+ * узбекскому солнцу, но работает прежде всего как рабочий статус.
+ */
+@theme {
+  --color-ink: #071a1c;
+  --color-ink-soft: #0e2a2d;
+  --color-ink-line: #16403f;
+  --color-paper: #f1f4f2;
+  --color-paper-dim: #d9e2dd;
+  --color-volt: #2fd08a;
+  --color-volt-deep: #1c9c68;
+  --color-amber: #f5a524;
+  --color-muted: #7c9490;
+
+  --font-display: "Unbounded", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Onest", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+:root {
+  --volt: #2fd08a;
+}
+
+html {
+  scroll-behavior: smooth;
+  background: var(--color-ink);
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  background: var(--color-ink);
+  color: var(--color-paper);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Клавиатурная навигация должна быть видна — по умолчанию Tailwind её гасит. */
+:focus-visible {
+  outline: 2px solid var(--color-volt);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* ── Кривая заряда ──────────────────────────────────────────────────────────
+   Фирменный мотив: линия набирает мощность и выходит на плато после 80 %.
+   Каждый владелец электромобиля узнаёт этот график, поэтому он работает как
+   подпись бренда, а не как абстрактное украшение. Рисуется штрихом, который
+   «протягивается» при появлении секции. */
+.charge-curve path {
+  stroke-dasharray: var(--curve-length, 1200);
+  stroke-dashoffset: var(--curve-length, 1200);
+  animation: draw-curve 1.8s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+}
+
+@keyframes draw-curve {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Пины на карте пульсируют — станция «живая», данные приходят из API. */
+@keyframes pin-pulse {
+  0%   { transform: scale(1);   opacity: 0.55; }
+  70%  { transform: scale(2.4); opacity: 0; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+
+.pin-pulse {
+  animation: pin-pulse 2.6s ease-out infinite;
+}
+
+/* Появление секций при скролле. */
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.7s ease, transform 0.7s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.reveal[data-visible="true"] {
+  opacity: 1;
+  transform: none;
+}
+
+/* Уважаем системную настройку: анимации выключаются целиком, а не смягчаются. */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+
+  .charge-curve path {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+
+  .pin-pulse { animation: none; opacity: 0.3; }
+
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
