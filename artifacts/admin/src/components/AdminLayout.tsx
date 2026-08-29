@@ -13,6 +13,7 @@ import {
   Tag,
   Image,
   TrendingUp,
+  Flag,
 } from "lucide-react";
 import {
   Sidebar,
@@ -49,6 +50,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     { label: "Dashboard",    icon: LayoutDashboard, path: "/" },
     { label: "Финансы",      icon: TrendingUp,      path: "/finance" },
     { label: "Станции",      icon: MapPin,           path: "/stations" },
+    { label: "Жалобы",       icon: Flag,             path: "/station-reports" },
     { label: "Операторы",    icon: Briefcase,        path: "/operators" },
     { label: "Сессии",       icon: BatteryCharging,  path: "/sessions" },
     { label: "Пользователи", icon: Users,            path: "/users" },

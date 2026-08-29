@@ -17,6 +17,7 @@ import Operators from '@/pages/Operators';
 import Sessions from '@/pages/Sessions';
 import Users from '@/pages/Users';
 import Support from '@/pages/Support';
+import StationReports from '@/pages/StationReports';
 import Vehicles from '@/pages/Vehicles';
 import Promos from '@/pages/Promos';
 import Banners from '@/pages/Banners';
@@ -36,6 +37,11 @@ function Router() {
       <Route path="/stations">
         <AdminLayout>
           <Stations />
+        </AdminLayout>
+      </Route>
+      <Route path="/station-reports">
+        <AdminLayout>
+          <StationReports />
         </AdminLayout>
       </Route>
       <Route path="/operators">
