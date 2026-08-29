@@ -14,6 +14,8 @@ import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTranslation } from 'react-i18next';
+import { setLanguage as applyLanguage, type Language } from '@/lib/i18n';
 
 const STORAGE_KEY = '@ion_settings';
 
@@ -106,7 +108,8 @@ export default function SettingsScreen() {
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
   const bottomPad = Platform.OS === 'web' ? 34 : insets.bottom;
 
-  const { user, signOut, deleteAccount } = useAuth();
+  const { user, signOut, deleteAccount, updateProfile } = useAuth();
+  const { t } = useTranslation();
 
   const [settings, setSettings] = useState<Settings>(DEFAULTS);
   const [loaded, setLoaded] = useState(false);
@@ -175,17 +178,25 @@ export default function SettingsScreen() {
           <ToggleRow label="Только совместимые станции" sub="Фильтр по типу разъёма вашего авто" value={settings.onlyCompatible} onChange={v => update({ onlyCompatible: v })} last />
         </Section>
 
-        <Section title="Язык">
+        <Section title={t('settings.language')}>
           <SelectRow
-            label="Язык интерфейса"
+            label={t('settings.language')}
             options={[{ value: 'ru', label: 'Рус' }, { value: 'uz', label: "O'z" }, { value: 'en', label: 'EN' }]}
             value={settings.language}
-            onChange={v => update({ language: v })}
+            onChange={v => {
+              update({ language: v });
+              // Меняем язык интерфейса сразу и сохраняем выбор в профиле —
+              // от него зависит язык уведомлений и SMS.
+              void applyLanguage(v as Language);
+              void updateProfile({ language: v }).catch(() => {
+                // Профиль не сохранился — язык интерфейса всё равно сменится.
+              });
+            }}
             last
           />
         </Section>
 
-        <Section title="Тема">
+        <Section title={t('settings.theme')}>
           <SelectRow
             label="Цветовая схема"
             options={[{ value: 'light', label: '☀ Светлая' }, { value: 'dark', label: '● Тёмная' }, { value: 'system', label: '⚙ Авто' }]}
@@ -195,7 +206,7 @@ export default function SettingsScreen() {
           />
         </Section>
 
-        <Section title="Аккаунт">
+        <Section title={t('settings.account')}>
           <TouchableOpacity
             style={[sStyles.row, { borderBottomWidth: 1, borderBottomColor: colors.border }]}
             onPress={onSignOut}
@@ -203,7 +214,7 @@ export default function SettingsScreen() {
           >
             <Feather name="log-out" size={18} color={colors.text} />
             <Text style={[sStyles.rowLabel, { color: colors.text, flex: 1 }]}>
-              Выйти из аккаунта
+              {t('settings.signOut')}
             </Text>
           </TouchableOpacity>
 
@@ -214,10 +225,10 @@ export default function SettingsScreen() {
             <Feather name="trash-2" size={18} color={colors.destructive} />
             <View style={{ flex: 1 }}>
               <Text style={[sStyles.rowLabel, { color: colors.destructive }]}>
-                {confirmDelete ? 'Нажмите ещё раз для подтверждения' : 'Удалить аккаунт'}
+                {confirmDelete ? t('settings.deleteConfirm') : t('settings.deleteAccount')}
               </Text>
               <Text style={[sStyles.rowSub, { color: colors.mutedForeground }]}>
-                {confirmDelete ? 'Отменить будет нельзя' : 'Номер и профиль удаляются безвозвратно'}
+                {confirmDelete ? t('settings.deleteConfirmHint') : t('settings.deleteAccountHint')}
               </Text>
             </View>
           </TouchableOpacity>
@@ -225,8 +236,8 @@ export default function SettingsScreen() {
 
         <Text style={[sStyles.hint, { color: colors.mutedForeground }]}>
           {user?.phone
-            ? `Вход выполнен по номеру +${user.phone}`
-            : 'Настройки сохраняются локально на устройстве'}
+            ? t('settings.signedInAs', { phone: user.phone })
+            : t('settings.storedLocally')}
         </Text>
       </ScrollView>
     </View>

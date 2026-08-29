@@ -13,6 +13,8 @@ import { useRouter } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/contexts/AuthContext';
 import { GradientButton } from '@/components/GradientButton';
+import { useTranslation } from 'react-i18next';
+import { setLanguage as persistLanguage, type Language } from '@/lib/i18n';
 
 const LANGUAGES = [
   { code: 'uz', label: "O'zbekcha" },
@@ -24,6 +26,7 @@ export default function ProfileSetupScreen() {
   const colors = useColors();
   const router = useRouter();
   const { user, updateProfile } = useAuth();
+  const { t } = useTranslation();
 
   const [name, setName] = useState(user?.name ?? '');
   const [language, setLanguage] = useState<string>(user?.language ?? 'ru');
@@ -42,7 +45,7 @@ export default function ProfileSetupScreen() {
     } catch {
       // Профиль — не препятствие для входа: человек уже авторизован, имя
       // можно указать позже в настройках. Сообщаем, но не запираем на экране.
-      setError('Не удалось сохранить. Можно заполнить позже в профиле');
+      setError(t('auth.profileSaveFailed'));
     } finally {
       setPending(false);
     }
@@ -54,16 +57,16 @@ export default function ProfileSetupScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <Text style={[styles.title, { color: colors.foreground }]}>Почти готово</Text>
+        <Text style={[styles.title, { color: colors.foreground }]}>{t('auth.profileTitle')}</Text>
         <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-          Как к вам обращаться и на каком языке показывать приложение
+          {t('auth.profileSubtitle')}
         </Text>
 
-        <Text style={[styles.label, { color: colors.mutedForeground }]}>ИМЯ</Text>
+        <Text style={[styles.label, { color: colors.mutedForeground }]}>{t('auth.name').toUpperCase()}</Text>
         <TextInput
           value={name}
           onChangeText={setName}
-          placeholder="Например, Акбар"
+          placeholder={t('auth.namePlaceholder')}
           placeholderTextColor={colors.mutedForeground}
           autoCapitalize="words"
           autoComplete="name"
@@ -74,14 +77,14 @@ export default function ProfileSetupScreen() {
           ]}
         />
 
-        <Text style={[styles.label, { color: colors.mutedForeground, marginTop: 24 }]}>ЯЗЫК</Text>
+        <Text style={[styles.label, { color: colors.mutedForeground, marginTop: 24 }]}>{t('auth.language').toUpperCase()}</Text>
         <View style={styles.languages}>
           {LANGUAGES.map((l) => {
             const selected = l.code === language;
             return (
               <Pressable
                 key={l.code}
-                onPress={() => setLanguage(l.code)}
+                onPress={() => { setLanguage(l.code); void persistLanguage(l.code as Language); }}
                 style={[
                   styles.language,
                   {
@@ -108,14 +111,14 @@ export default function ProfileSetupScreen() {
         ) : null}
 
         <GradientButton
-          label="Продолжить"
+          label={t('common.continue')}
           onPress={save}
           loading={pending}
           style={styles.submit}
         />
 
         <Pressable onPress={finish} hitSlop={12} style={styles.skip}>
-          <Text style={[styles.skipLabel, { color: colors.mutedForeground }]}>Пропустить</Text>
+          <Text style={[styles.skipLabel, { color: colors.mutedForeground }]}>{t('common.skip')}</Text>
         </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>

@@ -15,6 +15,8 @@ import * as Haptics from 'expo-haptics';
 import { useColors } from '@/hooks/useColors';
 import { GradientButton } from '@/components/GradientButton';
 import { requestCode, AuthApiError } from '@/lib/authApi';
+import { useTranslation } from 'react-i18next';
+import { authErrorMessage } from '@/lib/authErrors';
 
 /** Коды операторов Узбекистана — те же, что принимает сервер. */
 const UZ_OPERATOR_CODES = ['33', '77', '88', '90', '91', '93', '94', '95', '97', '98', '99'];
@@ -29,6 +31,7 @@ function formatLocal(digits: string): string {
 export default function PhoneScreen() {
   const colors = useColors();
   const router = useRouter();
+  const { t } = useTranslation();
 
   const [digits, setDigits] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -39,9 +42,9 @@ export default function PhoneScreen() {
   const canSubmit = isComplete && operatorOk && !pending;
 
   const hint = useMemo(() => {
-    if (!operatorOk) return 'Такого кода оператора нет в Узбекистане';
-    return 'Отправим SMS с кодом подтверждения';
-  }, [operatorOk]);
+    if (!operatorOk) return t('auth.phoneWrongOperator');
+    return t('auth.phoneHint');
+  }, [operatorOk, t]);
 
   const onChange = useCallback((text: string) => {
     setDigits(text.replace(/\D/g, '').slice(0, 9));
@@ -72,7 +75,7 @@ export default function PhoneScreen() {
         return;
       }
 
-      setError(e.message);
+      setError(authErrorMessage(e, t));
       if (Platform.OS !== 'web') {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
@@ -99,9 +102,9 @@ export default function PhoneScreen() {
           <Ionicons name="flash" size={32} color="#fff" />
         </LinearGradient>
 
-        <Text style={[styles.title, { color: colors.foreground }]}>Вход в iON</Text>
+        <Text style={[styles.title, { color: colors.foreground }]}>{t('auth.signInTitle')}</Text>
         <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-          Введите номер телефона — пароль не нужен
+          {t('auth.signInSubtitle')}
         </Text>
 
         <View
@@ -118,7 +121,7 @@ export default function PhoneScreen() {
           <TextInput
             value={formatLocal(digits)}
             onChangeText={onChange}
-            placeholder="90 123 45 67"
+            placeholder={t('auth.phonePlaceholder')}
             placeholderTextColor={colors.mutedForeground}
             keyboardType="number-pad"
             textContentType="telephoneNumber"
@@ -141,7 +144,7 @@ export default function PhoneScreen() {
         </Text>
 
         <GradientButton
-          label="Получить код"
+          label={t('auth.getCode')}
           onPress={onSubmit}
           loading={pending}
           disabled={!canSubmit}

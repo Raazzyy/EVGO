@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { useColors } from '@/hooks/useColors';
 import { GradientButton } from '@/components/GradientButton';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Сообщение о неточности в данных станции.
@@ -25,12 +26,12 @@ import { GradientButton } from '@/components/GradientButton';
  */
 
 const REASONS = [
-  { value: 'not_working', label: 'Станция не работает', icon: 'x-octagon' },
-  { value: 'wrong_price', label: 'Цена не совпадает', icon: 'dollar-sign' },
-  { value: 'wrong_location', label: 'Неверное место на карте', icon: 'map-pin' },
-  { value: 'wrong_connectors', label: 'Не те разъёмы', icon: 'zap' },
-  { value: 'permanently_closed', label: 'Станции больше нет', icon: 'slash' },
-  { value: 'other', label: 'Другое', icon: 'more-horizontal' },
+  { value: 'not_working', key: 'station.reasonNotWorking', icon: 'x-octagon' },
+  { value: 'wrong_price', key: 'station.reasonWrongPrice', icon: 'dollar-sign' },
+  { value: 'wrong_location', key: 'station.reasonWrongLocation', icon: 'map-pin' },
+  { value: 'wrong_connectors', key: 'station.reasonWrongConnectors', icon: 'zap' },
+  { value: 'permanently_closed', key: 'station.reasonClosed', icon: 'slash' },
+  { value: 'other', key: 'station.reasonOther', icon: 'more-horizontal' },
 ] as const;
 
 type Reason = (typeof REASONS)[number]['value'];
@@ -44,6 +45,7 @@ interface Props {
 export function ReportStationSheet({ visible, onClose, onSubmit }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
 
   const [reason, setReason] = useState<Reason | null>(null);
   const [comment, setComment] = useState('');
@@ -80,10 +82,10 @@ export function ReportStationSheet({ visible, onClose, onSubmit }: Props) {
       // Показываем благодарность и закрываем сами — лишнее нажатие не нужно.
       setTimeout(close, 1600);
     } catch {
-      setError('Не удалось отправить. Попробуйте позже');
+      setError(t('station.reportFailed'));
       setPending(false);
     }
-  }, [close, comment, onSubmit, pending, reason]);
+  }, [close, comment, onSubmit, pending, reason, t]);
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={close}>
@@ -103,17 +105,16 @@ export function ReportStationSheet({ visible, onClose, onSubmit }: Props) {
               <View style={[styles.doneIcon, { backgroundColor: colors.muted }]}>
                 <Feather name="check" size={28} color="#10B981" />
               </View>
-              <Text style={[styles.doneTitle, { color: colors.text }]}>Спасибо</Text>
+              <Text style={[styles.doneTitle, { color: colors.text }]}>{t('station.reportThanks')}</Text>
               <Text style={[styles.doneText, { color: colors.mutedForeground }]}>
-                Проверим данные и исправим
+                {t('station.reportThanksHint')}
               </Text>
             </View>
           ) : (
             <>
-              <Text style={[styles.title, { color: colors.text }]}>Что не так?</Text>
+              <Text style={[styles.title, { color: colors.text }]}>{t('station.reportTitle')}</Text>
               <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-                Данные о станциях приходят из открытых источников и иногда
-                устаревают
+                {t('station.reportSubtitle')}
               </Text>
 
               <View style={styles.reasons}>
@@ -142,7 +143,7 @@ export function ReportStationSheet({ visible, onClose, onSubmit }: Props) {
                           { color: selected ? colors.primaryForeground : colors.text },
                         ]}
                       >
-                        {r.label}
+                        {t(r.key)}
                       </Text>
                     </Pressable>
                   );
@@ -152,7 +153,7 @@ export function ReportStationSheet({ visible, onClose, onSubmit }: Props) {
               <TextInput
                 value={comment}
                 onChangeText={setComment}
-                placeholder="Подробности — необязательно"
+                placeholder={t('station.reportComment')}
                 placeholderTextColor={colors.mutedForeground}
                 multiline
                 maxLength={1000}
@@ -176,7 +177,7 @@ export function ReportStationSheet({ visible, onClose, onSubmit }: Props) {
                 </View>
               ) : (
                 <GradientButton
-                  label="Отправить"
+                  label={t('station.reportSend')}
                   onPress={submit}
                   disabled={!reason}
                   style={styles.submit}

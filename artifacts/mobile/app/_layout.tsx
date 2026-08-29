@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -16,6 +16,8 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { setBaseUrl } from '@workspace/api-client-react';
 import { AppProvider } from '@/contexts/AppContext';
+// Побочный импорт: инициализирует i18next до первого рендера.
+import { restoreLanguage } from '@/lib/i18n';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 
 // Set API base URL from env (injected at bundle time by dev script)
@@ -107,13 +109,21 @@ export default function RootLayout() {
     Inter_700Bold,
   });
 
+  const [languageReady, setLanguageReady] = useState(false);
+
+  // Сохранённый язык применяем до первого кадра: иначе интерфейс мигнёт
+  // языком системы и только потом переключится на выбранный.
   useEffect(() => {
-    if (fontsLoaded || fontError) {
+    restoreLanguage().finally(() => setLanguageReady(true));
+  }, []);
+
+  useEffect(() => {
+    if ((fontsLoaded || fontError) && languageReady) {
       SplashScreen.hideAsync();
     }
-  }, [fontsLoaded, fontError]);
+  }, [fontsLoaded, fontError, languageReady]);
 
-  if (!fontsLoaded && !fontError) return null;
+  if ((!fontsLoaded && !fontError) || !languageReady) return null;
 
   return (
     <SafeAreaProvider>

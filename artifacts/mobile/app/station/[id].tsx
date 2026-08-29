@@ -31,6 +31,7 @@ import { GradientButton } from '@/components/GradientButton';
 import { PromoCountdown } from '@/components/PromoCountdown';
 import { CircularProgress } from '@/components/CircularProgress';
 import { ReportStationSheet } from '@/components/ReportStationSheet';
+import { useTranslation } from 'react-i18next';
 
 const API = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
@@ -434,6 +435,7 @@ export default function StationDetailScreen() {
     },
   });
 
+  const { t, i18n } = useTranslation();
   const [reportOpen, setReportOpen] = useState(false);
 
   // Отправка жалобы на неточность в данных станции. Токен подставляет
@@ -805,8 +807,10 @@ export default function StationDetailScreen() {
           <View style={styles.freshness}>
             <Text style={[styles.freshnessText, { color: colors.mutedForeground }]}>
               {(station as any).verified_at
-                ? `Данные проверены ${new Date((station as any).verified_at).toLocaleDateString('ru-RU')}`
-                : 'Данные из открытых источников, могут быть неточными'}
+                ? t('station.verifiedOn', {
+                    date: new Date((station as any).verified_at).toLocaleDateString(i18n.language),
+                  })
+                : t('station.notVerified')}
             </Text>
             <TouchableOpacity
               onPress={() => setReportOpen(true)}
@@ -815,7 +819,7 @@ export default function StationDetailScreen() {
             >
               <Feather name="flag" size={14} color={colors.mutedForeground} />
               <Text style={[styles.reportBtnText, { color: colors.mutedForeground }]}>
-                Сообщить о неточности
+                {t('station.reportInaccuracy')}
               </Text>
             </TouchableOpacity>
           </View>

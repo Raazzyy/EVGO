@@ -16,6 +16,8 @@ import * as Haptics from 'expo-haptics';
 import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/contexts/AuthContext';
 import { requestCode, verifyCode, AuthApiError } from '@/lib/authApi';
+import { useTranslation } from 'react-i18next';
+import { authErrorMessage } from '@/lib/authErrors';
 
 const CODE_LENGTH = 6;
 
@@ -29,6 +31,7 @@ function prettyPhone(phone: string): string {
 export default function CodeScreen() {
   const colors = useColors();
   const router = useRouter();
+  const { t } = useTranslation();
   const { signIn } = useAuth();
   const { phone } = useLocalSearchParams<{ phone: string }>();
 
@@ -42,8 +45,9 @@ export default function CodeScreen() {
   // поэтому кнопку показываем неактивной, а не отправляем запрос впустую.
   useEffect(() => {
     if (resendIn <= 0) return;
-    const t = setTimeout(() => setResendIn((v) => v - 1), 1000);
-    return () => clearTimeout(t);
+    // Не `t`: это имя занято функцией перевода из useTranslation.
+    const timer = setTimeout(() => setResendIn((v) => v - 1), 1000);
+    return () => clearTimeout(timer);
   }, [resendIn]);
 
   const submit = useCallback(
@@ -74,7 +78,7 @@ export default function CodeScreen() {
         else router.replace('/(tabs)');
       } catch (err) {
         const e = err as AuthApiError;
-        setError(e.message);
+        setError(authErrorMessage(e, t));
         setCode('');
 
         if (Platform.OS !== 'web') {
@@ -113,7 +117,7 @@ export default function CodeScreen() {
       inputRef.current?.focus();
     } catch (err) {
       const e = err as AuthApiError;
-      setError(e.message);
+      setError(authErrorMessage(e, t));
       if (e.retryAfterSeconds) setResendIn(e.retryAfterSeconds);
     }
   }, [phone, resendIn]);
@@ -128,9 +132,9 @@ export default function CodeScreen() {
           <Ionicons name="chevron-back" size={24} color={colors.foreground} />
         </Pressable>
 
-        <Text style={[styles.title, { color: colors.foreground }]}>Введите код</Text>
+        <Text style={[styles.title, { color: colors.foreground }]}>{t('auth.codeTitle')}</Text>
         <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-          Отправили SMS на {prettyPhone(phone ?? '')}
+          {t('auth.codeSubtitle', { phone: prettyPhone(phone ?? '') })}
         </Text>
 
         {/* Одно скрытое поле под шестью ячейками: так работает автоподстановка
@@ -191,7 +195,7 @@ export default function CodeScreen() {
               { color: resendIn > 0 ? colors.mutedForeground : colors.primary },
             ]}
           >
-            {resendIn > 0 ? `Отправить повторно через ${resendIn} с` : 'Отправить код ещё раз'}
+            {resendIn > 0 ? t('auth.resendIn', { seconds: resendIn }) : t('auth.resendNow')}
           </Text>
         </Pressable>
       </ScrollView>
