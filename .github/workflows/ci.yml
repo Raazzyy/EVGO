@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   typecheck:
-    name: Typecheck (backend, admin, libs)
+    name: Typecheck
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -29,30 +29,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Typecheck libs
-        run: pnpm run typecheck:libs
+      # Проверяет все пакеты, включая мобильный. Раньше мобильный шёл
+      # отдельной непадающей джобой из-за накопленных ошибок типов —
+      # они исправлены (задача 98).
+      - name: Typecheck
+        run: pnpm run typecheck
 
-      - name: Typecheck api-server
-        run: pnpm --filter @workspace/api-server run typecheck
-
-      - name: Typecheck admin
-        run: pnpm --filter @workspace/admin run typecheck
-
-      - name: Typecheck mockup-sandbox
-        run: pnpm --filter @workspace/mockup-sandbox run typecheck
-
-      - name: Typecheck scripts
-        run: pnpm --filter ./scripts run typecheck
-
-  typecheck-mobile:
-    name: Typecheck (mobile)
+  build:
+    name: Build
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    # ВРЕМЕННО не блокирует сборку: в мобильном пакете есть накопленные ошибки
-    # типов, не связанные с текущими правками (задача 97 в docs/tasks.md).
-    # Как только они будут исправлены — убрать continue-on-error и перенести
-    # шаг в джобу выше.
-    continue-on-error: true
+    timeout-minutes: 20
+    needs: typecheck
 
     steps:
       - uses: actions/checkout@v4
@@ -65,5 +52,37 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Typecheck mobile
-        run: pnpm --filter @workspace/mobile run typecheck
+      # Ловит то, что проверка типов пропускает: ошибки бандлера,
+      # неразрешённые импорты, забытые зависимости.
+      - name: Build
+        run: pnpm -r --if-present run build
+
+  codegen-check:
+    name: Codegen is up to date
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Клиент и Zod-схемы генерируются из openapi.yaml. Если спецификацию
+      # правят, а codegen не прогоняют, контракт и клиент расходятся молча —
+      # эта джоба ловит расхождение.
+      - name: Regenerate API client
+        run: pnpm --filter @workspace/api-spec run codegen
+
+      - name: Fail if generated files differ
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::Сгенерированные файлы устарели. Запустите: pnpm --filter @workspace/api-spec run codegen"
+            git --no-pager diff --stat
+            exit 1
+          fi

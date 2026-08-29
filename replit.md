@@ -9,12 +9,9 @@
 - `pnpm --filter @workspace/api-server run dev` — API-сервер (сборка + запуск)
 - `pnpm --filter @workspace/mobile run dev` — Expo: iOS, Android и веб
 - `pnpm --filter @workspace/admin run dev` — админ-панель (Vite)
-- `pnpm run check` — то же, что проверяет CI: библиотеки, api-server, админка,
-  mockup-sandbox, scripts. Прогонять перед пушем
-- `pnpm run typecheck` — типы по всем пакетам, включая мобильный.
-  **Сейчас падает**: в `@workspace/mobile` 15 накопленных ошибок (задача 97)
-- `pnpm run build` — typecheck + сборка всего. **Тоже падает по той же причине**,
-  пока задача 97 не закрыта
+- `pnpm run typecheck` — типы по всем пакетам, включая мобильный. Прогонять
+  перед пушем
+- `pnpm run build` — typecheck + сборка всего
 - `pnpm --filter @workspace/api-spec run codegen` — перегенерировать хуки и
   Zod-схемы из OpenAPI. **Запускать после каждой правки `openapi.yaml`**
 - `pnpm --filter @workspace/db run push` — применить изменения схемы БД (только dev)
@@ -115,9 +112,11 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 
 ## Gotchas
 
-- **`is_promoted` хранится числом 0/1, а не boolean.** В JSX всегда писать
-  `{!!is_promoted && …}` — при голом `{is_promoted && …}` и значении `0`
-  React Native выводит текст «0» и роняет экран. Поправить тип — задача 60.
+- **На Windows собирается только `api-server`.** В `pnpm-workspace.yaml`
+  намеренно исключены все не-linux бинарники rollup и esbuild («replit uses
+  linux-x64 only»), поэтому `vite build` для админки и мобильного падает с
+  `Cannot find module '@rollup/rollup-win32-x64-msvc'`. Проверка типов при
+  этом работает везде. Собирать — на Replit или в CI.
 - **Деньги лежат в `real`** (`sessions.cost`, `users.total_spent`,
   `stations.price_per_kwh`). Это число с плавающей точкой, оно теряет копейки.
   Перевод в `bigint`/тийины — задача 30, до начала работ по кошельку.

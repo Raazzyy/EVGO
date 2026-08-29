@@ -257,11 +257,11 @@ export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
         ref={mapRef}
         style={StyleSheet.absoluteFillObject}
         initialRegion={TASHKENT}
-        onRegionChange={(r) => {
+        onRegionChange={(r: Region) => {
           regionRef.current = r;
           onRegionChange?.();
         }}
-        onRegionChangeComplete={(r) => {
+        onRegionChangeComplete={(r: Region) => {
           regionRef.current = r;
           setVisibleRegion(r); // triggers marker culling re-memoisation
         }}

@@ -215,7 +215,7 @@ function planRoute(
   stations: Array<{
     id: number; name: string; address: string; lat: number; lng: number;
     power_kw: number; price_per_kwh: number;
-    is_promoted: number; discount_pct: number; promo_ends_at: Date | null;
+    is_promoted: boolean; discount_pct: number; promo_ends_at: Date | null;
     connectors: Array<{ type: string; power_kw: number }> | null;
   }>,
   mode: "fast" | "eco" = "fast",

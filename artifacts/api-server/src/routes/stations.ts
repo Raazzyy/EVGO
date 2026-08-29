@@ -39,9 +39,9 @@ const ExtendedStationPatch = z.object({
   photos:               z.array(z.string().url()).optional(),
   district:             z.string().nullable().optional(),
   region:               z.string().nullable().optional(),
-  // is_promoted stored as 0/1 integer; accept boolean or number from client
+  // Клиенты присылали и boolean, и 0/1 — приводим к boolean, как в БД.
   is_promoted:          z.union([z.boolean(), z.number().int().min(0).max(1)]).optional()
-                          .transform(v => v === true || v === 1 ? 1 : v === false || v === 0 ? 0 : undefined),
+                          .transform(v => typeof v === "number" ? v === 1 : v),
   discount_pct:         z.number().int().min(0).max(100).optional(),
   supports_reservation: z.boolean().optional(),
 });
@@ -104,7 +104,7 @@ router.get("/stations", async (req, res): Promise<void> => {
 
   // Return {promoted, nearby} — backend owns the split
   const promoted = result
-    .filter(s => (s as any).is_promoted === 1 || (s as any).is_promoted === true)
+    .filter(s => s.is_promoted)
     .sort((a, b) => ((b as any).discount_pct ?? 0) - ((a as any).discount_pct ?? 0));
   const nearby = result; // all stations sorted by distance; promoted appear at natural position too
 

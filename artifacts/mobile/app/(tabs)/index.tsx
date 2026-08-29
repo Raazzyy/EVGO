@@ -718,7 +718,7 @@ export default function MapScreen() {
           >
             {viewMode === mode && (
               <LinearGradient colors={[colors.gradientStart, colors.gradientEnd]}
-                style={StyleSheet.absoluteFill} borderRadius={100} />
+                style={[StyleSheet.absoluteFill, { borderRadius: 100 }]} />
             )}
             <Text style={[styles.segmentText, { color: viewMode === mode ? '#fff' : colors.mutedForeground }]}>
               {mode === 'map' ? 'Карта' : 'Список'}
@@ -749,7 +749,7 @@ export default function MapScreen() {
           { backgroundColor: hasActiveFilters ? 'transparent' : colors.card, borderColor: hasActiveFilters ? 'transparent' : colors.border, opacity: pressed ? 0.75 : 1 },
         ]}
       >
-        {hasActiveFilters && <LinearGradient colors={[colors.gradientStart, colors.gradientEnd]} style={StyleSheet.absoluteFill} borderRadius={20} />}
+        {hasActiveFilters && <LinearGradient colors={[colors.gradientStart, colors.gradientEnd]} style={[StyleSheet.absoluteFill, { borderRadius: 20 }]} />}
         <Feather name="sliders" size={14} color={hasActiveFilters ? '#fff' : colors.text} style={{ position: 'relative', zIndex: 1 }} />
         <Text style={[styles.filterText, { color: hasActiveFilters ? '#fff' : colors.text }]}>
           Фильтры{hasActiveFilters ? ' ●' : ''}
@@ -767,7 +767,7 @@ export default function MapScreen() {
               { backgroundColor: isActive ? 'transparent' : colors.card, borderColor: isActive ? 'transparent' : colors.border, opacity: pressed ? 0.75 : 1 },
             ]}
           >
-            {isActive && <LinearGradient colors={[colors.gradientStart, colors.gradientEnd]} style={StyleSheet.absoluteFill} borderRadius={20} />}
+            {isActive && <LinearGradient colors={[colors.gradientStart, colors.gradientEnd]} style={[StyleSheet.absoluteFill, { borderRadius: 20 }]} />}
             <Text style={[styles.filterText, { color: isActive ? '#fff' : colors.text }]}>{f.label}</Text>
           </Pressable>
         );

@@ -355,7 +355,7 @@ export default function CarsScreen() {
                     {CONNECTOR_OPTIONS.map(c => (
                       <TouchableOpacity key={c} onPress={() => setManualConnector(c)}
                         style={[styles.chipBtn, manualConnector === c && { backgroundColor: 'transparent', borderColor: 'transparent' }]}>
-                        {manualConnector === c && <LinearGradient colors={['#2563EB', '#7C3AED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={StyleSheet.absoluteFill} borderRadius={20} />}
+                        {manualConnector === c && <LinearGradient colors={['#2563EB', '#7C3AED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[StyleSheet.absoluteFill, { borderRadius: 20 }]} />}
                         <Text style={[styles.chipText, { color: manualConnector === c ? '#fff' : colors.text }]}>{c}</Text>
                       </TouchableOpacity>
                     ))}
@@ -368,7 +368,7 @@ export default function CarsScreen() {
                       {BODY_STYLE_OPTIONS.map(b => (
                         <TouchableOpacity key={b} onPress={() => setManualBodyStyle(b)}
                           style={[styles.chipBtn, manualBodyStyle === b && { backgroundColor: 'transparent', borderColor: 'transparent' }]}>
-                          {manualBodyStyle === b && <LinearGradient colors={['#2563EB', '#7C3AED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={StyleSheet.absoluteFill} borderRadius={20} />}
+                          {manualBodyStyle === b && <LinearGradient colors={['#2563EB', '#7C3AED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[StyleSheet.absoluteFill, { borderRadius: 20 }]} />}
                           <Text style={[styles.chipText, { color: manualBodyStyle === b ? '#fff' : colors.text }]}>{b}</Text>
                         </TouchableOpacity>
                       ))}

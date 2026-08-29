@@ -592,8 +592,7 @@ export default function NewRouteScreen() {
                     {isActive && (
                       <LinearGradient
                         colors={m === 'fast' ? ['#EEF2FF', '#F5F3FF'] : ['#ECFDF5', '#F0FDF4']}
-                        style={StyleSheet.absoluteFill}
-                        borderRadius={14}
+                        style={[StyleSheet.absoluteFill, { borderRadius: 14 }]}
                       />
                     )}
                     <View style={styles.modeCardInner}>

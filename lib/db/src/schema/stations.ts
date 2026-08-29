@@ -24,7 +24,7 @@ export const stationsTable = pgTable("stations", {
   cost_price_per_kwh:   numeric("cost_price_per_kwh", { precision: 10, scale: 2 }),
   status:               stationStatusEnum("status").notNull().default("free"),
   source:               stationSourceEnum("source").notNull().default("mock"),
-  is_promoted:          integer("is_promoted").notNull().default(0), // 0=false, 1=true
+  is_promoted:          boolean("is_promoted").notNull().default(false),
   discount_pct:         integer("discount_pct").notNull().default(0),
   promo_ends_at:        timestamp("promo_ends_at", { withTimezone: true }),
   amenities:            json("amenities").$type<string[]>().default([]),

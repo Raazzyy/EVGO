@@ -579,7 +579,7 @@ export default function StationDetailScreen() {
 
         <View style={styles.content}>
           {/* ── Promo banner ──────────────────────────────────────────────── */}
-          {(station as any).is_promoted === 1 && (station as any).discount_pct > 0 && (() => {
+          {!!(station as any).is_promoted && (station as any).discount_pct > 0 && (() => {
             const disc = (station as any).discount_pct as number;
             const origPrice = Math.round(station.price_per_kwh / (1 - disc / 100));
             const newPrice  = Math.round(station.price_per_kwh);
