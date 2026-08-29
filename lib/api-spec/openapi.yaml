@@ -405,6 +405,9 @@ paths:
             type: integer
         - in: query
           name: user_id
+          description: >
+            Только для админского токена. Пользователю всегда возвращаются
+            его собственные сессии, параметр игнорируется.
           schema:
             type: string
       responses:
@@ -690,25 +693,14 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required: [phone]
-              properties:
-                phone:
-                  type: string
-                  description: Любой формат, сервер нормализует к 998XXXXXXXXX
-                  example: "+998 90 123 45 67"
+              $ref: "#/components/schemas/RequestCodeInput"
       responses:
         "200":
           description: Код отправлен
           content:
             application/json:
               schema:
-                type: object
-                required: [sent, expires_in_seconds, resend_after_seconds]
-                properties:
-                  sent: { type: boolean }
-                  expires_in_seconds: { type: integer }
-                  resend_after_seconds: { type: integer }
+                $ref: "#/components/schemas/RequestCodeResult"
         "400": { description: Неверный номер }
         "429": { description: Слишком часто — см. retry_after_seconds }
         "502": { description: SMS-шлюз недоступен }
@@ -722,30 +714,14 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required: [phone, code]
-              properties:
-                phone: { type: string }
-                code:
-                  type: string
-                  pattern: "^[0-9]{6}$"
-                device:
-                  type: string
-                  description: Подпись устройства для списка сессий
+              $ref: "#/components/schemas/VerifyCodeInput"
       responses:
         "200":
           description: Вход выполнен
           content:
             application/json:
               schema:
-                type: object
-                required: [access_token, refresh_token, expires_in_seconds, is_new_user, user]
-                properties:
-                  access_token: { type: string }
-                  refresh_token: { type: string }
-                  expires_in_seconds: { type: integer }
-                  is_new_user: { type: boolean }
-                  user: { $ref: "#/components/schemas/User" }
+                $ref: "#/components/schemas/AuthSession"
         "400": { description: Неверный или истёкший код }
         "429": { description: Слишком много попыток }
 
@@ -761,22 +737,14 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required: [refresh_token]
-              properties:
-                refresh_token: { type: string }
+              $ref: "#/components/schemas/RefreshTokenInput"
       responses:
         "200":
           description: Новая пара токенов
           content:
             application/json:
               schema:
-                type: object
-                required: [access_token, refresh_token, expires_in_seconds]
-                properties:
-                  access_token: { type: string }
-                  refresh_token: { type: string }
-                  expires_in_seconds: { type: integer }
+                $ref: "#/components/schemas/TokenPair"
         "401": { description: Токен отозван или истёк }
 
   /auth/logout:
@@ -788,10 +756,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required: [refresh_token]
-              properties:
-                refresh_token: { type: string }
+              $ref: "#/components/schemas/RefreshTokenInput"
       responses:
         "204": { description: Сессия закрыта }
 
@@ -815,11 +780,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                name: { type: string }
-                email: { type: string, format: email }
-                language: { type: string, enum: [uz, ru, en] }
+              $ref: "#/components/schemas/UpdateProfileInput"
       responses:
         "200":
           description: OK
@@ -842,13 +803,7 @@ paths:
   /payment-methods:
     get:
       operationId: getPaymentMethods
-      summary: List payment methods for user
-      parameters:
-        - in: query
-          name: user_id
-          required: true
-          schema:
-            type: string
+      summary: Платёжные методы текущего пользователя
       responses:
         "200":
           description: OK
@@ -878,18 +833,13 @@ paths:
   /payment-methods/{id}:
     delete:
       operationId: deletePaymentMethod
-      summary: Remove payment method
+      summary: Удалить свой платёжный метод
       parameters:
         - in: path
           name: id
           required: true
           schema:
             type: integer
-        - in: query
-          name: user_id
-          required: true
-          schema:
-            type: string
       responses:
         "204":
           description: Deleted
@@ -985,6 +935,66 @@ paths:
 
 components:
   schemas:
+    # ── Auth ──────────────────────────────────────────────────
+    RequestCodeInput:
+      type: object
+      required: [phone]
+      properties:
+        phone:
+          type: string
+          description: Любой формат, сервер нормализует к 998XXXXXXXXX
+          example: "+998 90 123 45 67"
+
+    RequestCodeResult:
+      type: object
+      required: [sent, expires_in_seconds, resend_after_seconds]
+      properties:
+        sent: { type: boolean }
+        expires_in_seconds: { type: integer }
+        resend_after_seconds: { type: integer }
+
+    VerifyCodeInput:
+      type: object
+      required: [phone, code]
+      properties:
+        phone: { type: string }
+        code:
+          type: string
+          pattern: "^[0-9]{6}$"
+        device:
+          type: string
+          description: Подпись устройства для списка сессий
+
+    TokenPair:
+      type: object
+      required: [access_token, refresh_token, expires_in_seconds]
+      properties:
+        access_token: { type: string }
+        refresh_token: { type: string }
+        expires_in_seconds: { type: integer }
+
+    AuthSession:
+      allOf:
+        - $ref: "#/components/schemas/TokenPair"
+        - type: object
+          required: [is_new_user, user]
+          properties:
+            is_new_user: { type: boolean }
+            user: { $ref: "#/components/schemas/User" }
+
+    RefreshTokenInput:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token: { type: string }
+
+    UpdateProfileInput:
+      type: object
+      properties:
+        name: { type: string }
+        email: { type: string }
+        language: { type: string, enum: [uz, ru, en] }
+
     HealthStatus:
       type: object
       required: [status]

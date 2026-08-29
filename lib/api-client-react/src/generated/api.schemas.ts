@@ -4,6 +4,78 @@
  * Api
  * OpenAPI spec version: 1.0.0
  */
+export interface RequestCodeInput {
+  /** Любой формат, сервер нормализует к 998XXXXXXXXX */
+  phone: string;
+}
+
+export interface RequestCodeResult {
+  sent: boolean;
+  expires_in_seconds: number;
+  resend_after_seconds: number;
+}
+
+export interface VerifyCodeInput {
+  phone: string;
+  /** @pattern ^[0-9]{6}$ */
+  code: string;
+  /** Подпись устройства для списка сессий */
+  device?: string;
+}
+
+export interface TokenPair {
+  access_token: string;
+  refresh_token: string;
+  expires_in_seconds: number;
+}
+
+export type UserMembershipTier = typeof UserMembershipTier[keyof typeof UserMembershipTier];
+
+
+export const UserMembershipTier = {
+  free: 'free',
+  premium: 'premium',
+} as const;
+
+export interface User {
+  id: string;
+  email: string;
+  /** @nullable */
+  name?: string | null;
+  /** @nullable */
+  phone?: string | null;
+  membership_tier?: UserMembershipTier;
+  total_sessions?: number;
+  total_spent?: number;
+  total_energy_kwh?: number;
+  co2_saved_kg?: number;
+  created_at?: string;
+}
+
+export type AuthSession = TokenPair & {
+  is_new_user: boolean;
+  user: User;
+};
+
+export interface RefreshTokenInput {
+  refresh_token: string;
+}
+
+export type UpdateProfileInputLanguage = typeof UpdateProfileInputLanguage[keyof typeof UpdateProfileInputLanguage];
+
+
+export const UpdateProfileInputLanguage = {
+  uz: 'uz',
+  ru: 'ru',
+  en: 'en',
+} as const;
+
+export interface UpdateProfileInput {
+  name?: string;
+  email?: string;
+  language?: UpdateProfileInputLanguage;
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -271,29 +343,6 @@ export interface SessionInput {
   payment_method_id?: number | null;
 }
 
-export type UserMembershipTier = typeof UserMembershipTier[keyof typeof UserMembershipTier];
-
-
-export const UserMembershipTier = {
-  free: 'free',
-  premium: 'premium',
-} as const;
-
-export interface User {
-  id: string;
-  email: string;
-  /** @nullable */
-  name?: string | null;
-  /** @nullable */
-  phone?: string | null;
-  membership_tier?: UserMembershipTier;
-  total_sessions?: number;
-  total_spent?: number;
-  total_energy_kwh?: number;
-  co2_saved_kg?: number;
-  created_at?: string;
-}
-
 export interface UserInput {
   email: string;
   /** @nullable */
@@ -498,6 +547,9 @@ export const GetStationsStatus = {
 export type GetSessionsParams = {
 status?: GetSessionsStatus;
 station_id?: number;
+/**
+ * Только для админского токена. Пользователю всегда возвращаются его собственные сессии, параметр игнорируется.
+ */
 user_id?: string;
 };
 

@@ -9,5 +9,8 @@ import type { GetSessionsStatus } from './getSessionsStatus';
 export type GetSessionsParams = {
 status?: GetSessionsStatus;
 station_id?: number;
+/**
+ * Только для админского токена. Пользователю всегда возвращаются его собственные сессии, параметр игнорируется.
+ */
 user_id?: string;
 };

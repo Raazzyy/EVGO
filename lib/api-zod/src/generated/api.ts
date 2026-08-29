@@ -604,7 +604,7 @@ export const DeleteRouteResponse = zod.void()
 export const GetSessionsQueryParams = zod.object({
   "status": zod.enum(['active', 'completed', 'cancelled']).optional(),
   "station_id": zod.coerce.number().optional(),
-  "user_id": zod.coerce.string().optional()
+  "user_id": zod.coerce.string().optional().describe('Только для админского токена. Пользователю всегда возвращаются его собственные сессии, параметр игнорируется.\n')
 })
 
 export const GetSessionsResponseItem = zod.object({
@@ -1058,7 +1058,126 @@ export const UpdateUserResponse = zod.object({
 
 
 /**
- * @summary List payment methods for user
+ * @summary Отправить код подтверждения на номер телефона
+ */
+export const RequestAuthCodeBody = zod.object({
+  "phone": zod.string().describe('Любой формат, сервер нормализует к 998XXXXXXXXX')
+})
+
+export const RequestAuthCodeResponse = zod.object({
+  "sent": zod.boolean(),
+  "expires_in_seconds": zod.number(),
+  "resend_after_seconds": zod.number()
+})
+
+
+/**
+ * @summary Проверить код и получить пару токенов
+ */
+export const verifyAuthCodeBodyCodeRegExp = new RegExp('^[0-9]{6}$');
+
+
+export const VerifyAuthCodeBody = zod.object({
+  "phone": zod.string(),
+  "code": zod.string().regex(verifyAuthCodeBodyCodeRegExp),
+  "device": zod.string().optional().describe('Подпись устройства для списка сессий')
+})
+
+export const VerifyAuthCodeResponse = zod.object({
+  "access_token": zod.string(),
+  "refresh_token": zod.string(),
+  "expires_in_seconds": zod.number()
+}).and(zod.object({
+  "is_new_user": zod.boolean(),
+  "user": zod.object({
+  "id": zod.string(),
+  "email": zod.string(),
+  "name": zod.string().nullish(),
+  "phone": zod.string().nullish(),
+  "membership_tier": zod.enum(['free', 'premium']).optional(),
+  "total_sessions": zod.number().optional(),
+  "total_spent": zod.number().optional(),
+  "total_energy_kwh": zod.number().optional(),
+  "co2_saved_kg": zod.number().optional(),
+  "created_at": zod.coerce.date().optional()
+})
+}))
+
+
+/**
+ * Старый refresh-токен гасится, выдаётся новый. Вызывать в обход сгенерированного клиента — иначе 401 отсюда снова запустит обновление.
+ * @summary Обновить пару токенов
+ */
+export const RefreshAuthTokenBody = zod.object({
+  "refresh_token": zod.string()
+})
+
+export const RefreshAuthTokenResponse = zod.object({
+  "access_token": zod.string(),
+  "refresh_token": zod.string(),
+  "expires_in_seconds": zod.number()
+})
+
+
+/**
+ * @summary Отозвать refresh-токен
+ */
+export const LogoutBody = zod.object({
+  "refresh_token": zod.string()
+})
+
+export const LogoutResponse = zod.void()
+
+
+/**
+ * @summary Профиль текущего пользователя
+ */
+export const GetMeResponse = zod.object({
+  "id": zod.string(),
+  "email": zod.string(),
+  "name": zod.string().nullish(),
+  "phone": zod.string().nullish(),
+  "membership_tier": zod.enum(['free', 'premium']).optional(),
+  "total_sessions": zod.number().optional(),
+  "total_spent": zod.number().optional(),
+  "total_energy_kwh": zod.number().optional(),
+  "co2_saved_kg": zod.number().optional(),
+  "created_at": zod.coerce.date().optional()
+})
+
+
+/**
+ * @summary Изменить свой профиль
+ */
+export const UpdateMeBody = zod.object({
+  "name": zod.string().optional(),
+  "email": zod.string().optional(),
+  "language": zod.enum(['uz', 'ru', 'en']).optional()
+})
+
+export const UpdateMeResponse = zod.object({
+  "id": zod.string(),
+  "email": zod.string(),
+  "name": zod.string().nullish(),
+  "phone": zod.string().nullish(),
+  "membership_tier": zod.enum(['free', 'premium']).optional(),
+  "total_sessions": zod.number().optional(),
+  "total_spent": zod.number().optional(),
+  "total_energy_kwh": zod.number().optional(),
+  "co2_saved_kg": zod.number().optional(),
+  "created_at": zod.coerce.date().optional()
+})
+
+
+/**
+ * Обязательно по правилам App Store. Персональные данные стираются, сессии зарядок остаются обезличенными для сверки с операторами.
+ * @summary Удалить свой аккаунт
+ */
+export const DeleteMeResponse = zod.void()
+
+
+/**
+ * @summary Платёжные методы текущего пользователя
  */
 export const GetPaymentMethodsResponseItem = zod.object({
   "id": zod.number(),
@@ -1090,7 +1209,7 @@ export const AddPaymentMethodResponse = zod.object({
 
 
 /**
- * @summary Remove payment method
+ * @summary Удалить свой платёжный метод
  */
 export const DeletePaymentMethodParams = zod.object({
   "id": zod.coerce.number()
