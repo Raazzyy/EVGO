@@ -24,6 +24,7 @@ import { MapViewWrapper, MapApi } from '@/components/MapViewWrapper';
 import { FiltersSheet, FiltersState } from '@/components/FiltersSheet';
 import { StationQuickView, type QuickViewStation } from '@/components/StationQuickView';
 import { LinearGradient } from 'expo-linear-gradient';
+import { formatPricePerKwh } from '@/lib/format';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -131,7 +132,7 @@ function makeBanners(stations: any[], userLocation: { lat: number; lng: number }
       result.push({
         id: `near-${nearby.id}`, badge: 'РЯДОМ С ВАМИ', badgeIcon: 'navigation',
         title: `РЯДОМ · ${nearby.name}`.slice(0, 28),
-        subtitle: `${(nearby._d * 1000).toFixed(0)} м · ${nearby.price_per_kwh?.toLocaleString('ru-RU')} сум/кВт·ч`,
+        subtitle: `${(nearby._d * 1000).toFixed(0)} м · ${formatPricePerKwh(nearby.price_per_kwh)}`,
         gradient: ['#1E3A5F', '#2563EB', '#7C3AED'],
         showCountdown: false, ctaText: 'Маршрут', stationId: nearby.id,
       });

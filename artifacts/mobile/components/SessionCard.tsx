@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { StatusBadge } from './StatusBadge';
+import { formatMoney } from '@/lib/format';
 
 interface Session {
   id: number;
@@ -98,7 +99,7 @@ export function SessionCard({ session, onPress, onStop }: SessionCardProps) {
           <View style={styles.stat}>
             <Feather name="credit-card" size={13} color={colors.primary} />
             <Text style={[styles.statText, { color: colors.text }]}>
-              {Math.round(session.cost).toLocaleString('ru-RU')} сум
+              {formatMoney(Math.round(session.cost))}
             </Text>
           </View>
         )}

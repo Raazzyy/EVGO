@@ -15,6 +15,7 @@ import { useColors } from '@/hooks/useColors';
 import { useApp } from '@/contexts/AppContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { formatAmount } from '@/lib/format';
 
 interface MenuItem {
   icon: string;
@@ -105,7 +106,7 @@ export default function ProfileScreen() {
         <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
         <View style={styles.statItem}>
           <Text style={[styles.statValue, { color: colors.text }]}>
-            {Math.round(totalCost).toLocaleString('ru-RU')}
+            {formatAmount(totalCost)}
           </Text>
           <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Потрачено сум</Text>
           <Text style={styles.statSubLabel}>за этот месяц</Text>

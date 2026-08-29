@@ -6,6 +6,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
 import { useGetSession } from '@workspace/api-client-react';
 import { LinearGradient } from 'expo-linear-gradient';
+import { formatAmount, formatMoney, formatPricePerKwh } from '@/lib/format';
 
 export default function PaymentScreen() {
   const colors = useColors();
@@ -49,7 +50,7 @@ export default function PaymentScreen() {
         <View style={[styles.amountCard, { backgroundColor: '#FFFFFF' }]}>
           <Text style={[styles.amountLabel, { color: colors.mutedForeground }]}>Сумма</Text>
           <Text style={[styles.amountValue, { color: colors.text }]}>
-            {Math.round(cost).toLocaleString('ru-RU')} сум
+            {formatMoney(Math.round(cost))}
           </Text>
         </View>
 
@@ -73,10 +74,10 @@ export default function PaymentScreen() {
             <Text style={[styles.detailLabel, { color: colors.text }]}>Энергия</Text>
             <View style={styles.detailRight}>
               <Text style={[styles.detailSubValue, { color: colors.mutedForeground }]}>
-                {energyKwh.toLocaleString('ru-RU')} кВт·ч
+                {formatAmount(energyKwh)} кВт·ч
               </Text>
               <Text style={[styles.detailValue, { color: colors.text }]}>
-                {Math.round(cost).toLocaleString('ru-RU')} сум
+                {formatMoney(Math.round(cost))}
               </Text>
             </View>
           </View>
@@ -84,7 +85,7 @@ export default function PaymentScreen() {
           <View style={styles.detailRow}>
             <Text style={[styles.detailLabel, { color: colors.text }]}>Тариф</Text>
             <Text style={[styles.detailSubValue, { color: colors.mutedForeground }]}>
-              {tariff.toLocaleString('ru-RU')} сум/кВт·ч
+              {formatPricePerKwh(tariff)}
             </Text>
           </View>
 
@@ -100,7 +101,7 @@ export default function PaymentScreen() {
           <View style={styles.detailRow}>
             <Text style={[styles.totalLabel, { color: colors.text }]}>Итого</Text>
             <Text style={[styles.totalValue, { color: colors.primary }]}>
-              {Math.round(cost).toLocaleString('ru-RU')} сум
+              {formatMoney(Math.round(cost))}
             </Text>
           </View>
         </View>

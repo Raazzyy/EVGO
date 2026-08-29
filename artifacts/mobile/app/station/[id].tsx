@@ -32,6 +32,7 @@ import { PromoCountdown } from '@/components/PromoCountdown';
 import { CircularProgress } from '@/components/CircularProgress';
 import { ReportStationSheet } from '@/components/ReportStationSheet';
 import { useTranslation } from 'react-i18next';
+import { formatAmount, formatMoney } from '@/lib/format';
 
 const API = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
@@ -517,7 +518,7 @@ export default function StationDetailScreen() {
       const data = await r.json();
       Alert.alert(
         'Бронь подтверждена',
-        `Коннектор ${connector.label} забронирован на 15 минут.\nСтоимость брони: ${(data.reservation_cost ?? 5000).toLocaleString('ru-RU')} сум`,
+        `Коннектор ${connector.label} забронирован на 15 минут.\nСтоимость брони: ${formatMoney(data.reservation_cost ?? 5000)}`,
         [{ text: 'OK', onPress: () => {} }]
       );
     } catch {
@@ -614,18 +615,18 @@ export default function StationDetailScreen() {
                   <View style={styles.promoPriceRow}>
                     <View>
                       <Text style={styles.promoPriceLabelSmall}>СТАРАЯ ЦЕНА</Text>
-                      <Text style={styles.promoOldPrice}>{origPrice.toLocaleString('ru-RU')}</Text>
+                      <Text style={styles.promoOldPrice}>{formatAmount(origPrice)}</Text>
                     </View>
                     <Feather name="arrow-right" size={18} color="rgba(255,255,255,0.4)" />
                     <View style={{ alignItems: 'flex-end' }}>
                       <Text style={styles.promoPriceLabelSmall}>НОВАЯ ЦЕНА</Text>
-                      <Text style={styles.promoNewPrice}>{newPrice.toLocaleString('ru-RU')}</Text>
+                      <Text style={styles.promoNewPrice}>{formatAmount(newPrice)}</Text>
                     </View>
                   </View>
                   <Text style={styles.promoUnit}>сум/кВт·ч</Text>
                   <View style={styles.promoSavingsBadge}>
                     <Feather name="trending-down" size={13} color="#92400E" />
-                    <Text style={styles.promoSavingsText}>Вы экономите {savings.toLocaleString('ru-RU')} сум с кВт·ч</Text>
+                    <Text style={styles.promoSavingsText}>Вы экономите {formatMoney(savings)} с кВт·ч</Text>
                   </View>
                   {promoEndsAt && (
                     <View style={styles.promoCountdownRow}>
@@ -657,12 +658,12 @@ export default function StationDetailScreen() {
               <View style={styles.statCol}>
                 {(station as any).discount_pct > 0 ? (
                   <View style={styles.priceRow}>
-                    <Text style={[styles.statValueStrike, { color: colors.mutedForeground }]}>{station.price_per_kwh.toLocaleString('ru-RU')}</Text>
-                    <Text style={[styles.statValue, { color: '#10B981' }]}>{Math.round(station.price_per_kwh * (1 - (station as any).discount_pct / 100)).toLocaleString('ru-RU')}</Text>
+                    <Text style={[styles.statValueStrike, { color: colors.mutedForeground }]}>{formatAmount(station.price_per_kwh)}</Text>
+                    <Text style={[styles.statValue, { color: '#10B981' }]}>{formatAmount(station.price_per_kwh * (1 - (station as any).discount_pct / 100))}</Text>
                     <View style={styles.discountBadge}><Text style={styles.discountText}>-{(station as any).discount_pct}%</Text></View>
                   </View>
                 ) : (
-                  <Text style={[styles.statValue, { color: colors.text }]}>{station.price_per_kwh.toLocaleString('ru-RU')}</Text>
+                  <Text style={[styles.statValue, { color: colors.text }]}>{formatAmount(station.price_per_kwh)}</Text>
                 )}
                 <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>сум/кВт·ч</Text>
               </View>
@@ -794,7 +795,7 @@ export default function StationDetailScreen() {
                 <View key={mins} style={[styles.costRow, { borderBottomColor: colors.border }]}>
                   <Text style={[styles.costMins, { color: colors.text }]}>{mins} мин</Text>
                   <Text style={[styles.costKwh, { color: colors.mutedForeground }]}>~{energyKwh.toFixed(1)} кВт·ч</Text>
-                  <Text style={[styles.costTotal, { color: colors.text }]}>{Math.round(cost).toLocaleString('ru-RU')} сум</Text>
+                  <Text style={[styles.costTotal, { color: colors.text }]}>{formatMoney(Math.round(cost))}</Text>
                 </View>
               );
             })}

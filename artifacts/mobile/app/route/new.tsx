@@ -21,6 +21,7 @@ import { useApp } from '@/contexts/AppContext';
 import { GradientButton } from '@/components/GradientButton';
 import { MapViewWrapper, MapApi } from '@/components/MapViewWrapper';
 import { PromoCountdown } from '@/components/PromoCountdown';
+import { formatAmount, formatMoney } from '@/lib/format';
 
 const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
@@ -671,7 +672,7 @@ export default function NewRouteScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.savingsTitle}>Экономия с iON Charge</Text>
                     <Text style={styles.savingsAmount}>
-                      ~{totalSavings.toLocaleString('ru-RU')} сум
+                      ~{formatMoney(totalSavings)}
                     </Text>
                     <Text style={styles.savingsSub}>по сравнению с обычным маршрутом</Text>
                   </View>
@@ -851,10 +852,10 @@ function TLNode({ dot, title, subtitle, subtitleBold, subtitleBoldColor, detail,
               <View style={styles.tlPromoWrap}>
                 <View style={styles.tlPromoPrice}>
                   <Text style={[styles.tlOldPriceText, { color: colors.mutedForeground }]}>
-                    {promo.oldPrice.toLocaleString('ru-RU')}
+                    {formatAmount(promo.oldPrice)}
                   </Text>
                   <Text style={[styles.tlNewPriceText, { color: '#10B981' }]}>
-                    {promo.newPrice.toLocaleString('ru-RU')}
+                    {formatAmount(promo.newPrice)}
                   </Text>
                   <View style={styles.tlDiscBadge}>
                     <Text style={styles.tlDiscText}>-{promo.discountPct}%</Text>
@@ -863,7 +864,7 @@ function TLNode({ dot, title, subtitle, subtitleBold, subtitleBoldColor, detail,
                 <View style={styles.tlSavingsRow}>
                   <Feather name="trending-down" size={10} color="#10B981" />
                   <Text style={styles.tlSavingsText}>
-                    Вы экономите {promo.savingsSum.toLocaleString('ru-RU')} сум
+                    Вы экономите {formatMoney(promo.savingsSum)}
                   </Text>
                   {promo.endsAt && <PromoCountdown endsAt={promo.endsAt} compact />}
                 </View>

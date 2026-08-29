@@ -20,6 +20,7 @@ import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useColors } from '@/hooks/useColors';
 import { ConnectorBadge } from '@/components/ConnectorBadge';
+import { formatAmount } from '@/lib/format';
 
 // ── Layout constants ──────────────────────────────────────────────────────
 const CARD_W     = 300;
@@ -275,11 +276,11 @@ export function StationQuickView({
         <View style={styles.priceRow}>
           {originalPrice != null && (
             <Text style={[styles.oldPrice, { color: colors.mutedForeground }]}>
-              {originalPrice.toLocaleString('ru-RU')}
+              {formatAmount(originalPrice)}
             </Text>
           )}
           <Text style={[styles.price, { color: colors.text }]}>
-            {station.price_per_kwh.toLocaleString('ru-RU')}
+            {formatAmount(station.price_per_kwh)}
             <Text style={[styles.priceUnit, { color: colors.mutedForeground }]}> сум/кВт·ч</Text>
           </Text>
           {discountPct > 0 && (

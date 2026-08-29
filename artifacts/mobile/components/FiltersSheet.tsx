@@ -19,6 +19,7 @@ import { useColors } from '@/hooks/useColors';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useGetUserVehicles, useGetStations } from '@workspace/api-client-react';
 import { useApp } from '@/contexts/AppContext';
+import { formatAmount } from '@/lib/format';
 
 export interface FiltersState {
   connectorTypes: string[];   // e.g. ['CCS2']
@@ -358,7 +359,7 @@ export function FiltersSheet({ visible, onClose, onApply }: FiltersSheetProps) {
                 <View style={styles.rowBetween}>
                   <Text style={[styles.sectionTitle, { color: colors.text }]}>Цена, сум/кВт·ч</Text>
                   <Text style={[styles.rangeValue, { color: colors.primary }]}>
-                    0 — {filters.maxPriceSum.toLocaleString('ru-RU')}+
+                    0 — {formatAmount(filters.maxPriceSum)}+
                   </Text>
                 </View>
                 <View style={styles.sliderTrackContainer}>

@@ -17,6 +17,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useColors } from '@/hooks/useColors';
 import { useApp } from '@/contexts/AppContext';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import { formatPricePerKwh } from '@/lib/format';
 
 const API = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
@@ -96,7 +97,7 @@ export default function FavoritesScreen() {
             <Text style={[styles.cardMetaText, { color: colors.mutedForeground }]}>{item.power_kw} кВт</Text>
             <Text style={[styles.cardMetaText, { color: colors.mutedForeground }]}>·</Text>
             <Text style={[styles.cardMetaText, { color: colors.primary }]}>
-              {item.price_per_kwh?.toLocaleString('ru-RU')} сум/кВт·ч
+              {formatPricePerKwh(item.price_per_kwh)}
             </Text>
           </View>
         </View>

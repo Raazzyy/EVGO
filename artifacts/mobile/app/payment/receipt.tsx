@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGetSession } from '@workspace/api-client-react';
 import { useColors } from '@/hooks/useColors';
 import { LinearGradient } from 'expo-linear-gradient';
+import { formatMoney, formatPricePerKwh } from '@/lib/format';
 
 const IOS_EASE = Easing.bezier(0.25, 0.46, 0.45, 0.94);
 
@@ -57,8 +58,8 @@ export default function ReceiptScreen() {
   const isNearZero   = energyKwh < 0.05;
   const energyLabel  = isNearZero ? 'менее 0,1 кВт·ч' : `${energyKwh} кВт·ч`;
   const costLabel    = isNearZero && totalCost === 0
-    ? `мин. ${pricePerKwh.toLocaleString('ru-RU')} сум`
-    : `${totalCost.toLocaleString('ru-RU')} сум`;
+    ? `мин. ${formatMoney(pricePerKwh)}`
+    : `${formatMoney(totalCost)}`;
 
   // Временное логирование для диагностики нулей (только DEV)
   if (__DEV__) {
@@ -73,7 +74,7 @@ export default function ReceiptScreen() {
   const items = [
     { label: 'Станция',       value: stationName },
     { label: 'Энергия',       value: energyLabel },
-    { label: 'Тариф',         value: `${pricePerKwh.toLocaleString('ru-RU')} сум/кВт·ч` },
+    { label: 'Тариф',         value: `${formatPricePerKwh(pricePerKwh)}` },
     { label: 'Время зарядки', value: duration },
     { label: 'Способ оплаты', value: payCard },
   ];

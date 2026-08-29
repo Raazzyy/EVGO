@@ -8,6 +8,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { LinearGradient } from 'expo-linear-gradient';
+import { formatAmount } from '@/lib/format';
 
 interface Connector {
   type: string;
@@ -207,13 +208,13 @@ export const StationCard = React.memo(function StationCard({
         {/* != null (не просто truthy) — чтобы originalPrice = 0 не прятался */}
         {originalPrice != null ? (
           <>
-            <Text style={styles.oldPrice}>{originalPrice.toLocaleString('ru-RU')}</Text>
-            <Text style={styles.newPrice}>{pricePerKwh.toLocaleString('ru-RU')}</Text>
+            <Text style={styles.oldPrice}>{formatAmount(originalPrice)}</Text>
+            <Text style={styles.newPrice}>{formatAmount(pricePerKwh)}</Text>
             <Text style={styles.priceUnit}>{' '}сум/кВт·ч</Text>
           </>
         ) : (
           <>
-            <Text style={[styles.price, { color: colors.text }]}>{pricePerKwh.toLocaleString('ru-RU')}</Text>
+            <Text style={[styles.price, { color: colors.text }]}>{formatAmount(pricePerKwh)}</Text>
             <Text style={[styles.priceUnit, { color: colors.mutedForeground }]}>{' '}сум/кВт·ч</Text>
           </>
         )}
@@ -225,7 +226,7 @@ export const StationCard = React.memo(function StationCard({
           <Feather name="tag" size={12} color="#92400E" />
           <Text style={styles.savingsText}>
             {'Экономия '}
-            {Math.round(savingsPerKwh).toLocaleString('ru-RU')}
+            {formatAmount(savingsPerKwh)}
             {' сум/кВт·ч'}
           </Text>
         </View>

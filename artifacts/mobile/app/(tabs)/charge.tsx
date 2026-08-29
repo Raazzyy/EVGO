@@ -17,6 +17,7 @@ import { CircularProgress } from '@/components/CircularProgress';
 import { GradientButton } from '@/components/GradientButton';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Platform } from 'react-native';
+import { formatMoney, formatPricePerKwh } from '@/lib/format';
 
 const IOS_EASE = Easing.bezier(0.25, 0.46, 0.45, 0.94);
 
@@ -94,8 +95,8 @@ const LiveChargingContent = React.memo(function LiveChargingContent({
       </Animated.View>
 
       <Animated.View entering={FadeInDown.delay(100).duration(260).easing(IOS_EASE)} style={[styles.costCard, { backgroundColor: colors.card }]}>
-        <Text style={[styles.costValue, { color: colors.text }]}>{liveCost.toLocaleString('ru-RU')} сум</Text>
-        <Text style={[styles.costRate, { color: colors.mutedForeground }]}>{stationPrice.toLocaleString('ru-RU')} сум/кВт·ч</Text>
+        <Text style={[styles.costValue, { color: colors.text }]}>{formatMoney(liveCost)}</Text>
+        <Text style={[styles.costRate, { color: colors.mutedForeground }]}>{formatPricePerKwh(stationPrice)}</Text>
       </Animated.View>
 
       {!confirmStop ? (
@@ -110,7 +111,7 @@ const LiveChargingContent = React.memo(function LiveChargingContent({
         <Animated.View entering={FadeInDown.duration(220).easing(IOS_EASE)} style={[styles.confirmCard, { backgroundColor: '#FEF2F2', borderColor: '#FECACA' }]}>
           <Text style={[styles.confirmTitle, { color: '#DC2626' }]}>Завершить зарядку?</Text>
           <Text style={[styles.confirmSub, { color: '#9CA3AF' }]}>
-            Сессия будет остановлена. Итоговая стоимость: {liveCost.toLocaleString('ru-RU')} сум
+            Сессия будет остановлена. Итоговая стоимость: {formatMoney(liveCost)}
           </Text>
           <View style={styles.confirmBtns}>
             <TouchableOpacity
