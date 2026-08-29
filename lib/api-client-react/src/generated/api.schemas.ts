@@ -4,6 +4,73 @@
  * Api
  * OpenAPI spec version: 1.0.0
  */
+export type StationReportInputReason = typeof StationReportInputReason[keyof typeof StationReportInputReason];
+
+
+export const StationReportInputReason = {
+  not_working: 'not_working',
+  wrong_price: 'wrong_price',
+  wrong_location: 'wrong_location',
+  wrong_connectors: 'wrong_connectors',
+  permanently_closed: 'permanently_closed',
+  other: 'other',
+} as const;
+
+export interface StationReportInput {
+  reason: StationReportInputReason;
+  /** @maxLength 1000 */
+  comment?: string;
+}
+
+/**
+ * confirmed — данные исправлены, rejected — данные верны
+ */
+export type ResolveStationReportInputStatus = typeof ResolveStationReportInputStatus[keyof typeof ResolveStationReportInputStatus];
+
+
+export const ResolveStationReportInputStatus = {
+  confirmed: 'confirmed',
+  rejected: 'rejected',
+} as const;
+
+export interface ResolveStationReportInput {
+  /** confirmed — данные исправлены, rejected — данные верны */
+  status: ResolveStationReportInputStatus;
+}
+
+export type StationReportReason = typeof StationReportReason[keyof typeof StationReportReason];
+
+
+export const StationReportReason = {
+  not_working: 'not_working',
+  wrong_price: 'wrong_price',
+  wrong_location: 'wrong_location',
+  wrong_connectors: 'wrong_connectors',
+  permanently_closed: 'permanently_closed',
+  other: 'other',
+} as const;
+
+export type StationReportStatus = typeof StationReportStatus[keyof typeof StationReportStatus];
+
+
+export const StationReportStatus = {
+  new: 'new',
+  confirmed: 'confirmed',
+  rejected: 'rejected',
+} as const;
+
+export interface StationReport {
+  id: number;
+  station_id: number;
+  user_id: string;
+  reason: StationReportReason;
+  comment?: string | null;
+  status: StationReportStatus;
+  resolved_by?: string | null;
+  resolved_at?: string | null;
+  created_at: string;
+}
+
 export interface RequestCodeInput {
   /** Любой формат, сервер нормализует к 998XXXXXXXXX */
   phone: string;
@@ -582,5 +649,25 @@ export type VerifyStation200 = {
   id: number;
   verified_at?: string | null;
   verified_by?: string | null;
+};
+
+export type GetStationReportsParams = {
+/**
+ * По умолчанию — только неразобранные
+ */
+status?: GetStationReportsStatus;
+};
+
+export type GetStationReportsStatus = typeof GetStationReportsStatus[keyof typeof GetStationReportsStatus];
+
+
+export const GetStationReportsStatus = {
+  new: 'new',
+  confirmed: 'confirmed',
+  rejected: 'rejected',
+} as const;
+
+export type GetStationReportsCount200 = {
+  new: number;
 };
 

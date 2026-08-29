@@ -706,6 +706,95 @@ paths:
         "401": { description: Требуется админский токен }
         "404": { description: Станция не найдена }
 
+  /stations/{id}/report:
+    post:
+      operationId: reportStation
+      summary: Сообщить о неточности в данных станции
+      description: >
+        Если у пользователя уже есть неразобранная жалоба на эту станцию,
+        она обновляется — чтобы один человек не засыпал станцию жалобами.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StationReportInput"
+      responses:
+        "200": { description: Обновлена существующая жалоба }
+        "201": { description: Жалоба создана }
+        "401": { description: Требуется вход }
+        "404": { description: Станция не найдена }
+
+  /admin/station-reports:
+    get:
+      operationId: getStationReports
+      summary: Очередь жалоб на станции
+      parameters:
+        - in: query
+          name: status
+          description: По умолчанию — только неразобранные
+          schema:
+            type: string
+            enum: [new, confirmed, rejected]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StationReport"
+        "401": { description: Требуется админский токен }
+
+  /admin/station-reports/count:
+    get:
+      operationId: getStationReportsCount
+      summary: Число неразобранных жалоб
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [new]
+                properties:
+                  new: { type: integer }
+        "401": { description: Требуется админский токен }
+
+  /admin/station-reports/{id}:
+    patch:
+      operationId: resolveStationReport
+      summary: Разобрать жалобу
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResolveStationReportInput"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StationReport"
+        "401": { description: Требуется админский токен }
+        "404": { description: Жалоба не найдена }
+
   # ── Auth ──────────────────────────────────────────────────────
   # Вход по номеру телефона с подтверждением кодом из SMS.
   #
@@ -964,6 +1053,45 @@ paths:
 
 components:
   schemas:
+    # ── Жалобы на станции ─────────────────────────────────────
+    StationReportInput:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          enum: [not_working, wrong_price, wrong_location, wrong_connectors, permanently_closed, other]
+        comment:
+          type: string
+          maxLength: 1000
+
+    ResolveStationReportInput:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [confirmed, rejected]
+          description: confirmed — данные исправлены, rejected — данные верны
+
+    StationReport:
+      type: object
+      required: [id, station_id, user_id, reason, status, created_at]
+      properties:
+        id: { type: integer }
+        station_id: { type: integer }
+        user_id: { type: string }
+        reason:
+          type: string
+          enum: [not_working, wrong_price, wrong_location, wrong_connectors, permanently_closed, other]
+        comment: { type: string, nullable: true }
+        status:
+          type: string
+          enum: [new, confirmed, rejected]
+        resolved_by: { type: string, nullable: true }
+        resolved_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+
     # ── Auth ──────────────────────────────────────────────────
     RequestCodeInput:
       type: object

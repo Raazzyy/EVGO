@@ -1,5 +1,6 @@
 export * from "./operators";
 export * from "./stations";
+export * from "./station_reports";
 export * from "./vehicles";
 export * from "./routes";
 export * from "./sessions";

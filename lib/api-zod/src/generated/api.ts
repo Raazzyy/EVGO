@@ -1095,6 +1095,79 @@ export const VerifyStationResponse = zod.object({
 
 
 /**
+ * Если у пользователя уже есть неразобранная жалоба на эту станцию, она обновляется — чтобы один человек не засыпал станцию жалобами.
+ * @summary Сообщить о неточности в данных станции
+ */
+export const ReportStationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const reportStationBodyCommentMax = 1000;
+
+
+
+export const ReportStationBody = zod.object({
+  "reason": zod.enum(['not_working', 'wrong_price', 'wrong_location', 'wrong_connectors', 'permanently_closed', 'other']),
+  "comment": zod.string().max(reportStationBodyCommentMax).optional()
+})
+
+export const ReportStationResponse = zod.unknown()
+
+
+/**
+ * @summary Очередь жалоб на станции
+ */
+export const GetStationReportsQueryParams = zod.object({
+  "status": zod.enum(['new', 'confirmed', 'rejected']).optional().describe('По умолчанию — только неразобранные')
+})
+
+export const GetStationReportsResponseItem = zod.object({
+  "id": zod.number(),
+  "station_id": zod.number(),
+  "user_id": zod.string(),
+  "reason": zod.enum(['not_working', 'wrong_price', 'wrong_location', 'wrong_connectors', 'permanently_closed', 'other']),
+  "comment": zod.string().nullish(),
+  "status": zod.enum(['new', 'confirmed', 'rejected']),
+  "resolved_by": zod.string().nullish(),
+  "resolved_at": zod.coerce.date().nullish(),
+  "created_at": zod.coerce.date()
+})
+export const GetStationReportsResponse = zod.array(GetStationReportsResponseItem)
+
+
+/**
+ * @summary Число неразобранных жалоб
+ */
+export const GetStationReportsCountResponse = zod.object({
+  "new": zod.number()
+})
+
+
+/**
+ * @summary Разобрать жалобу
+ */
+export const ResolveStationReportParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ResolveStationReportBody = zod.object({
+  "status": zod.enum(['confirmed', 'rejected']).describe('confirmed — данные исправлены, rejected — данные верны')
+})
+
+export const ResolveStationReportResponse = zod.object({
+  "id": zod.number(),
+  "station_id": zod.number(),
+  "user_id": zod.string(),
+  "reason": zod.enum(['not_working', 'wrong_price', 'wrong_location', 'wrong_connectors', 'permanently_closed', 'other']),
+  "comment": zod.string().nullish(),
+  "status": zod.enum(['new', 'confirmed', 'rejected']),
+  "resolved_by": zod.string().nullish(),
+  "resolved_at": zod.coerce.date().nullish(),
+  "created_at": zod.coerce.date()
+})
+
+
+/**
  * @summary Отправить код подтверждения на номер телефона
  */
 export const RequestAuthCodeBody = zod.object({

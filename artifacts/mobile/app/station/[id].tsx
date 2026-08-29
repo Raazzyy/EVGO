@@ -30,6 +30,7 @@ import { ConnectorIcon } from '@/components/ConnectorBadge';
 import { GradientButton } from '@/components/GradientButton';
 import { PromoCountdown } from '@/components/PromoCountdown';
 import { CircularProgress } from '@/components/CircularProgress';
+import { ReportStationSheet } from '@/components/ReportStationSheet';
 
 const API = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
@@ -433,6 +434,22 @@ export default function StationDetailScreen() {
     },
   });
 
+  const [reportOpen, setReportOpen] = useState(false);
+
+  // Отправка жалобы на неточность в данных станции. Токен подставляет
+  // общий сетевой слой, поэтому обычный fetch здесь не подходит.
+  const submitReport = useCallback(
+    async (reason: string, comment?: string) => {
+      const res = await fetch(`${API}/stations/${id}/report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason, comment }),
+      });
+      if (!res.ok) throw new Error(`report failed: ${res.status}`);
+    },
+    [id],
+  );
+
   const connectors: Connector[] = (station?.connectors as Connector[] | null) ?? [];
   const connectorsDetail: ConnectorDetail[] = (station as any)?.connectors_detail ?? [];
   const amenities: string[] = (station?.amenities as string[] | null) ?? [];
@@ -780,6 +797,28 @@ export default function StationDetailScreen() {
               );
             })}
           </View>
+
+          {/* ── Актуальность данных ────────────────────────────────────────
+              Станции приходят из OpenChargeMap, где часть записей устарела.
+              Человек должен видеть, когда данные проверяли, и иметь возможность
+              сообщить об ошибке — объехать все станции страны нереально. */}
+          <View style={styles.freshness}>
+            <Text style={[styles.freshnessText, { color: colors.mutedForeground }]}>
+              {(station as any).verified_at
+                ? `Данные проверены ${new Date((station as any).verified_at).toLocaleDateString('ru-RU')}`
+                : 'Данные из открытых источников, могут быть неточными'}
+            </Text>
+            <TouchableOpacity
+              onPress={() => setReportOpen(true)}
+              style={styles.reportBtn}
+              hitSlop={8}
+            >
+              <Feather name="flag" size={14} color={colors.mutedForeground} />
+              <Text style={[styles.reportBtnText, { color: colors.mutedForeground }]}>
+                Сообщить о неточности
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
 
@@ -838,6 +877,12 @@ export default function StationDetailScreen() {
           </Animated.View>
         </View>
       </Modal>
+
+      <ReportStationSheet
+        visible={reportOpen}
+        onClose={() => setReportOpen(false)}
+        onSubmit={submitReport}
+      />
     </View>
   );
 }
@@ -946,6 +991,10 @@ const styles = StyleSheet.create({
 
   // Amenity pills
   amenitiesWrap:   { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  freshness:       { alignItems: 'center', gap: 8, paddingTop: 8, paddingBottom: 4 },
+  freshnessText:   { fontSize: 12, fontFamily: 'Inter_400Regular', textAlign: 'center' },
+  reportBtn:       { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12 },
+  reportBtnText:   { fontSize: 13, fontFamily: 'Inter_500Medium' },
   amenityPill:     { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, height: 32 },
   amenityPillText: { fontSize: 13, fontFamily: 'Inter_500Medium' },
 

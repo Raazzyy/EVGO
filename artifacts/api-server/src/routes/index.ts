@@ -3,6 +3,7 @@ import healthRouter from "./health";
 import authRouter from "./auth";
 import operatorsRouter from "./operators";
 import stationsRouter from "./stations";
+import stationReportsRouter from "./station_reports";
 import vehiclesRouter from "./vehicles";
 import sessionsRouter from "./sessions";
 import routesRouter from "./routes_route";
@@ -185,6 +186,7 @@ router.get("/geocode/suggest", async (req, res): Promise<void> => {
 router.use(healthRouter);
 router.use(authRouter);
 router.use(operatorsRouter);
+router.use(stationReportsRouter);
 router.use(stationsRouter);
 router.use(vehiclesRouter);
 router.use(sessionsRouter);

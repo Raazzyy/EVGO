@@ -120,6 +120,12 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 - **Деньги лежат в `real`** (`sessions.cost`, `users.total_spent`,
   `stations.price_per_kwh`). Это число с плавающей точкой, оно теряет копейки.
   Перевод в `bigint`/тийины — задача 30, до начала работ по кошельку.
+- **Тела запросов и ответов в `openapi.yaml` описывать только через `$ref`
+  на `components/schemas`.** Inline-схема порождает тип и zod-схему с
+  одинаковыми именами, и `lib/api-zod/src/index.ts` перестаёт собираться с
+  TS2308 «has already exported a member».
+- **`format: email` в спеке ломает кодогенерацию**: orval выдаёт под него
+  `zod.email()` — синтаксис zod 4, тогда как в проекте zod 3.
 - **Изменения схемы БД требуют перезапуска API-сервера.**
 - **`drizzle-kit push` зависает без TTY** на вопросах про уникальные
   индексы. Готовый SQL на такой случай лежит в `docs/sql/`.

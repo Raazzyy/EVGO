@@ -26,6 +26,8 @@ import type {
   DashboardStats,
   GetNotificationsParams,
   GetSessionsParams,
+  GetStationReportsCount200,
+  GetStationReportsParams,
   GetStationsParams,
   HealthStatus,
   Notification,
@@ -39,6 +41,7 @@ import type {
   RefreshTokenInput,
   RequestCodeInput,
   RequestCodeResult,
+  ResolveStationReportInput,
   Route,
   RouteInput,
   SearchVehiclesParams,
@@ -46,6 +49,8 @@ import type {
   SessionInput,
   Station,
   StationInput,
+  StationReport,
+  StationReportInput,
   StationStatusUpdate,
   StationsResponse,
   SupportTicket,
@@ -2838,6 +2843,312 @@ export const useVerifyStation = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getVerifyStationMutationOptions(options));
+    }
+
+export const getReportStationUrl = (id: number,) => {
+
+
+
+
+  return `/api/stations/${id}/report`
+}
+
+/**
+ * Если у пользователя уже есть неразобранная жалоба на эту станцию, она обновляется — чтобы один человек не засыпал станцию жалобами.
+ * @summary Сообщить о неточности в данных станции
+ */
+export const reportStation = async (id: number,
+    stationReportInput: StationReportInput, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getReportStationUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(stationReportInput)
+  }
+);}
+
+
+
+
+
+export const getReportStationMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:Partial<UseMutationOptions<Awaited<ReturnType<typeof reportStation>>, TError,{id: number;data: BodyType<StationReportInput>}, TContext>>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reportStation>>, TError,{id: number;data: BodyType<StationReportInput>}, TContext> => {
+
+const mutationKey = ['reportStation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reportStation>>, {id: number;data: BodyType<StationReportInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  reportStation(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReportStationMutationResult = NonNullable<Awaited<ReturnType<typeof reportStation>>>
+    export type ReportStationMutationBody = BodyType<StationReportInput>
+    export type ReportStationMutationError = ErrorType<void>
+
+    /**
+ * @summary Сообщить о неточности в данных станции
+ */
+export const useReportStation = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:Partial<UseMutationOptions<Awaited<ReturnType<typeof reportStation>>, TError,{id: number;data: BodyType<StationReportInput>}, TContext>>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reportStation>>,
+        TError,
+        {id: number;data: BodyType<StationReportInput>},
+        TContext
+      > => {
+      return useMutation(getReportStationMutationOptions(options));
+    }
+
+export const getGetStationReportsUrl = (params?: GetStationReportsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/station-reports?${stringifiedParams}` : `/api/admin/station-reports`
+}
+
+/**
+ * @summary Очередь жалоб на станции
+ */
+export const getStationReports = async (params?: GetStationReportsParams, options?: RequestInit): Promise<StationReport[]> => {
+
+  return customFetch<StationReport[]>(getGetStationReportsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStationReportsQueryKey = (params?: GetStationReportsParams,) => {
+    return [
+    `/api/admin/station-reports`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetStationReportsQueryOptions = <TData = Awaited<ReturnType<typeof getStationReports>>, TError = ErrorType<void>>(params?: GetStationReportsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getStationReports>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStationReportsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStationReports>>> = ({ signal }) => getStationReports(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStationReports>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStationReportsQueryResult = NonNullable<Awaited<ReturnType<typeof getStationReports>>>
+export type GetStationReportsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Очередь жалоб на станции
+ */
+
+export function useGetStationReports<TData = Awaited<ReturnType<typeof getStationReports>>, TError = ErrorType<void>>(
+ params?: GetStationReportsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getStationReports>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStationReportsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetStationReportsCountUrl = () => {
+
+
+
+
+  return `/api/admin/station-reports/count`
+}
+
+/**
+ * @summary Число неразобранных жалоб
+ */
+export const getStationReportsCount = async ( options?: RequestInit): Promise<GetStationReportsCount200> => {
+
+  return customFetch<GetStationReportsCount200>(getGetStationReportsCountUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetStationReportsCountQueryKey = () => {
+    return [
+    `/api/admin/station-reports/count`
+    ] as const;
+    }
+
+
+export const getGetStationReportsCountQueryOptions = <TData = Awaited<ReturnType<typeof getStationReportsCount>>, TError = ErrorType<void>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getStationReportsCount>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetStationReportsCountQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getStationReportsCount>>> = ({ signal }) => getStationReportsCount({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getStationReportsCount>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetStationReportsCountQueryResult = NonNullable<Awaited<ReturnType<typeof getStationReportsCount>>>
+export type GetStationReportsCountQueryError = ErrorType<void>
+
+
+/**
+ * @summary Число неразобранных жалоб
+ */
+
+export function useGetStationReportsCount<TData = Awaited<ReturnType<typeof getStationReportsCount>>, TError = ErrorType<void>>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getStationReportsCount>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetStationReportsCountQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getResolveStationReportUrl = (id: number,) => {
+
+
+
+
+  return `/api/admin/station-reports/${id}`
+}
+
+/**
+ * @summary Разобрать жалобу
+ */
+export const resolveStationReport = async (id: number,
+    resolveStationReportInput: ResolveStationReportInput, options?: RequestInit): Promise<StationReport> => {
+
+  return customFetch<StationReport>(getResolveStationReportUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(resolveStationReportInput)
+  }
+);}
+
+
+
+
+
+export const getResolveStationReportMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:Partial<UseMutationOptions<Awaited<ReturnType<typeof resolveStationReport>>, TError,{id: number;data: BodyType<ResolveStationReportInput>}, TContext>>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resolveStationReport>>, TError,{id: number;data: BodyType<ResolveStationReportInput>}, TContext> => {
+
+const mutationKey = ['resolveStationReport'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resolveStationReport>>, {id: number;data: BodyType<ResolveStationReportInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  resolveStationReport(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResolveStationReportMutationResult = NonNullable<Awaited<ReturnType<typeof resolveStationReport>>>
+    export type ResolveStationReportMutationBody = BodyType<ResolveStationReportInput>
+    export type ResolveStationReportMutationError = ErrorType<void>
+
+    /**
+ * @summary Разобрать жалобу
+ */
+export const useResolveStationReport = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:Partial<UseMutationOptions<Awaited<ReturnType<typeof resolveStationReport>>, TError,{id: number;data: BodyType<ResolveStationReportInput>}, TContext>>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof resolveStationReport>>,
+        TError,
+        {id: number;data: BodyType<ResolveStationReportInput>},
+        TContext
+      > => {
+      return useMutation(getResolveStationReportMutationOptions(options));
     }
 
 export const getRequestAuthCodeUrl = () => {
