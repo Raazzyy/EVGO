@@ -21,3 +21,14 @@ timeoutMs = 20000
 
 [nix]
 channel = "stable-25_05"
+
+# Replit публикует наружу только порты, объявленные здесь. Без этой секции
+# сервер, запущенный вручную из Shell, поднимается, но Preview показывает
+# «Port opened, but not exposed to the web».
+#
+# Артефакты (админка, мобилка) запускаются через свою систему и порты берут
+# из .replit-artifact/artifact.toml — им эта секция не нужна.
+
+[[ports]]
+localPort = 23746
+externalPort = 3000
