@@ -1,0 +1,115 @@
+{
+  "common": {
+    "cancel": "Bekor qilish",
+    "save": "Saqlash",
+    "delete": "O'chirish",
+    "close": "Yopish",
+    "back": "Orqaga",
+    "next": "Keyingi",
+    "done": "Tayyor",
+    "retry": "Qayta urinish",
+    "skip": "O'tkazib yuborish",
+    "continue": "Davom etish",
+    "loading": "Yuklanmoqda…",
+    "error": "Xatolik",
+    "sum": "so'm",
+    "km": "km",
+    "kw": "kVt",
+    "kwh": "kVt·s",
+    "min": "daq"
+  },
+
+  "auth": {
+    "signInTitle": "iON'ga kirish",
+    "signInSubtitle": "Telefon raqamingizni kiriting — parol kerak emas",
+    "phonePlaceholder": "90 123 45 67",
+    "phoneHint": "Tasdiqlash kodi bilan SMS yuboramiz",
+    "phoneWrongOperator": "O'zbekistonda bunday operator kodi yo'q",
+    "getCode": "Kod olish",
+    "codeTitle": "Kodni kiriting",
+    "codeSubtitle": "{{phone}} raqamiga SMS yubordik",
+    "resendIn": "{{seconds}} soniyadan keyin qayta yuborish",
+    "resendNow": "Kodni qayta yuborish",
+    "profileTitle": "Deyarli tayyor",
+    "profileSubtitle": "Sizga qanday murojaat qilaylik va ilovani qaysi tilda ko'rsatamiz",
+    "name": "Ism",
+    "namePlaceholder": "Masalan, Akbar",
+    "language": "Til",
+    "profileSaveFailed": "Saqlab bo'lmadi. Keyinroq profilda to'ldirishingiz mumkin"
+  },
+
+  "tabs": {
+    "map": "Xarita",
+    "routes": "Marshrutlar",
+    "sessions": "Seanslar",
+    "profile": "Profil"
+  },
+
+  "map": {
+    "map": "Xarita",
+    "list": "Ro'yxat",
+    "filters": "Filtrlar",
+    "all": "Hammasi",
+    "free": "Bo'sh",
+    "myCars": "Mening mashinalarim",
+    "nearby": "SIZGA YAQIN",
+    "recommended": "Tavsiya etamiz",
+    "ad": "Reklama",
+    "route": "Marshrut",
+    "noStations": "Yaqin atrofda stansiya yo'q",
+    "noStationsHint": "Filtrlarni o'zgartiring yoki radiusni kattalashtiring"
+  },
+
+  "station": {
+    "connectors": "Konnektorlar",
+    "cost": "Narxi",
+    "amenities": "Qulayliklar",
+    "charge": "Zaryadlash",
+    "route": "Marshrut",
+    "freeCount": "{{count}} ta bo'sh",
+    "occupiedCount": "{{count}} ta band",
+    "verifiedOn": "Ma'lumotlar {{date}} da tekshirilgan",
+    "notVerified": "Ma'lumotlar ochiq manbalardan, noaniq bo'lishi mumkin",
+    "reportInaccuracy": "Xatolik haqida xabar berish",
+    "reportTitle": "Nima noto'g'ri?",
+    "reportSubtitle": "Stansiyalar haqidagi ma'lumotlar ochiq manbalardan keladi va ba'zan eskiradi",
+    "reportComment": "Tafsilotlar — ixtiyoriy",
+    "reportSend": "Yuborish",
+    "reportThanks": "Rahmat",
+    "reportThanksHint": "Ma'lumotlarni tekshirib, tuzatamiz",
+    "reportFailed": "Yuborib bo'lmadi. Keyinroq urinib ko'ring",
+    "reasonNotWorking": "Stansiya ishlamayapti",
+    "reasonWrongPrice": "Narx mos kelmayapti",
+    "reasonWrongLocation": "Xaritada joyi noto'g'ri",
+    "reasonWrongConnectors": "Konnektorlar noto'g'ri",
+    "reasonClosed": "Stansiya endi yo'q",
+    "reasonOther": "Boshqa"
+  },
+
+  "settings": {
+    "title": "Sozlamalar",
+    "notifications": "Bildirishnomalar",
+    "language": "Til",
+    "theme": "Mavzu",
+    "account": "Hisob",
+    "signOut": "Hisobdan chiqish",
+    "deleteAccount": "Hisobni o'chirish",
+    "deleteAccountHint": "Raqam va profil butunlay o'chiriladi",
+    "deleteConfirm": "Tasdiqlash uchun yana bosing",
+    "deleteConfirmHint": "Bekor qilib bo'lmaydi",
+    "signedInAs": "+{{phone}} raqami bilan kirilgan",
+    "storedLocally": "Sozlamalar qurilmada saqlanadi"
+  },
+
+  "errors": {
+    "network": "Server bilan aloqa yo'q. Internetni tekshiring",
+    "invalidPhone": "Telefon raqami noto'g'ri",
+    "codeExpired": "Kod topilmadi yoki muddati o'tdi, yangisini so'rang",
+    "codeInvalid": "Kod noto'g'ri",
+    "tooManyAttempts": "Juda ko'p urinish, yangi kod so'rang",
+    "tooSoon": "Kod allaqachon yuborilgan, qayta yuborishdan oldin kuting",
+    "hourlyLimit": "Kod so'rovlari juda ko'p, bir soatdan keyin urinib ko'ring",
+    "smsFailed": "SMS yuborib bo'lmadi, keyinroq urinib ko'ring",
+    "sessionExpired": "Seans tugadi, qayta kiring"
+  }
+}

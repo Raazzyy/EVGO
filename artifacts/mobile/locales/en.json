@@ -1,0 +1,115 @@
+{
+  "common": {
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "close": "Close",
+    "back": "Back",
+    "next": "Next",
+    "done": "Done",
+    "retry": "Retry",
+    "skip": "Skip",
+    "continue": "Continue",
+    "loading": "Loading…",
+    "error": "Error",
+    "sum": "UZS",
+    "km": "km",
+    "kw": "kW",
+    "kwh": "kWh",
+    "min": "min"
+  },
+
+  "auth": {
+    "signInTitle": "Sign in to iON",
+    "signInSubtitle": "Enter your phone number — no password needed",
+    "phonePlaceholder": "90 123 45 67",
+    "phoneHint": "We'll text you a confirmation code",
+    "phoneWrongOperator": "No such operator code in Uzbekistan",
+    "getCode": "Get code",
+    "codeTitle": "Enter the code",
+    "codeSubtitle": "We sent an SMS to {{phone}}",
+    "resendIn": "Resend in {{seconds}}s",
+    "resendNow": "Send the code again",
+    "profileTitle": "Almost there",
+    "profileSubtitle": "What should we call you, and in which language",
+    "name": "Name",
+    "namePlaceholder": "For example, Akbar",
+    "language": "Language",
+    "profileSaveFailed": "Couldn't save. You can fill this in later in your profile"
+  },
+
+  "tabs": {
+    "map": "Map",
+    "routes": "Routes",
+    "sessions": "Sessions",
+    "profile": "Profile"
+  },
+
+  "map": {
+    "map": "Map",
+    "list": "List",
+    "filters": "Filters",
+    "all": "All",
+    "free": "Available",
+    "myCars": "My cars",
+    "nearby": "NEAR YOU",
+    "recommended": "Recommended",
+    "ad": "Ad",
+    "route": "Route",
+    "noStations": "No stations nearby",
+    "noStationsHint": "Try changing the filters or widening the radius"
+  },
+
+  "station": {
+    "connectors": "Connectors",
+    "cost": "Cost",
+    "amenities": "Amenities",
+    "charge": "Start charging",
+    "route": "Route",
+    "freeCount": "{{count}} available",
+    "occupiedCount": "{{count}} in use",
+    "verifiedOn": "Data verified on {{date}}",
+    "notVerified": "Data comes from open sources and may be inaccurate",
+    "reportInaccuracy": "Report an inaccuracy",
+    "reportTitle": "What's wrong?",
+    "reportSubtitle": "Station data comes from open sources and sometimes goes stale",
+    "reportComment": "Details — optional",
+    "reportSend": "Send",
+    "reportThanks": "Thank you",
+    "reportThanksHint": "We'll check and fix the data",
+    "reportFailed": "Couldn't send. Try again later",
+    "reasonNotWorking": "Station isn't working",
+    "reasonWrongPrice": "Price doesn't match",
+    "reasonWrongLocation": "Wrong location on the map",
+    "reasonWrongConnectors": "Wrong connectors",
+    "reasonClosed": "Station no longer exists",
+    "reasonOther": "Something else"
+  },
+
+  "settings": {
+    "title": "Settings",
+    "notifications": "Notifications",
+    "language": "Language",
+    "theme": "Theme",
+    "account": "Account",
+    "signOut": "Sign out",
+    "deleteAccount": "Delete account",
+    "deleteAccountHint": "Your number and profile are removed permanently",
+    "deleteConfirm": "Tap again to confirm",
+    "deleteConfirmHint": "This can't be undone",
+    "signedInAs": "Signed in as +{{phone}}",
+    "storedLocally": "Settings are stored on this device"
+  },
+
+  "errors": {
+    "network": "No connection to the server. Check your internet",
+    "invalidPhone": "Invalid phone number",
+    "codeExpired": "Code not found or expired, request a new one",
+    "codeInvalid": "Wrong code",
+    "tooManyAttempts": "Too many attempts, request a new code",
+    "tooSoon": "A code was already sent, wait before requesting another",
+    "hourlyLimit": "Too many code requests, try again in an hour",
+    "smsFailed": "Couldn't send the SMS, try again later",
+    "sessionExpired": "Your session expired, please sign in again"
+  }
+}
