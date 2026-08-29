@@ -66,7 +66,15 @@ function project(lat: number, lng: number) {
   return { x, y };
 }
 
-export function CoverageMap() {
+interface MapLabels {
+  stations: string;
+  freeNow: string;
+  loading: string;
+  failed: string;
+  live: string;
+}
+
+export function CoverageMap({ labels }: { labels: MapLabels }) {
   const [stations, setStations] = useState<Station[] | null>(null);
   const [failed, setFailed] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -105,8 +113,8 @@ export function CoverageMap() {
           role="img"
           aria-label={
             stations
-              ? `Карта покрытия: ${stations.length} зарядных станций в Узбекистане`
-              : 'Карта покрытия загружается'
+              ? `${stations.length} ${labels.stations}`
+              : labels.loading
           }
         >
           {/* Сетка координат: даёт масштаб и не спорит с точками */}
@@ -190,27 +198,25 @@ export function CoverageMap() {
                 {stations.length}
               </div>
               <div className="mt-1 font-mono text-[11px] uppercase tracking-wider text-muted">
-                станций в базе
+                {labels.stations}
               </div>
               {freeCount > 0 && (
                 <div className="mt-2 flex items-center gap-1.5 text-xs text-volt">
                   <span className="inline-block h-1.5 w-1.5 rounded-full bg-volt" />
-                  {freeCount} свободны сейчас
+                  {freeCount} {labels.freeNow}
                 </div>
               )}
             </>
           ) : failed ? (
-            <div className="max-w-[15rem] text-sm text-muted">
-              Карта временно недоступна — данные подгружаются из приложения
-            </div>
+            <div className="max-w-[15rem] text-sm text-muted">{labels.failed}</div>
           ) : (
-            <div className="font-mono text-xs text-muted">загрузка…</div>
+            <div className="font-mono text-xs text-muted">{labels.loading}</div>
           )}
         </div>
       </div>
 
       <figcaption className="mt-3 font-mono text-[11px] uppercase tracking-wider text-muted">
-        Данные обновляются в реальном времени
+        {labels.live}
       </figcaption>
     </figure>
   );
