@@ -64,10 +64,14 @@ export function verifyAdminToken(token: string): string | null {
 export function adminAuth(req: Request, res: Response, next: NextFunction): void {
   const header = req.headers["authorization"] ?? "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : null;
-  if (!token || !verifyToken(token)) {
+  const email = token ? verifyToken(token) : null;
+  if (!email) {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
+  // Обработчикам нужно знать, кто именно выполнил действие: например,
+  // отметка о проверке станции подписывается почтой администратора.
+  req.adminEmail = email;
   next();
 }
 

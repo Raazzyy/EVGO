@@ -58,7 +58,8 @@ import type {
   UserUpdate,
   Vehicle,
   VehicleInput,
-  VerifyCodeInput
+  VerifyCodeInput,
+  VerifyStation200
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -2765,6 +2766,78 @@ export const useUpdateUser = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getUpdateUserMutationOptions(options));
+    }
+
+export const getVerifyStationUrl = (id: number,) => {
+
+
+
+
+  return `/api/stations/${id}/verify`
+}
+
+/**
+ * Ставит дату проверки и подписывает её почтой администратора из токена. Дата показывается пользователю: основной источник станций — OpenChargeMap, где часть записей устарела.
+ * @summary Отметить станцию проверенной
+ */
+export const verifyStation = async (id: number, options?: RequestInit): Promise<VerifyStation200> => {
+
+  return customFetch<VerifyStation200>(getVerifyStationUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getVerifyStationMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:Partial<UseMutationOptions<Awaited<ReturnType<typeof verifyStation>>, TError,{id: number}, TContext>>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof verifyStation>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['verifyStation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof verifyStation>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  verifyStation(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VerifyStationMutationResult = NonNullable<Awaited<ReturnType<typeof verifyStation>>>
+
+    export type VerifyStationMutationError = ErrorType<void>
+
+    /**
+ * @summary Отметить станцию проверенной
+ */
+export const useVerifyStation = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:Partial<UseMutationOptions<Awaited<ReturnType<typeof verifyStation>>, TError,{id: number}, TContext>>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof verifyStation>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getVerifyStationMutationOptions(options));
     }
 
 export const getRequestAuthCodeUrl = () => {

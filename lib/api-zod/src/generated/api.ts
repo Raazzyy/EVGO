@@ -131,7 +131,9 @@ export const GetStationsResponse = zod.object({
   "updated_at": zod.coerce.date().optional(),
   "distance_km": zod.number().nullish(),
   "is_promoted": zod.boolean().optional(),
-  "discount_pct": zod.number().optional()
+  "discount_pct": zod.number().optional(),
+  "verified_at": zod.coerce.date().nullish().describe('Когда станцию последний раз проверяли живьём'),
+  "verified_by": zod.string().nullish().describe('Почта администратора, проверившего станцию')
 })),
   "nearby": zod.array(zod.object({
   "id": zod.number(),
@@ -160,7 +162,9 @@ export const GetStationsResponse = zod.object({
   "updated_at": zod.coerce.date().optional(),
   "distance_km": zod.number().nullish(),
   "is_promoted": zod.boolean().optional(),
-  "discount_pct": zod.number().optional()
+  "discount_pct": zod.number().optional(),
+  "verified_at": zod.coerce.date().nullish().describe('Когда станцию последний раз проверяли живьём'),
+  "verified_by": zod.string().nullish().describe('Почта администратора, проверившего станцию')
 }))
 })
 
@@ -214,7 +218,9 @@ export const CreateStationResponse = zod.object({
   "updated_at": zod.coerce.date().optional(),
   "distance_km": zod.number().nullish(),
   "is_promoted": zod.boolean().optional(),
-  "discount_pct": zod.number().optional()
+  "discount_pct": zod.number().optional(),
+  "verified_at": zod.coerce.date().nullish().describe('Когда станцию последний раз проверяли живьём'),
+  "verified_by": zod.string().nullish().describe('Почта администратора, проверившего станцию')
 })
 
 
@@ -252,7 +258,9 @@ export const GetStationResponse = zod.object({
   "updated_at": zod.coerce.date().optional(),
   "distance_km": zod.number().nullish(),
   "is_promoted": zod.boolean().optional(),
-  "discount_pct": zod.number().optional()
+  "discount_pct": zod.number().optional(),
+  "verified_at": zod.coerce.date().nullish().describe('Когда станцию последний раз проверяли живьём'),
+  "verified_by": zod.string().nullish().describe('Почта администратора, проверившего станцию')
 })
 
 
@@ -309,7 +317,9 @@ export const UpdateStationResponse = zod.object({
   "updated_at": zod.coerce.date().optional(),
   "distance_km": zod.number().nullish(),
   "is_promoted": zod.boolean().optional(),
-  "discount_pct": zod.number().optional()
+  "discount_pct": zod.number().optional(),
+  "verified_at": zod.coerce.date().nullish().describe('Когда станцию последний раз проверяли живьём'),
+  "verified_by": zod.string().nullish().describe('Почта администратора, проверившего станцию')
 })
 
 
@@ -361,7 +371,9 @@ export const UpdateStationStatusResponse = zod.object({
   "updated_at": zod.coerce.date().optional(),
   "distance_km": zod.number().nullish(),
   "is_promoted": zod.boolean().optional(),
-  "discount_pct": zod.number().optional()
+  "discount_pct": zod.number().optional(),
+  "verified_at": zod.coerce.date().nullish().describe('Когда станцию последний раз проверяли живьём'),
+  "verified_by": zod.string().nullish().describe('Почта администратора, проверившего станцию')
 })
 
 
@@ -637,7 +649,9 @@ export const GetSessionsResponseItem = zod.object({
   "updated_at": zod.coerce.date().optional(),
   "distance_km": zod.number().nullish(),
   "is_promoted": zod.boolean().optional(),
-  "discount_pct": zod.number().optional()
+  "discount_pct": zod.number().optional(),
+  "verified_at": zod.coerce.date().nullish().describe('Когда станцию последний раз проверяли живьём'),
+  "verified_by": zod.string().nullish().describe('Почта администратора, проверившего станцию')
 }).optional(),
   "user_id": zod.string().nullish(),
   "energy_kwh": zod.number().nullish(),
@@ -692,7 +706,9 @@ export const StartSessionResponse = zod.object({
   "updated_at": zod.coerce.date().optional(),
   "distance_km": zod.number().nullish(),
   "is_promoted": zod.boolean().optional(),
-  "discount_pct": zod.number().optional()
+  "discount_pct": zod.number().optional(),
+  "verified_at": zod.coerce.date().nullish().describe('Когда станцию последний раз проверяли живьём'),
+  "verified_by": zod.string().nullish().describe('Почта администратора, проверившего станцию')
 }).optional(),
   "user_id": zod.string().nullish(),
   "energy_kwh": zod.number().nullish(),
@@ -743,7 +759,9 @@ export const GetSessionResponse = zod.object({
   "updated_at": zod.coerce.date().optional(),
   "distance_km": zod.number().nullish(),
   "is_promoted": zod.boolean().optional(),
-  "discount_pct": zod.number().optional()
+  "discount_pct": zod.number().optional(),
+  "verified_at": zod.coerce.date().nullish().describe('Когда станцию последний раз проверяли живьём'),
+  "verified_by": zod.string().nullish().describe('Почта администратора, проверившего станцию')
 }).optional(),
   "user_id": zod.string().nullish(),
   "energy_kwh": zod.number().nullish(),
@@ -794,7 +812,9 @@ export const StopSessionResponse = zod.object({
   "updated_at": zod.coerce.date().optional(),
   "distance_km": zod.number().nullish(),
   "is_promoted": zod.boolean().optional(),
-  "discount_pct": zod.number().optional()
+  "discount_pct": zod.number().optional(),
+  "verified_at": zod.coerce.date().nullish().describe('Когда станцию последний раз проверяли живьём'),
+  "verified_by": zod.string().nullish().describe('Почта администратора, проверившего станцию')
 }).optional(),
   "user_id": zod.string().nullish(),
   "energy_kwh": zod.number().nullish(),
@@ -845,7 +865,9 @@ export const PaySessionResponse = zod.object({
   "updated_at": zod.coerce.date().optional(),
   "distance_km": zod.number().nullish(),
   "is_promoted": zod.boolean().optional(),
-  "discount_pct": zod.number().optional()
+  "discount_pct": zod.number().optional(),
+  "verified_at": zod.coerce.date().nullish().describe('Когда станцию последний раз проверяли живьём'),
+  "verified_by": zod.string().nullish().describe('Почта администратора, проверившего станцию')
 }).optional(),
   "user_id": zod.string().nullish(),
   "energy_kwh": zod.number().nullish(),
@@ -1054,6 +1076,21 @@ export const UpdateUserResponse = zod.object({
   "total_energy_kwh": zod.number().optional(),
   "co2_saved_kg": zod.number().optional(),
   "created_at": zod.coerce.date().optional()
+})
+
+
+/**
+ * Ставит дату проверки и подписывает её почтой администратора из токена. Дата показывается пользователю: основной источник станций — OpenChargeMap, где часть записей устарела.
+ * @summary Отметить станцию проверенной
+ */
+export const VerifyStationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const VerifyStationResponse = zod.object({
+  "id": zod.number(),
+  "verified_at": zod.coerce.date().nullish(),
+  "verified_by": zod.string().nullish()
 })
 
 

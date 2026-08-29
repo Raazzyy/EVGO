@@ -149,6 +149,10 @@ export interface Station {
   distance_km?: number | null;
   is_promoted?: boolean;
   discount_pct?: number;
+  /** Когда станцию последний раз проверяли живьём */
+  verified_at?: string | null;
+  /** Почта администратора, проверившего станцию */
+  verified_by?: string | null;
 }
 
 export interface StationsResponse {
@@ -572,5 +576,11 @@ export type BroadcastNotification200 = {
 
 export type SearchVehiclesParams = {
 q: string;
+};
+
+export type VerifyStation200 = {
+  id: number;
+  verified_at?: string | null;
+  verified_by?: string | null;
 };
 

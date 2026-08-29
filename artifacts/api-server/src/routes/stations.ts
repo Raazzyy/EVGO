@@ -238,6 +238,29 @@ router.patch("/stations/:id", adminAuth, async (req, res): Promise<void> => {
   res.json(buildStationWithOperator(station, op ?? null));
 });
 
+// ── POST /api/stations/:id/verify ────────────────────────────────────────────
+// Отмечает, что станцию проверили живьём или по телефону. Дата проверки
+// показывается пользователю: главный источник данных — открытая база
+// OpenChargeMap, где часть записей устарела.
+router.post<{ id: string }>("/stations/:id/verify", adminAuth, async (req, res): Promise<void> => {
+  const p = z.object({ id: z.coerce.number().int().positive() }).safeParse(req.params);
+  if (!p.success) { res.status(400).json({ error: p.error.message }); return; }
+
+  const [station] = await db
+    .update(stationsTable)
+    .set({
+      verified_at: new Date(),
+      // Кто проверил — из админского токена, а не из тела запроса.
+      verified_by: req.adminEmail ?? null,
+      updated_at: new Date(),
+    })
+    .where(eq(stationsTable.id, p.data.id))
+    .returning();
+
+  if (!station) { res.status(404).json({ error: "Station not found" }); return; }
+  res.json({ id: station.id, verified_at: station.verified_at, verified_by: station.verified_by });
+});
+
 router.delete("/stations/:id", adminAuth, async (req, res): Promise<void> => {
   const p = DeleteStationParams.safeParse(req.params);
   if (!p.success) { res.status(400).json({ error: p.error.message }); return; }

@@ -677,6 +677,35 @@ paths:
               schema:
                 $ref: "#/components/schemas/User"
 
+  /stations/{id}/verify:
+    post:
+      operationId: verifyStation
+      summary: Отметить станцию проверенной
+      description: >
+        Ставит дату проверки и подписывает её почтой администратора из токена.
+        Дата показывается пользователю: основной источник станций —
+        OpenChargeMap, где часть записей устарела.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id]
+                properties:
+                  id: { type: integer }
+                  verified_at: { type: string, format: date-time, nullable: true }
+                  verified_by: { type: string, nullable: true }
+        "401": { description: Требуется админский токен }
+        "404": { description: Станция не найдена }
+
   # ── Auth ──────────────────────────────────────────────────────
   # Вход по номеру телефона с подтверждением кодом из SMS.
   #
@@ -1086,6 +1115,15 @@ components:
           type: boolean
         discount_pct:
           type: integer
+        verified_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Когда станцию последний раз проверяли живьём
+        verified_by:
+          type: string
+          nullable: true
+          description: Почта администратора, проверившего станцию
 
     StationsResponse:
       type: object

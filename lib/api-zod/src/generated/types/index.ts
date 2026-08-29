@@ -68,3 +68,4 @@ export * from './vehicleConnectorType';
 export * from './vehicleInput';
 export * from './vehicleInputConnectorType';
 export * from './verifyCodeInput';
+export * from './verifyStation200';

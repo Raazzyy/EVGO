@@ -33,6 +33,14 @@ export const stationsTable = pgTable("stations", {
   district:             text("district"),
   region:               text("region"),
   supports_reservation: boolean("supports_reservation").notNull().default(false),
+  // ── Верификация данных ─────────────────────────────────────────────────
+  // Основной источник станций — OpenChargeMap, открытая база, которую
+  // наполняют энтузиасты: часть записей устарела, цены почти везде неверны.
+  // Пользователь должен видеть, когда станцию проверяли живьём.
+  /** Когда станцию последний раз проверяли на месте или по телефону. */
+  verified_at:          timestamp("verified_at", { withTimezone: true }),
+  /** Кто проверил — email администратора. */
+  verified_by:          text("verified_by"),
   updated_at:           timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -29,4 +29,8 @@ export interface Station {
   distance_km?: number | null;
   is_promoted?: boolean;
   discount_pct?: number;
+  /** Когда станцию последний раз проверяли живьём */
+  verified_at?: Date | null;
+  /** Почта администратора, проверившего станцию */
+  verified_by?: string | null;
 }

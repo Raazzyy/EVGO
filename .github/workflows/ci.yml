@@ -21,6 +21,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
+        with:
+          # Без явной версии action падает с «No pnpm version is specified».
+          # Мажорная 10 — та же, что стоит на Replit; локфайл версии 9.0
+          # читают и 10, и 11, так что расхождение с машинами разработчиков
+          # безопасно.
+          version: 10
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -44,6 +50,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
+        with:
+          # Без явной версии action падает с «No pnpm version is specified».
+          # Мажорная 10 — та же, что стоит на Replit; локфайл версии 9.0
+          # читают и 10, и 11, так что расхождение с машинами разработчиков
+          # безопасно.
+          version: 10
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -65,6 +77,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
+        with:
+          # Без явной версии action падает с «No pnpm version is specified».
+          # Мажорная 10 — та же, что стоит на Replit; локфайл версии 9.0
+          # читают и 10, и 11, так что расхождение с машинами разработчиков
+          # безопасно.
+          version: 10
       - uses: actions/setup-node@v4
         with:
           node-version: 24

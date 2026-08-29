@@ -17,6 +17,8 @@ declare global {
       userId?: string;
       /** true, если запрос пришёл с админским токеном, а не пользовательским. */
       isAdmin?: boolean;
+      /** Почта администратора из токена — заполняет adminAuth. */
+      adminEmail?: string;
     }
   }
 }
