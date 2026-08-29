@@ -98,7 +98,7 @@ export default function ReceiptScreen() {
           </LinearGradient>
           <Text style={[styles.successTitle, { color: colors.text }]}>Зарядка завершена</Text>
           <Text style={[styles.successSub, { color: colors.mutedForeground }]}>
-            Спасибо за использование iON
+            Спасибо за использование EVGO
           </Text>
         </Animated.View>
 

@@ -709,7 +709,7 @@ export default function MapScreen() {
   // ── TOP BAR ───────────────────────────────────────────────────────────────
   const TopBar = (
     <View style={[styles.topBar, { top: topOffset + 8 }]}>
-      <Text style={[styles.logo, { color: colors.primary }]}>iON</Text>
+      <Text style={[styles.logo, { color: colors.primary }]}>EVGO</Text>
       <View style={[styles.segmentControl, { backgroundColor: colors.card }]}>
         {(['map', 'list'] as const).map(mode => (
           <TouchableOpacity

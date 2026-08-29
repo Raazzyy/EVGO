@@ -41,7 +41,7 @@ const FAQ = [
   },
   {
     q: 'Почему маршрут добавляет остановки?',
-    a: 'iON автоматически рассчитывает, хватит ли заряда до пункта назначения. Если нет — предлагает промежуточные зарядки.',
+    a: 'EVGO автоматически рассчитывает, хватит ли заряда до пункта назначения. Если нет — предлагает промежуточные зарядки.',
   },
   {
     q: 'Можно ли отменить сессию?',
@@ -123,7 +123,10 @@ export default function SupportScreen() {
       setSubject('');
       setMessage('');
     } catch {
-      Alert.alert('Ошибка', 'Не удалось отправить. Попробуйте написать нам напрямую: support@ioncharge.uz');
+      Alert.alert(
+        'Обращение не отправилось',
+        'Проверьте интернет. Если не получается — напишите напрямую: support@evgo.uz',
+      );
     } finally {
       setSending(false);
     }
@@ -149,9 +152,9 @@ export default function SupportScreen() {
           <Text style={[cStyles.sectionLabel, { color: colors.mutedForeground }]}>КОНТАКТЫ</Text>
           <View style={[cStyles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <ContactRow icon="phone" label="Телефон" value="+998 71 200-00-00" url="tel:+998712000000" />
-            <ContactRow icon="mail" label="Email" value="support@ioncharge.uz" url="mailto:support@ioncharge.uz" />
+            <ContactRow icon="mail" label="Email" value="support@evgo.uz" url="mailto:support@evgo.uz" />
             <TouchableOpacity
-              onPress={() => Linking.openURL('https://t.me/ioncharge_support')}
+              onPress={() => Linking.openURL('https://t.me/evgouz_support')}
               style={[cStyles.contactRow, { borderBottomWidth: 0 }]}
               activeOpacity={0.7}
             >
@@ -160,7 +163,7 @@ export default function SupportScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[cStyles.contactLabel, { color: colors.mutedForeground }]}>Telegram</Text>
-                <Text style={[cStyles.contactValue, { color: colors.text }]}>@ioncharge_support</Text>
+                <Text style={[cStyles.contactValue, { color: colors.text }]}>@evgo_support</Text>
               </View>
               <Feather name="external-link" size={14} color={colors.mutedForeground} />
             </TouchableOpacity>

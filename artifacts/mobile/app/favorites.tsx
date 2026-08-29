@@ -18,6 +18,8 @@ import { useColors } from '@/hooks/useColors';
 import { useApp } from '@/contexts/AppContext';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { formatPricePerKwh } from '@/lib/format';
+import { StationListSkeleton } from '@/components/Skeleton';
+import { EmptyState } from '@/components/EmptyState';
 
 const API = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
@@ -124,19 +126,15 @@ export default function FavoritesScreen() {
       </View>
 
       {isLoading ? (
-        <View style={styles.centered}>
-          <ActivityIndicator color={colors.primary} />
+        <View style={styles.list}>
+          <StationListSkeleton count={3} />
         </View>
       ) : stations.length === 0 ? (
-        <View style={styles.centered}>
-          <View style={[styles.emptyIconWrap, { backgroundColor: colors.muted }]}>
-            <Feather name="heart" size={32} color={colors.mutedForeground} />
-          </View>
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>Нет избранных станций</Text>
-          <Text style={[styles.emptyDesc, { color: colors.mutedForeground }]}>
-            Нажмите ♡ на странице станции, чтобы добавить её сюда
-          </Text>
-        </View>
+        <EmptyState
+          icon="heart"
+          title="Нет избранных станций"
+          description="Нажмите ♡ на странице станции, чтобы вернуться к ней в один шаг."
+        />
       ) : (
         <FlatList
           data={stations}

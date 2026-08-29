@@ -432,7 +432,11 @@ export default function StationDetailScreen() {
         qc.invalidateQueries({ queryKey: getGetStationsQueryKey() });
         router.push('/charge');
       },
-      onError: () => Alert.alert('Ошибка', 'Не удалось начать сессию. Попробуйте еще раз.'),
+      onError: () =>
+        Alert.alert(
+          'Зарядка не началась',
+          'Коннектор мог занять кто-то другой. Обновите страницу станции и попробуйте снова.',
+        ),
     },
   });
 
@@ -514,7 +518,13 @@ export default function StationDetailScreen() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: userId }),
       });
-      if (!r.ok) { const e = await r.json(); Alert.alert('Ошибка', e.error ?? 'Не удалось забронировать'); return; }
+      if (!r.ok) {
+        const e = await r.json();
+        // Текст с сервера точнее общего: он знает, занят коннектор или
+        // бронь уже есть.
+        Alert.alert('Бронь не оформлена', e.error ?? 'Коннектор уже занят. Выберите другой.');
+        return;
+      }
       const data = await r.json();
       Alert.alert(
         'Бронь подтверждена',
@@ -522,7 +532,7 @@ export default function StationDetailScreen() {
         [{ text: 'OK', onPress: () => {} }]
       );
     } catch {
-      Alert.alert('Ошибка', 'Нет соединения с сервером');
+      Alert.alert('Нет связи', 'Проверьте интернет и попробуйте забронировать снова.');
     }
   }
 

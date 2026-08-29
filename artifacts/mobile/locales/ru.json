@@ -20,7 +20,7 @@
   },
 
   "auth": {
-    "signInTitle": "Вход в iON",
+    "signInTitle": "Вход в EVGO",
     "signInSubtitle": "Введите номер телефона — пароль не нужен",
     "phonePlaceholder": "90 123 45 67",
     "phoneHint": "Отправим SMS с кодом подтверждения",

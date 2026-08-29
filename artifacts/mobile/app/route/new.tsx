@@ -144,7 +144,11 @@ export default function NewRouteScreen() {
         setRouteMode('fast');
         setActiveRouteId(res.id);
       },
-      onError: () => showAlert('Ошибка', 'Не удалось построить маршрут. Попробуйте ещё раз.'),
+      onError: () =>
+        showAlert(
+          'Маршрут не построился',
+          'Проверьте адреса и подключение к интернету. Если адреса верны — попробуйте выбрать другую точку рядом.',
+        ),
     },
   });
 
@@ -670,7 +674,7 @@ export default function NewRouteScreen() {
                     <Feather name="tag" size={16} color="#fff" />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.savingsTitle}>Экономия с iON Charge</Text>
+                    <Text style={styles.savingsTitle}>Экономия с EVGO</Text>
                     <Text style={styles.savingsAmount}>
                       ~{formatMoney(totalSavings)}
                     </Text>

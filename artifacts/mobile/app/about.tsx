@@ -63,7 +63,7 @@ export default function AboutScreen() {
           >
             <Feather name="zap" size={40} color="#fff" />
           </LinearGradient>
-          <Text style={[aStyles.appName, { color: colors.text }]}>iON Charge</Text>
+          <Text style={[aStyles.appName, { color: colors.text }]}>EVGO</Text>
           <Text style={[aStyles.appTagline, { color: colors.mutedForeground }]}>
             Умная зарядка для электромобилей в Узбекистане
           </Text>
@@ -78,7 +78,7 @@ export default function AboutScreen() {
         <Animated.View entering={FadeInDown.delay(60).springify()}>
           <View style={[aStyles.card, { backgroundColor: colors.card, borderColor: colors.border, padding: 16 }]}>
             <Text style={[aStyles.descText, { color: colors.text }]}>
-              iON Charge — агрегатор зарядных станций для электромобилей в Узбекистане. Мы объединяем все публичные сети зарядки в одном приложении: находите ближайшую станцию, планируйте маршруты с остановками для зарядки и экономьте с эксклюзивными скидками от партнёров.
+              EVGO — агрегатор зарядных станций для электромобилей в Узбекистане. Мы объединяем все публичные сети зарядки в одном приложении: находите ближайшую станцию, планируйте маршруты с остановками для зарядки и экономьте с эксклюзивными скидками от партнёров.
             </Text>
           </View>
         </Animated.View>
@@ -111,8 +111,8 @@ export default function AboutScreen() {
         <Animated.View entering={FadeInDown.delay(120).springify()}>
           <Text style={[aStyles.sectionLabel, { color: colors.mutedForeground }]}>ДОКУМЕНТЫ</Text>
           <View style={[aStyles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <LinkRow icon="file-text" label="Пользовательское соглашение" url="https://ioncharge.uz/terms" />
-            <LinkRow icon="shield" label="Политика конфиденциальности" url="https://ioncharge.uz/privacy" last />
+            <LinkRow icon="file-text" label="Пользовательское соглашение" url="https://evgo.uz/terms" />
+            <LinkRow icon="shield" label="Политика конфиденциальности" url="https://evgo.uz/privacy" last />
           </View>
         </Animated.View>
 
@@ -120,14 +120,14 @@ export default function AboutScreen() {
         <Animated.View entering={FadeInDown.delay(150).springify()}>
           <Text style={[aStyles.sectionLabel, { color: colors.mutedForeground }]}>КОМПАНИЯ</Text>
           <View style={[aStyles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <LinkRow icon="globe" label="ioncharge.uz" url="https://ioncharge.uz" />
-            <LinkRow icon="mail" label="info@ioncharge.uz" url="mailto:info@ioncharge.uz" />
-            <LinkRow icon="send" label="Telegram канал" url="https://t.me/ioncharge" last />
+            <LinkRow icon="globe" label="evgo.uz" url="https://evgo.uz" />
+            <LinkRow icon="mail" label="info@evgo.uz" url="mailto:info@evgo.uz" />
+            <LinkRow icon="send" label="Telegram канал" url="https://t.me/evgouz" last />
           </View>
         </Animated.View>
 
         <Text style={[aStyles.copyright, { color: colors.mutedForeground }]}>
-          © {new Date().getFullYear()} iON Charge. Все права защищены.{'\n'}
+          © {new Date().getFullYear()} EVGO. Все права защищены.{'\n'}
           Ташкент, Узбекистан
         </Text>
       </ScrollView>

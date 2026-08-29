@@ -12,10 +12,14 @@ import {
 import { useColors } from '@/hooks/useColors';
 import { useApp } from '@/contexts/AppContext';
 import { SessionCard } from '@/components/SessionCard';
+import { SessionListSkeleton } from '@/components/Skeleton';
+import { EmptyState } from '@/components/EmptyState';
+import { useRouter } from 'expo-router';
 
 type Tab = 'active' | 'history';
 
 export default function SessionsScreen() {
+  const router = useRouter();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
@@ -63,7 +67,9 @@ export default function SessionsScreen() {
       </View>
 
       {isLoading ? (
-        <View style={styles.loading}><ActivityIndicator color={colors.primary} /></View>
+        <View style={styles.list}>
+          <SessionListSkeleton count={3} />
+        </View>
       ) : (
         <FlatList
           data={filteredSessions}
@@ -102,17 +108,20 @@ export default function SessionsScreen() {
             </View>
           )}
           ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyIcon}>⚡</Text>
-              <Text style={[styles.emptyTitle, { color: colors.text }]}>
-                {tab === 'active' ? 'Нет активных сессий' : 'История пуста'}
-              </Text>
-              <Text style={[styles.emptyDesc, { color: colors.mutedForeground }]}>
-                {tab === 'active'
-                  ? 'Начните сессию на любой станции.'
-                  : 'Здесь будут отображаться ваши завершенные сессии.'}
-              </Text>
-            </View>
+            <EmptyState
+              icon={tab === 'active' ? 'zap' : 'clock'}
+              title={tab === 'active' ? 'Сейчас вы не заряжаетесь' : 'История пуста'}
+              description={
+                tab === 'active'
+                  ? 'Выберите станцию на карте и начните зарядку — сессия появится здесь.'
+                  : 'Здесь появятся завершённые сессии с чеками и расходом энергии.'
+              }
+              action={
+                tab === 'active'
+                  ? { label: 'Открыть карту', onPress: () => router.push('/(tabs)') }
+                  : undefined
+              }
+            />
           }
         />
       )}

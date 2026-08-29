@@ -50,7 +50,7 @@ export default function ProfileScreen() {
     { icon: 'cpu',         label: 'Мои автомобили',    desc: 'Управление электромобилями',                onPress: () => router.push('/cars') },
     { icon: 'settings',    label: 'Настройки',         desc: 'Предпочтения приложения',                   onPress: () => router.push('/settings') },
     { icon: 'headphones',  label: 'Поддержка',         desc: 'Служба заботы о клиентах',                  onPress: () => router.push('/support') },
-    { icon: 'info',        label: 'О приложении',      desc: `iON Charge v${VERSION}`,                    onPress: () => router.push('/about') },
+    { icon: 'info',        label: 'О приложении',      desc: `EVGO v${VERSION}`,                    onPress: () => router.push('/about') },
   ];
 
   if (isLoading) {
@@ -90,7 +90,7 @@ export default function ProfileScreen() {
           </View>
           <View style={styles.premiumBadge}>
             <Feather name="star" size={12} color="#F59E0B" />
-            <Text style={styles.premiumText}>iON Premium</Text>
+            <Text style={styles.premiumText}>EVGO Premium</Text>
           </View>
         </View>
       </LinearGradient>
@@ -145,7 +145,7 @@ export default function ProfileScreen() {
       </View>
 
       <Text style={[styles.version, { color: colors.mutedForeground }]}>
-        iON · v1.0.0
+        EVGO · v1.0.0
       </Text>
     </ScrollView>
   );

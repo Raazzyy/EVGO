@@ -20,7 +20,7 @@
   },
 
   "auth": {
-    "signInTitle": "iON'ga kirish",
+    "signInTitle": "EVGO'ga kirish",
     "signInSubtitle": "Telefon raqamingizni kiriting — parol kerak emas",
     "phonePlaceholder": "90 123 45 67",
     "phoneHint": "Tasdiqlash kodi bilan SMS yuboramiz",
