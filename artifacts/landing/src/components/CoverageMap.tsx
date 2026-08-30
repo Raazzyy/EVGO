@@ -83,7 +83,12 @@ export function CoverageMap({ labels }: { labels: MapLabels }) {
     const ctrl = new AbortController();
     abortRef.current = ctrl;
 
-    fetch('/api/stations', { signal: ctrl.signal })
+    // На Replit лендинг и API живут рядом, и относительного пути достаточно.
+    // На внешнем хостинге бэкенда нет — тогда адрес задаётся переменной
+    // VITE_API_URL при сборке.
+    const base = (import.meta.env.VITE_API_URL ?? '').replace(/\/+$/, '');
+
+    fetch(`${base}/api/stations`, { signal: ctrl.signal })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((data: { nearby?: Station[] } | Station[]) => {
         // Эндпоинт отдаёт { promoted, nearby }; массив — на случай отката формата.

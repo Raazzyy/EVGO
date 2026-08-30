@@ -61,3 +61,6 @@ attached_assets/
 # Симлинки Claude Code на .agents/skills — с абсолютными путями этой машины,
 # у других разработчиков они нерабочие. Сами скиллы лежат в .agents/skills.
 .claude/
+
+# Сборка лендинга
+artifacts/landing/dist/
