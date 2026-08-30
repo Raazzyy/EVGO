@@ -25,6 +25,7 @@ import { FiltersSheet, FiltersState } from '@/components/FiltersSheet';
 import { StationQuickView, type QuickViewStation } from '@/components/StationQuickView';
 import { LinearGradient } from 'expo-linear-gradient';
 import { formatPricePerKwh } from '@/lib/format';
+import { haptics } from '@/lib/haptics';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -714,7 +715,7 @@ export default function MapScreen() {
         {(['map', 'list'] as const).map(mode => (
           <TouchableOpacity
             key={mode}
-            onPress={() => setViewMode(mode)}
+            onPress={() => { haptics.tap(); setViewMode(mode); }}
             style={[styles.segmentBtn, viewMode === mode && styles.segmentBtnActive]}
           >
             {viewMode === mode && (

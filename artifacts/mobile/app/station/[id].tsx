@@ -31,6 +31,7 @@ import { GradientButton } from '@/components/GradientButton';
 import { PromoCountdown } from '@/components/PromoCountdown';
 import { CircularProgress } from '@/components/CircularProgress';
 import { ReportStationSheet } from '@/components/ReportStationSheet';
+import { haptics } from '@/lib/haptics';
 import { useTranslation } from 'react-i18next';
 import { formatAmount, formatMoney } from '@/lib/format';
 
@@ -433,16 +434,20 @@ export default function StationDetailScreen() {
   const startMutation = useStartSession({
     mutation: {
       onSuccess: (session) => {
+        // Зарядка пошла — заметная отдача: это главное действие экрана.
+        haptics.success();
         setActiveSessionId(session.id);
         qc.invalidateQueries({ queryKey: getGetSessionsQueryKey() });
         qc.invalidateQueries({ queryKey: getGetStationsQueryKey() });
         router.push('/charge');
       },
-      onError: () =>
+      onError: () => {
+        haptics.error();
         Alert.alert(
           'Зарядка не началась',
           'Коннектор мог занять кто-то другой. Обновите страницу станции и попробуйте снова.',
-        ),
+        );
+      },
     },
   });
 
