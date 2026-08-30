@@ -17,6 +17,8 @@ import connectorsRouter from "./connectors";
 import promosRouter from "./promos";
 import bannersRouter from "./banners";
 import userVehiclesRouter from "./user_vehicles";
+import walletRouter from "./wallet";
+import paymeWebhooksRouter from "./paymeWebhooks";
 
 const router = Router();
 
@@ -201,5 +203,7 @@ router.use(connectorsRouter);
 router.use(promosRouter);
 router.use(bannersRouter);
 router.use(userVehiclesRouter);
+router.use(walletRouter);
+router.use(paymeWebhooksRouter);
 
 export default router;
