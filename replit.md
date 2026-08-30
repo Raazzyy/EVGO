@@ -30,6 +30,7 @@
 | `YANDEX_JS_API_KEY`, `YANDEX_GEOCODER_KEY`, `YANDEX_ROUTER_KEY` | нет | Карты и геокодер для веба |
 | `GOOGLE_MAPS_ANDROID_KEY`, `GOOGLE_MAPS_IOS_KEY`, `GOOGLE_DIRECTIONS_KEY` | нет | Карты и маршруты в мобильном приложении |
 | `EV_API_KEY` | нет | API Ninjas, живой поиск электромобилей |
+| `DEMO_PHONE`, `DEMO_CODE` | нет | Демо-вход для проверяющих в сторах. **Убрать после ревью**: пока заданы, знающий пару номер-код войдёт под демо-аккаунтом |
 | `AUTH_JWT_SECRET` | нет | Подпись токенов пользователей. Если не задана, берётся `ADMIN_JWT_SECRET` |
 | `ESKIZ_EMAIL`, `ESKIZ_PASSWORD` | нет | SMS-шлюз. Пароль — секретный ключ из кабинета, не пароль аккаунта |
 | `ESKIZ_FROM` | нет | Имя отправителя SMS, по умолчанию `4546` (песочница) |

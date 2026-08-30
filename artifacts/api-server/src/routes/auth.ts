@@ -35,6 +35,24 @@ const VerifyBody = z.object({
 });
 const RefreshBody = z.object({ refresh_token: z.string().min(10) });
 
+/**
+ * Демонстрационный вход для проверяющих в App Store и Google Play.
+ *
+ * Вход в приложение идёт по SMS-коду на узбекский номер, а у ревьюера такого
+ * номера нет — без обходного пути заявку отклоняют с формулировкой «не
+ * удалось войти».
+ *
+ * Включается только когда заданы обе переменные окружения. На боевом сервере
+ * их стоит убрать после прохождения ревью: пока они заданы, кто угодно,
+ * знающий пару номер-код, войдёт под демо-аккаунтом.
+ */
+function demoCodeFor(phone: string): string | null {
+  const demoPhone = process.env["DEMO_PHONE"];
+  const demoCode = process.env["DEMO_CODE"];
+  if (!demoPhone || !demoCode) return null;
+  return normalizePhone(demoPhone) === phone ? demoCode : null;
+}
+
 function badPhone(res: Parameters<Parameters<IRouter["post"]>[1]>[1]): void {
   res.status(400).json({
     error: "Неверный номер телефона",
@@ -89,13 +107,25 @@ router.post("/auth/request-code", async (req, res): Promise<void> => {
     return;
   }
 
-  const code = generateOtpCode();
+  const demo = demoCodeFor(phone);
+  const code = demo ?? generateOtpCode();
 
   await db.insert(otpCodesTable).values({
     phone,
     code_hash: hashOtpCode(phone, code),
     expires_at: new Date(now.getTime() + OTP_TTL_MS),
   });
+
+  // Демо-номеру SMS не отправляем: код проверяющий и так знает, а отправка
+  // на несуществующий номер только тратит деньги и упирается в ошибку шлюза.
+  if (demo) {
+    res.json({
+      sent: true,
+      expires_in_seconds: Math.floor(OTP_TTL_MS / 1000),
+      resend_after_seconds: Math.floor(RESEND_COOLDOWN_MS / 1000),
+    });
+    return;
+  }
 
   try {
     // Текст обязан совпадать с шаблоном, согласованным в кабинете Eskiz.

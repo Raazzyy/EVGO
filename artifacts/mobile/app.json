@@ -14,14 +14,24 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Чтобы показать зарядные станции рядом с вами и построить маршрут с остановками",
+        "NSUserNotificationsUsageDescription": "Чтобы сообщить, когда зарядка завершится или освободится нужный коннектор"
+      }
     },
     "android": {
       "config": {
         "googleMaps": {
           "apiKey": "GOOGLE_MAPS_ANDROID_KEY"
         }
-      }
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "INTERNET",
+        "POST_NOTIFICATIONS"
+      ]
     },
     "web": {
       "favicon": "./assets/images/icon.png"
@@ -36,7 +46,8 @@
       "expo-font",
       "expo-web-browser",
       "expo-secure-store",
-      "expo-localization"
+      "expo-localization",
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true,
