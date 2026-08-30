@@ -34,9 +34,9 @@ export function ChargeCurve({ className, strokeWidth = 2, labelled = false }: Ch
     >
       <defs>
         <linearGradient id="curve-stroke" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="#2fd08a" stopOpacity="0.15" />
-          <stop offset="35%" stopColor="#2fd08a" />
-          <stop offset="78%" stopColor="#2fd08a" />
+          <stop offset="0%" stopColor="#5b8cff" stopOpacity="0.15" />
+          <stop offset="35%" stopColor="#5b8cff" />
+          <stop offset="78%" stopColor="#5b8cff" />
           <stop offset="100%" stopColor="#f5a524" stopOpacity="0.65" />
         </linearGradient>
       </defs>

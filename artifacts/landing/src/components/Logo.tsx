@@ -53,7 +53,7 @@ export function Logo({ size = 28, color = 'currentColor', className }: LogoProps
           читаться как O, а не как разомкнутый полумесяц */}
       <path
         d="M100 5a13 13 0 1 1-9.2 22.2"
-        stroke="var(--volt, #2FD08A)"
+        stroke="var(--volt, #5b8cff)"
         strokeWidth="4.6"
         strokeLinecap="round"
       />
@@ -77,16 +77,16 @@ export function LogoMark({ size = 32, className }: { size?: number; className?: 
       aria-label="EVGO"
     >
       <rect width="32" height="32" rx="9" fill="#071A1C" />
-      <circle cx="16" cy="16" r="10" stroke="#2FD08A" strokeWidth="2.4" opacity="0.25" />
+      <circle cx="16" cy="16" r="10" stroke="#5b8cff" strokeWidth="2.4" opacity="0.25" />
       <path
         d="M16 6a10 10 0 1 1-8.5 15.2"
-        stroke="#2FD08A"
+        stroke="#5b8cff"
         strokeWidth="2.4"
         strokeLinecap="round"
       />
       <path
         d="M17.4 10.2l-4.6 7h3.1l-1.3 4.9 4.8-7.2h-3.2l1.2-4.7z"
-        fill="#2FD08A"
+        fill="#5b8cff"
       />
     </svg>
   );

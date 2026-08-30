@@ -121,7 +121,7 @@ export default function App() {
                 aria-pressed={lang === code}
                 className={`rounded-full px-2.5 py-1 text-xs transition-colors ${
                   lang === code
-                    ? 'bg-volt text-ink'
+                    ? 'bg-volt-deep text-white'
                     : 'text-muted hover:text-paper'
                 }`}
               >
@@ -132,7 +132,7 @@ export default function App() {
 
           <a
             href="#get"
-            className="rounded-full bg-volt px-4 py-2 font-medium text-ink transition-transform hover:scale-[1.03]"
+            className="rounded-full bg-gradient-to-r from-volt-deep to-violet px-4 py-2 font-medium text-white transition-transform hover:scale-[1.03]"
           >
             {t.nav.download}
           </a>
@@ -165,7 +165,7 @@ export default function App() {
             <div className="mt-9 flex flex-wrap items-center gap-3">
               <a
                 href="#get"
-                className="rounded-full bg-volt px-6 py-3.5 font-medium text-ink transition-transform hover:scale-[1.03]"
+                className="rounded-full bg-gradient-to-r from-volt-deep to-violet px-6 py-3.5 font-medium text-white transition-transform hover:scale-[1.03]"
               >
                 {t.hero.download}
               </a>
@@ -297,7 +297,7 @@ export default function App() {
               рассылку без работающей отписки нечестно. */}
           <a
             href="mailto:hello@evgo.uz?subject=EVGO"
-            className="mt-8 inline-block rounded-full bg-volt px-7 py-4 font-medium text-ink transition-transform hover:scale-[1.03]"
+            className="mt-8 inline-block rounded-full bg-gradient-to-r from-volt-deep to-violet px-7 py-4 font-medium text-white transition-transform hover:scale-[1.03]"
           >
             {t.get.cta}
           </a>

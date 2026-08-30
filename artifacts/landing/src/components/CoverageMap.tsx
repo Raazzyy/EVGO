@@ -128,8 +128,8 @@ export function CoverageMap({ labels }: { labels: MapLabels }) {
               <path d="M48 0H0V48" fill="none" stroke="#16403f" strokeWidth="1" />
             </pattern>
             <radialGradient id="glow">
-              <stop offset="0%" stopColor="#2fd08a" stopOpacity="0.28" />
-              <stop offset="100%" stopColor="#2fd08a" stopOpacity="0" />
+              <stop offset="0%" stopColor="#5b8cff" stopOpacity="0.28" />
+              <stop offset="100%" stopColor="#5b8cff" stopOpacity="0" />
             </radialGradient>
           </defs>
 
@@ -172,6 +172,8 @@ export function CoverageMap({ labels }: { labels: MapLabels }) {
           {/* Станции */}
           {points.map((p) => (
             <g key={p.id}>
+              {/* Пины «свободна» — зелёные: это статус коннектора, а не бренд.
+                  Тот же зелёный, что у свободной станции в приложении. */}
               {p.status === 'free' && (
                 <circle cx={p.x} cy={p.y} r="4" fill="#2fd08a" className="pin-pulse" />
               )}

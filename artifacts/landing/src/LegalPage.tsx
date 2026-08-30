@@ -33,7 +33,7 @@ export function LegalPage({ doc, lang, onLangChange }: LegalPageProps) {
               onClick={() => onLangChange(code)}
               aria-pressed={lang === code}
               className={`rounded-full px-2.5 py-1 text-xs transition-colors ${
-                lang === code ? 'bg-volt text-ink' : 'text-muted hover:text-paper'
+                lang === code ? 'bg-volt-deep text-white' : 'text-muted hover:text-paper'
               }`}
             >
               {LANGUAGE_LABELS[code]}
