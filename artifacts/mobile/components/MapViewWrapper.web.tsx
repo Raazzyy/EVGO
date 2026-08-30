@@ -105,7 +105,20 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
           zoomControl: false, attributionControl: false,
         });
         mapRef.current = map;
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+        // Esri «Light Gray Canvas» — чистая приглушённая подложка без
+        // ключа. Сырые OSM-тайлы выглядели пёстро и дёшево, а CARTO с
+        // недавних пор требует API-ключ (иначе поверх тайлов печатается
+        // «API KEY REQUIRED»). Серая канва убирает визуальный шум, и
+        // цветные пины станций на ней читаются премиально.
+        L.tileLayer(
+          'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+          { maxZoom: 16 },
+        ).addTo(map);
+        // Тонкие подписи улиц/районов поверх серой канвы — отдельным слоем.
+        L.tileLayer(
+          'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
+          { maxZoom: 16 },
+        ).addTo(map);
 
         // Map-level click → close quick view (skip if a marker was just clicked)
         map.on('click', () => {
