@@ -104,7 +104,7 @@ export default function ReceiptScreen() {
 
         {/* Total cost */}
         <Animated.View entering={FadeInDown.delay(60).duration(300).easing(IOS_EASE)} style={[styles.totalCard, { backgroundColor: colors.card }]}>
-          <LinearGradient colors={['#2563EB', '#7C3AED']} style={styles.totalGradient}>
+          <LinearGradient colors={['#2FD08A', '#16A46B']} style={styles.totalGradient}>
             <Text style={styles.totalLabel}>Итого</Text>
             <Text style={styles.totalAmount}>{costLabel}</Text>
           </LinearGradient>
@@ -137,7 +137,7 @@ export default function ReceiptScreen() {
             <Text style={[styles.shareBtnText, { color: colors.primary }]}>Поделиться</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.homeBtn, { overflow: 'hidden', borderRadius: 16 }]} onPress={() => router.replace('/')}>
-            <LinearGradient colors={['#2563EB', '#7C3AED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.homeBtnGradient}>
+            <LinearGradient colors={['#2FD08A', '#16A46B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.homeBtnGradient}>
               <Text style={styles.homeBtnText}>На главную</Text>
             </LinearGradient>
           </TouchableOpacity>

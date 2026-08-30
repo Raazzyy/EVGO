@@ -5,8 +5,8 @@ import Svg, { Circle, Rect, Path } from 'react-native-svg';
 type ConnectorType = 'CCS2' | 'CHAdeMO' | 'Type2' | 'GB-T';
 
 const CONNECTOR_COLORS: Record<ConnectorType, { bg: string; text: string }> = {
-  CCS2:    { bg: '#2563EB1A', text: '#2563EB' },
-  CHAdeMO: { bg: '#7C3AED1A', text: '#7C3AED' },
+  CCS2:    { bg: '#2FD08A1A', text: '#2FD08A' },
+  CHAdeMO: { bg: '#16A46B1A', text: '#16A46B' },
   Type2:   { bg: '#10B9811A', text: '#10B981' },
   'GB-T':  { bg: '#F59E0B1A', text: '#F59E0B' },
 };

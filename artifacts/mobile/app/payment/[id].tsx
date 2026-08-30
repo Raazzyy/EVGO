@@ -113,7 +113,7 @@ export default function PaymentScreen() {
       <View style={[styles.footer, { paddingBottom: bottomPad + 16, backgroundColor: '#FFFFFF' }]}>
         <TouchableOpacity activeOpacity={0.8} style={styles.payButton} onPress={() => router.push('/')}>
           <LinearGradient
-            colors={['#2563EB', '#7C3AED']}
+            colors={['#2FD08A', '#16A46B']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={styles.payButtonGradient}

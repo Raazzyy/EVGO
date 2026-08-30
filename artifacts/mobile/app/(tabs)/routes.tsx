@@ -188,7 +188,7 @@ export default function RoutesScreen() {
                 entering={FadeInDown.delay(i * 60).duration(260).easing(IOS_EASE)}
                 style={styles.stopRow}
               >
-                <LinearGradient colors={['#2563EB', '#7C3AED']} style={styles.stopBadge}>
+                <LinearGradient colors={['#2FD08A', '#16A46B']} style={styles.stopBadge}>
                   <Text style={styles.stopBadgeText}>{i + 1}</Text>
                 </LinearGradient>
                 <View style={styles.stopLine}>
@@ -212,7 +212,7 @@ export default function RoutesScreen() {
           {/* Destination */}
           <View style={[styles.connector, { borderColor: colors.border }]} />
           <View style={styles.stopRow}>
-            <View style={[styles.stopDot, { backgroundColor: '#7C3AED', width: 12, height: 12, borderRadius: 6 }]} />
+            <View style={[styles.stopDot, { backgroundColor: '#16A46B', width: 12, height: 12, borderRadius: 6 }]} />
             <View style={styles.stopLine}>
               <Text style={[styles.stopLabel, { color: colors.mutedForeground }]}>Пункт назначения</Text>
               <Text style={[styles.stopName, { color: colors.text }]} numberOfLines={1}>{activeRoute.destination}</Text>

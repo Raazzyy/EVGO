@@ -66,7 +66,7 @@ function ToggleRow({
       <Switch
         value={value}
         onValueChange={onChange}
-        trackColor={{ false: '#CBD5E1', true: '#2563EB' }}
+        trackColor={{ false: '#CBD5E1', true: '#2FD08A' }}
         thumbColor="#fff"
       />
     </View>
@@ -87,11 +87,11 @@ function SelectRow<T extends string>({
             onPress={() => onChange(opt.value)}
             style={[
               sStyles.optionBtn,
-              { borderColor: value === opt.value ? '#2563EB' : colors.border },
-              value === opt.value && { backgroundColor: '#EEF2FF' },
+              { borderColor: value === opt.value ? '#2FD08A' : colors.border },
+              value === opt.value && { backgroundColor: '#E7F7F0' },
             ]}
           >
-            <Text style={[sStyles.optionText, { color: value === opt.value ? '#2563EB' : colors.mutedForeground }]}>
+            <Text style={[sStyles.optionText, { color: value === opt.value ? '#2FD08A' : colors.mutedForeground }]}>
               {opt.label}
             </Text>
           </TouchableOpacity>

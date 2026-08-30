@@ -59,7 +59,7 @@ export default function AboutScreen() {
         {/* Logo hero */}
         <Animated.View entering={FadeInDown.delay(0).springify()} style={aStyles.heroWrap}>
           <LinearGradient
-            colors={['#2563EB', '#7C3AED']}
+            colors={['#2FD08A', '#16A46B']}
             start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
             style={aStyles.logoGradient}
           >
@@ -100,8 +100,8 @@ export default function AboutScreen() {
                 key={i}
                 style={[aStyles.featureRow, i < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}
               >
-                <View style={[aStyles.featureIcon, { backgroundColor: '#EEF2FF' }]}>
-                  <Feather name={item.icon as any} size={16} color="#2563EB" />
+                <View style={[aStyles.featureIcon, { backgroundColor: '#E7F7F0' }]}>
+                  <Feather name={item.icon as any} size={16} color="#2FD08A" />
                 </View>
                 <Text style={[aStyles.featureText, { color: colors.text }]}>{item.text}</Text>
               </View>
@@ -148,7 +148,7 @@ const aStyles = StyleSheet.create({
   logoGradient: {
     width: 88, height: 88, borderRadius: 24,
     alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#2563EB', shadowOffset: { width: 0, height: 6 },
+    shadowColor: '#2FD08A', shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3, shadowRadius: 16, elevation: 8,
   },
   appName: { fontSize: 26, fontFamily: 'Inter_700Bold', marginTop: 4 },

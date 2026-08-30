@@ -508,7 +508,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1, shadowRadius: 12, elevation: 5,
   },
   reroutingCard: {
-    backgroundColor: '#2563EB', gap: 12, justifyContent: 'center',
+    backgroundColor: '#2FD08A', gap: 12, justifyContent: 'center',
   },
   reroutingText: {
     fontSize: 16, fontFamily: 'Inter_600SemiBold', color: '#FFFFFF',

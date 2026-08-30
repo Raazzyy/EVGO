@@ -44,7 +44,7 @@ const OPERATOR_COLORS: Record<string, [string, string]> = {
   I: ['#0EA5E9', '#0284C7'],
   K: ['#F59E0B', '#D97706'],
   C: ['#10B981', '#059669'],
-  T: ['#8B5CF6', '#7C3AED'],
+  T: ['#8B5CF6', '#16A46B'],
   U: ['#EF4444', '#DC2626'],
   B: ['#EC4899', '#DB2777'],
   G: ['#14B8A6', '#0D9488'],
@@ -182,8 +182,8 @@ export const StationCard = React.memo(function StationCard({
       <View style={styles.chipRow}>
         {/* Power chip */}
         <View style={[styles.chip, { backgroundColor: '#EFF6FF' }]}>
-          <Feather name="zap" size={11} color="#2563EB" />
-          <Text style={[styles.chipText, { color: '#2563EB' }]}>{station.power_kw} кВт</Text>
+          <Feather name="zap" size={11} color="#2FD08A" />
+          <Text style={[styles.chipText, { color: '#2FD08A' }]}>{station.power_kw} кВт</Text>
         </View>
 
         {/* Availability chip */}
@@ -235,7 +235,7 @@ export const StationCard = React.memo(function StationCard({
       {/* ── CTA: full-width route button ─────────────────────────────── */}
       <TouchableOpacity onPress={onRoute ?? onPress} activeOpacity={0.85} style={styles.ctaWrap}>
         <LinearGradient
-          colors={['#2563EB', '#7C3AED']}
+          colors={['#2FD08A', '#16A46B']}
           start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
           style={styles.ctaBtn}
         >

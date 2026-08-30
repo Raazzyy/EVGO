@@ -151,7 +151,7 @@ function FullConnectorCard({
   const statusColor =
     isFree     ? '#10B981' :
     isOccupied ? '#F59E0B' :
-    isReserved ? '#3B82F6' : '#94A3B8';
+    isReserved ? '#2FD08A' : '#94A3B8';
 
   const statusBg    = `${statusColor}1A`;
   const borderColor = isFree ? `${statusColor}44` : isOccupied && isMine ? `${statusColor}55` : colors.border;
@@ -269,10 +269,10 @@ function FullConnectorCard({
               <TouchableOpacity
                 onPress={onReserve}
                 activeOpacity={0.8}
-                style={[stylesC.outlineBtn, { borderColor: '#2563EB', flex: 1 }]}
+                style={[stylesC.outlineBtn, { borderColor: '#2FD08A', flex: 1 }]}
               >
-                <Feather name="calendar" size={13} color="#2563EB" />
-                <Text style={[stylesC.outlineBtnTxt, { color: '#2563EB' }]}>Забронировать</Text>
+                <Feather name="calendar" size={13} color="#2FD08A" />
+                <Text style={[stylesC.outlineBtnTxt, { color: '#2FD08A' }]}>Забронировать</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity
@@ -300,12 +300,12 @@ function FullConnectorCard({
             activeOpacity={0.8}
             style={[
               stylesC.outlineBtn,
-              { borderColor: watching ? '#3B82F6' : colors.border, flex: 1,
+              { borderColor: watching ? '#2FD08A' : colors.border, flex: 1,
                 backgroundColor: watching ? '#EFF6FF' : colors.muted },
             ]}
           >
-            <Feather name="bell" size={13} color={watching ? '#2563EB' : colors.mutedForeground} />
-            <Text style={[stylesC.outlineBtnTxt, { color: watching ? '#2563EB' : colors.mutedForeground }]}>
+            <Feather name="bell" size={13} color={watching ? '#2FD08A' : colors.mutedForeground} />
+            <Text style={[stylesC.outlineBtnTxt, { color: watching ? '#2FD08A' : colors.mutedForeground }]}>
               {watching ? 'Уведомят' : 'Уведомить'}
             </Text>
           </TouchableOpacity>
@@ -313,7 +313,7 @@ function FullConnectorCard({
             <TouchableOpacity
               onPress={onReserve}
               activeOpacity={0.8}
-              style={[stylesC.fillBtn, { backgroundColor: '#2563EB', flex: 1 }]}
+              style={[stylesC.fillBtn, { backgroundColor: '#2FD08A', flex: 1 }]}
             >
               <Feather name="calendar" size={13} color="#fff" />
               <Text style={stylesC.fillBtnTxt}>Забронировать</Text>
@@ -329,12 +329,12 @@ function FullConnectorCard({
           activeOpacity={0.8}
           style={[
             stylesC.outlineBtn,
-            { borderColor: watching ? '#3B82F6' : colors.border,
+            { borderColor: watching ? '#2FD08A' : colors.border,
               backgroundColor: watching ? '#EFF6FF' : colors.muted },
           ]}
         >
-          <Feather name="bell" size={13} color={watching ? '#2563EB' : colors.mutedForeground} />
-          <Text style={[stylesC.outlineBtnTxt, { color: watching ? '#2563EB' : colors.mutedForeground }]}>
+          <Feather name="bell" size={13} color={watching ? '#2FD08A' : colors.mutedForeground} />
+          <Text style={[stylesC.outlineBtnTxt, { color: watching ? '#2FD08A' : colors.mutedForeground }]}>
             {watching ? 'Уведомят вас' : 'Уведомить'}
           </Text>
         </TouchableOpacity>
@@ -585,7 +585,7 @@ export default function StationDetailScreen() {
       >
         {/* ── Hero ──────────────────────────────────────────────────────── */}
         <LinearGradient
-          colors={['#1A1A2E', '#2563EB']}
+          colors={['#1A1A2E', '#2FD08A']}
           style={[styles.heroSection, { paddingTop: Math.max(topPad, 16) }]}
         >
           <View style={styles.heroHeader}>
@@ -630,9 +630,9 @@ export default function StationDetailScreen() {
             const promoEndsAt = (station as any).promo_ends_at as string | null;
             return (
               <Animated.View entering={FadeInDown.delay(30).springify()}>
-                <LinearGradient colors={['#1E1B4B', '#2563EB', '#7C3AED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.promoCard}>
+                <LinearGradient colors={['#06231F', '#2FD08A', '#16A46B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.promoCard}>
                   <View style={styles.promoBadgesRow}>
-                    <View style={styles.promoTopBadge}><Feather name="award" size={11} color="#1E1B4B" /><Text style={styles.promoTopBadgeText}>ТОП СТАНЦИЯ</Text></View>
+                    <View style={styles.promoTopBadge}><Feather name="award" size={11} color="#06231F" /><Text style={styles.promoTopBadgeText}>ТОП СТАНЦИЯ</Text></View>
                     <View style={styles.promoDiscBadge}><Text style={styles.promoDiscText}>-{disc}% СУПЕР СКИДКА</Text></View>
                   </View>
                   <View style={styles.promoPriceRow}>
@@ -863,7 +863,7 @@ export default function StationDetailScreen() {
           )}
           activeOpacity={0.85}
         >
-          <LinearGradient colors={['#2563EB', '#7C3AED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.routeBtnGradient}>
+          <LinearGradient colors={['#2FD08A', '#16A46B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.routeBtnGradient}>
             <Feather name="navigation" size={18} color="#fff" />
             <View>
               <Text style={styles.routeBtnText}>Построить маршрут</Text>
@@ -1055,10 +1055,10 @@ const styles = StyleSheet.create({
   routeBtnSub:      { fontSize: 12, fontFamily: 'Inter_400Regular', color: 'rgba(255,255,255,0.75)', textAlign: 'center' },
 
   // Promo card
-  promoCard:            { borderRadius: 20, padding: 18, marginBottom: 2, shadowColor: '#7C3AED', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 16, elevation: 8, overflow: 'hidden' },
+  promoCard:            { borderRadius: 20, padding: 18, marginBottom: 2, shadowColor: '#16A46B', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 16, elevation: 8, overflow: 'hidden' },
   promoBadgesRow:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
   promoTopBadge:        { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#FBBF24', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
-  promoTopBadgeText:    { fontFamily: 'Inter_700Bold', fontSize: 11, color: '#1E1B4B' },
+  promoTopBadgeText:    { fontFamily: 'Inter_700Bold', fontSize: 11, color: '#06231F' },
   promoDiscBadge:       { backgroundColor: '#EF4444', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
   promoDiscText:        { fontFamily: 'Inter_700Bold', fontSize: 11, color: '#fff' },
   promoPriceRow:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },

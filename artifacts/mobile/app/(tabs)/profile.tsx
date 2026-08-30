@@ -73,14 +73,14 @@ export default function ProfileScreen() {
       showsVerticalScrollIndicator={false}
     >
       <LinearGradient
-        colors={['#2563EB', '#7C3AED']}
+        colors={['#2FD08A', '#16A46B']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={[styles.headerGradient, { paddingTop: topPad + 16 }]}
       >
         <View style={styles.avatarRow}>
           <View style={styles.avatar}>
-            <Text style={[styles.avatarText, { color: '#2563EB' }]}>
+            <Text style={[styles.avatarText, { color: '#2FD08A' }]}>
               {initials.toUpperCase()}
             </Text>
           </View>

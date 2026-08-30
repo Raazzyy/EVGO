@@ -80,7 +80,7 @@ function haversineKm(la1: number, lo1: number, la2: number, lo2: number): number
 
 const OPERATOR_COLORS: Record<string, [string, string]> = {
   I: ['#0EA5E9', '#0284C7'], K: ['#F59E0B', '#D97706'], C: ['#10B981', '#059669'],
-  T: ['#8B5CF6', '#7C3AED'], M: ['#2563EB', '#1D4ED8'], U: ['#EF4444', '#DC2626'],
+  T: ['#8B5CF6', '#16A46B'], M: ['#2FD08A', '#16A46B'], U: ['#EF4444', '#DC2626'],
   B: ['#EC4899', '#DB2777'], G: ['#14B8A6', '#0D9488'], S: ['#64748B', '#475569'],
 };
 
@@ -255,8 +255,8 @@ export function StationQuickView({
         {/* ── Stats row: power · available · distance ─────────────────── */}
         <View style={styles.statsRow}>
           <View style={[styles.badge, { backgroundColor: '#EFF6FF' }]}>
-            <Feather name="zap" size={10} color="#2563EB" />
-            <Text style={[styles.badgeText, { color: '#2563EB' }]}>{station.power_kw} кВт</Text>
+            <Feather name="zap" size={10} color="#2FD08A" />
+            <Text style={[styles.badgeText, { color: '#2FD08A' }]}>{station.power_kw} кВт</Text>
           </View>
           <View style={[styles.badge, { backgroundColor: statusColor + '18' }]}>
             <View style={[styles.dot, { backgroundColor: statusColor }]} />
@@ -307,7 +307,7 @@ export function StationQuickView({
             style={styles.chargeBtnWrap}
           >
             <LinearGradient
-              colors={station.status === 'offline' ? ['#94A3B8', '#94A3B8'] : ['#2563EB', '#7C3AED']}
+              colors={station.status === 'offline' ? ['#94A3B8', '#94A3B8'] : ['#2FD08A', '#16A46B']}
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
               style={styles.chargeBtn}
             >

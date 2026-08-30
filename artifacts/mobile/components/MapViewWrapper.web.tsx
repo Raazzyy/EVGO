@@ -185,7 +185,7 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
       if (!L || !map || !userLocation) return;
       userMarkerRef.current?.remove();
       const icon = L.divIcon({
-        html: `<div style="width:16px;height:16px;border-radius:50%;background:#2563EB;border:3px solid white;box-shadow:0 0 0 4px rgba(37,99,235,.25)"></div>`,
+        html: `<div style="width:16px;height:16px;border-radius:50%;background:#2FD08A;border:3px solid white;box-shadow:0 0 0 4px rgba(37,99,235,.25)"></div>`,
         className: '', iconSize: [16, 16], iconAnchor: [8, 8],
       });
       userMarkerRef.current = L.marker([userLocation.lat, userLocation.lng], { icon }).addTo(map);
@@ -206,12 +206,12 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
         ? polylineCoords
         : waypointLatlngs;
 
-      const line = L.polyline(roadLatlngs, { color: '#2563EB', weight: 5, opacity: 0.9 }).addTo(map);
+      const line = L.polyline(roadLatlngs, { color: '#2FD08A', weight: 5, opacity: 0.9 }).addTo(map);
 
       const pointMarkers = routePoints.map((p) => {
         const bg =
-          p.type === 'origin' ? '#2563EB' :
-          p.type === 'dest'   ? '#7C3AED' : '#10B981';
+          p.type === 'origin' ? '#2FD08A' :
+          p.type === 'dest'   ? '#16A46B' : '#10B981';
         const icon = L.divIcon({
           html: `<div style="background:${bg};width:14px;height:14px;border-radius:50%;border:2px solid white;box-shadow:0 1px 6px rgba(0,0,0,.25)"></div>`,
           className: '', iconSize: [14, 14], iconAnchor: [7, 7],

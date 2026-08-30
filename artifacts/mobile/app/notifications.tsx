@@ -17,7 +17,7 @@ function getNotificationStyle(type: string) {
   switch (type) {
     case 'session_ended': return { color: '#10B981', icon: 'zap' as const };
     case 'discount_nearby': return { color: '#EC4899', icon: 'percent' as const };
-    case 'station_available': return { color: '#2563EB', icon: 'map-pin' as const };
+    case 'station_available': return { color: '#2FD08A', icon: 'map-pin' as const };
     case 'low_battery': return { color: '#F59E0B', icon: 'alert-triangle' as const };
     default: return { color: '#14B8A6', icon: 'credit-card' as const };
   }
@@ -77,7 +77,7 @@ export default function NotificationsScreen() {
                 </View>
                 <View style={styles.rightInfo}>
                   <Text style={[styles.time, { color: colors.mutedForeground }]}>{formatTime(item.created_at)}</Text>
-                  {!item.read && <View style={[styles.unreadDot, { backgroundColor: '#2563EB' }]} />}
+                  {!item.read && <View style={[styles.unreadDot, { backgroundColor: '#2FD08A' }]} />}
                 </View>
               </View>
             );

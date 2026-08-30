@@ -72,7 +72,7 @@ function buildEcoVariant(fast: any): any {
 
 // Cycling stop colors (operator-like gradient palette)
 const STOP_GRADS: [string, string][] = [
-  ['#2563EB', '#7C3AED'],
+  ['#2FD08A', '#16A46B'],
   ['#10B981', '#059669'],
   ['#F59E0B', '#D97706'],
   ['#EF4444', '#DC2626'],
@@ -368,7 +368,7 @@ export default function NewRouteScreen() {
             </TouchableOpacity>
             {/* Destination row */}
             <View style={styles.inputRow}>
-              <View style={[styles.dot, { backgroundColor: '#7C3AED' }]} />
+              <View style={[styles.dot, { backgroundColor: '#16A46B' }]} />
               <TextInput
                 style={[styles.inputText, { color: colors.text }]}
                 value={destination}
@@ -494,11 +494,11 @@ export default function NewRouteScreen() {
                     style={[
                       styles.pickerItem,
                       { borderColor: colors.border },
-                      isSelected && { backgroundColor: '#EEF2FF', borderColor: '#2563EB' },
+                      isSelected && { backgroundColor: '#E7F7F0', borderColor: '#2FD08A' },
                     ]}
                   >
-                    <View style={[styles.pickerItemIcon, { backgroundColor: isSelected ? '#DBEAFE' : colors.muted }]}>
-                      <Feather name="truck" size={18} color={isSelected ? '#2563EB' : colors.mutedForeground} />
+                    <View style={[styles.pickerItemIcon, { backgroundColor: isSelected ? '#D4F0E4' : colors.muted }]}>
+                      <Feather name="truck" size={18} color={isSelected ? '#2FD08A' : colors.mutedForeground} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.pickerItemName, { color: colors.text }]}>{item.name}</Text>
@@ -506,7 +506,7 @@ export default function NewRouteScreen() {
                         {item.battery_kwh} кВт·ч · {item.range_km} км · {item.connector_type}
                       </Text>
                     </View>
-                    {isSelected && <Feather name="check-circle" size={20} color="#2563EB" />}
+                    {isSelected && <Feather name="check-circle" size={20} color="#2FD08A" />}
                   </TouchableOpacity>
                 );
               }}
@@ -525,7 +525,7 @@ export default function NewRouteScreen() {
                 style={[styles.pickerConfirmWrap, { opacity: pendingVehicleId ? 1 : 0.4 }]}
               >
                 <LinearGradient
-                  colors={['#2563EB', '#7C3AED']}
+                  colors={['#2FD08A', '#16A46B']}
                   start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
                   style={styles.pickerConfirmBtn}
                 >
@@ -598,13 +598,13 @@ export default function NewRouteScreen() {
                   >
                     {isActive && (
                       <LinearGradient
-                        colors={m === 'fast' ? ['#EEF2FF', '#F5F3FF'] : ['#ECFDF5', '#F0FDF4']}
+                        colors={m === 'fast' ? ['#E7F7F0', '#F5F3FF'] : ['#ECFDF5', '#F0FDF4']}
                         style={[StyleSheet.absoluteFill, { borderRadius: 14 }]}
                       />
                     )}
                     <View style={styles.modeCardInner}>
                       <View style={styles.modeIconRow}>
-                        <View style={[styles.modeIcon, { backgroundColor: isActive ? (m === 'fast' ? '#EEF2FF' : '#ECFDF5') : colors.muted }]}>
+                        <View style={[styles.modeIcon, { backgroundColor: isActive ? (m === 'fast' ? '#E7F7F0' : '#ECFDF5') : colors.muted }]}>
                           <Feather
                             name={m === 'fast' ? 'zap' : 'wind'}
                             size={14}
@@ -762,7 +762,7 @@ export default function NewRouteScreen() {
                 const battEmoji = finalBatt >= 40 ? '✅' : finalBatt >= 20 ? '⚡' : '⚠️';
                 return (
                   <TLNode
-                    dot={<View style={[styles.tlDotPurple, { backgroundColor: '#7C3AED' }]} />}
+                    dot={<View style={[styles.tlDotPurple, { backgroundColor: '#16A46B' }]} />}
                     title={destination}
                     subtitle={`${battEmoji} Прибытие · `}
                     subtitleBold={`${finalBatt}%`}
@@ -804,7 +804,7 @@ export default function NewRouteScreen() {
               style={styles.goWrap}
             >
               <LinearGradient
-                colors={['#2563EB', '#7C3AED']}
+                colors={['#2FD08A', '#16A46B']}
                 start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
                 style={styles.goBtn}
               >

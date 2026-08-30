@@ -90,7 +90,7 @@ const EMPTY_FORM: BannerForm = {
   title: "", subtitle: "",
   background_type: "gradient",
   image_url: "",
-  gradient_from: "#2563EB", gradient_to: "#7C3AED",
+  gradient_from: "#2FD08A", gradient_to: "#16A46B",
   cta_text: "Подробнее", cta_target: "",
   show_countdown: false, countdown_ends_at: "",
   is_active: true, starts_at: "", ends_at: "",
@@ -138,7 +138,7 @@ function BannerPreview({ form }: { form: BannerForm }) {
           backgroundPosition: "center",
         }
       : {
-          background: `linear-gradient(135deg, ${form.gradient_from || "#2563EB"}, ${form.gradient_to || "#7C3AED"})`,
+          background: `linear-gradient(135deg, ${form.gradient_from || "#2FD08A"}, ${form.gradient_to || "#16A46B"})`,
         };
 
   return (
@@ -246,8 +246,8 @@ export default function Banners() {
       subtitle: b.subtitle ?? "",
       background_type: b.background_type as "gradient" | "image",
       image_url: b.image_url ?? "",
-      gradient_from: b.gradient_from ?? "#2563EB",
-      gradient_to: b.gradient_to ?? "#7C3AED",
+      gradient_from: b.gradient_from ?? "#2FD08A",
+      gradient_to: b.gradient_to ?? "#16A46B",
       cta_text: b.cta_text ?? "",
       cta_target: b.cta_target ?? "",
       show_countdown: b.show_countdown,
@@ -468,7 +468,7 @@ export default function Banners() {
                       style={
                         b.background_type === "image" && b.image_url
                           ? { backgroundImage: `url(${b.image_url})`, backgroundSize: "cover", backgroundPosition: "center" }
-                          : { background: `linear-gradient(135deg, ${b.gradient_from ?? "#2563EB"}, ${b.gradient_to ?? "#7C3AED"})` }
+                          : { background: `linear-gradient(135deg, ${b.gradient_from ?? "#2FD08A"}, ${b.gradient_to ?? "#16A46B"})` }
                       }
                     />
 

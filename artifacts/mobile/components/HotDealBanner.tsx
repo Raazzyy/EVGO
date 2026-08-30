@@ -27,7 +27,7 @@ export function HotDealBanner({ station, onPress, onRoute }: HotDealBannerProps)
   return (
     <TouchableOpacity activeOpacity={0.9} onPress={onPress} style={styles.wrapper}>
       <LinearGradient
-        colors={['#0F172A', '#1E1B4B', '#2563EB']}
+        colors={['#0F172A', '#06231F', '#2FD08A']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.card}
@@ -50,7 +50,7 @@ export function HotDealBanner({ station, onPress, onRoute }: HotDealBannerProps)
         <View style={styles.leftContent}>
           {/* Row 1: HOT DEAL badge */}
           <View style={styles.hotBadge}>
-            <Feather name="zap" size={9} color="#1E1B4B" />
+            <Feather name="zap" size={9} color="#06231F" />
             <Text style={styles.hotBadgeText}>HOT DEAL</Text>
           </View>
 
@@ -69,7 +69,7 @@ export function HotDealBanner({ station, onPress, onRoute }: HotDealBannerProps)
           <View style={styles.bottom}>
             {hasClock && <PromoCountdown endsAt={station.promo_ends_at} compact />}
             <TouchableOpacity onPress={onRoute} activeOpacity={0.85} style={styles.routeBtn}>
-              <Feather name="navigation" size={11} color="#1E1B4B" />
+              <Feather name="navigation" size={11} color="#06231F" />
               <Text style={styles.routeBtnText}>Маршрут</Text>
             </TouchableOpacity>
           </View>
@@ -83,7 +83,7 @@ const styles = StyleSheet.create({
   wrapper: {
     marginBottom: 12,
     borderRadius: 16,
-    shadowColor: '#2563EB',
+    shadowColor: '#2FD08A',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
@@ -105,14 +105,14 @@ const styles = StyleSheet.create({
   blob1: {
     width: 100,
     height: 100,
-    backgroundColor: '#7C3AED',
+    backgroundColor: '#16A46B',
     top: -30,
     right: 10,
   },
   blob2: {
     width: 70,
     height: 70,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#2FD08A',
     bottom: -15,
     left: 50,
   },
@@ -149,7 +149,7 @@ const styles = StyleSheet.create({
   hotBadgeText: {
     fontFamily: 'Inter_700Bold',
     fontSize: 10,
-    color: '#1E1B4B',
+    color: '#06231F',
   },
   titleRow: {
     flexDirection: 'row',
@@ -191,6 +191,6 @@ const styles = StyleSheet.create({
   routeBtnText: {
     fontFamily: 'Inter_700Bold',
     fontSize: 11,
-    color: '#1E1B4B',
+    color: '#06231F',
   },
 });

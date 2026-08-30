@@ -300,7 +300,7 @@ export default function CarsScreen() {
         </View>
 
         <TouchableOpacity activeOpacity={0.8} style={styles.addButton} onPress={openModal}>
-          <LinearGradient colors={['#2563EB', '#7C3AED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.addButtonGradient}>
+          <LinearGradient colors={['#2FD08A', '#16A46B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.addButtonGradient}>
             <Feather name="plus" size={20} color="#fff" />
             <Text style={styles.addButtonText}>Добавить автомобиль</Text>
           </LinearGradient>
@@ -357,7 +357,7 @@ export default function CarsScreen() {
                     {CONNECTOR_OPTIONS.map(c => (
                       <TouchableOpacity key={c} onPress={() => setManualConnector(c)}
                         style={[styles.chipBtn, manualConnector === c && { backgroundColor: 'transparent', borderColor: 'transparent' }]}>
-                        {manualConnector === c && <LinearGradient colors={['#2563EB', '#7C3AED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[StyleSheet.absoluteFill, { borderRadius: 20 }]} />}
+                        {manualConnector === c && <LinearGradient colors={['#2FD08A', '#16A46B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[StyleSheet.absoluteFill, { borderRadius: 20 }]} />}
                         <Text style={[styles.chipText, { color: manualConnector === c ? '#fff' : colors.text }]}>{c}</Text>
                       </TouchableOpacity>
                     ))}
@@ -370,7 +370,7 @@ export default function CarsScreen() {
                       {BODY_STYLE_OPTIONS.map(b => (
                         <TouchableOpacity key={b} onPress={() => setManualBodyStyle(b)}
                           style={[styles.chipBtn, manualBodyStyle === b && { backgroundColor: 'transparent', borderColor: 'transparent' }]}>
-                          {manualBodyStyle === b && <LinearGradient colors={['#2563EB', '#7C3AED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[StyleSheet.absoluteFill, { borderRadius: 20 }]} />}
+                          {manualBodyStyle === b && <LinearGradient colors={['#2FD08A', '#16A46B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[StyleSheet.absoluteFill, { borderRadius: 20 }]} />}
                           <Text style={[styles.chipText, { color: manualBodyStyle === b ? '#fff' : colors.text }]}>{b}</Text>
                         </TouchableOpacity>
                       ))}
@@ -379,7 +379,7 @@ export default function CarsScreen() {
                 </View>
                 {manualError ? <Text style={styles.errorText}>{manualError}</Text> : null}
                 <TouchableOpacity onPress={handleSaveManual} disabled={savingManual || createMutation.isPending} style={[styles.addButton, { marginTop: 4 }]}>
-                  <LinearGradient colors={['#2563EB', '#7C3AED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.addButtonGradient}>
+                  <LinearGradient colors={['#2FD08A', '#16A46B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.addButtonGradient}>
                     {(savingManual || createMutation.isPending) ? <ActivityIndicator color="#fff" /> : <><Feather name="check" size={18} color="#fff" /><Text style={styles.addButtonText}>Сохранить</Text></>}
                   </LinearGradient>
                 </TouchableOpacity>
@@ -443,7 +443,7 @@ export default function CarsScreen() {
                             Автомобиль не найден в базе
                           </Text>
                           <TouchableOpacity onPress={() => setShowManual(true)} style={[styles.addButton]}>
-                            <LinearGradient colors={['#2563EB', '#7C3AED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.addButtonGradient, { paddingVertical: 12 }]}>
+                            <LinearGradient colors={['#2FD08A', '#16A46B']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.addButtonGradient, { paddingVertical: 12 }]}>
                               <Feather name="edit-3" size={16} color="#fff" />
                               <Text style={[styles.addButtonText, { fontSize: 14 }]}>Добавить вручную</Text>
                             </LinearGradient>

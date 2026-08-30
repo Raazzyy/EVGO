@@ -75,7 +75,7 @@ const STATIC_BANNERS: BannerItem[] = [
   {
     id: 'static-1', badge: 'HOT DEAL', badgeIcon: 'zap',
     title: 'MEGA SALE ⚡ −30%', subtitle: 'на быструю зарядку · только сегодня',
-    gradient: ['#7C0000', '#DC2626', '#7C3AED'],
+    gradient: ['#7C0000', '#DC2626', '#16A46B'],
     showCountdown: false, ctaText: 'Маршрут',
   },
   {
@@ -103,7 +103,7 @@ function makeBanners(stations: any[], userLocation: { lat: number; lng: number }
       id: `mega-${maxDisc.id}`, badge: 'HOT DEAL', badgeIcon: 'zap',
       title: `MEGA SALE ⚡ −${maxDisc.discount_pct}%`,
       subtitle: `${maxDisc.name} · ${maxDisc.address}`.slice(0, 46),
-      gradient: ['#7C0000', '#DC2626', '#7C3AED'],
+      gradient: ['#7C0000', '#DC2626', '#16A46B'],
       showCountdown: !!maxDisc.promo_ends_at,
       countdownEndsAt: maxDisc.promo_ends_at ? new Date(maxDisc.promo_ends_at) : null,
       ctaText: 'Маршрут', stationId: maxDisc.id,
@@ -134,7 +134,7 @@ function makeBanners(stations: any[], userLocation: { lat: number; lng: number }
         id: `near-${nearby.id}`, badge: 'РЯДОМ С ВАМИ', badgeIcon: 'navigation',
         title: `РЯДОМ · ${nearby.name}`.slice(0, 28),
         subtitle: `${(nearby._d * 1000).toFixed(0)} м · ${formatPricePerKwh(nearby.price_per_kwh)}`,
-        gradient: ['#1E3A5F', '#2563EB', '#7C3AED'],
+        gradient: ['#1E3A5F', '#2FD08A', '#16A46B'],
         showCountdown: false, ctaText: 'Маршрут', stationId: nearby.id,
       });
     }
@@ -307,7 +307,7 @@ const bStyles = StyleSheet.create({
   // Dots
   dots:        { flexDirection: 'row', justifyContent: 'center', gap: 5, marginTop: 8 },
   dot:         { height: 4, borderRadius: 2 },
-  dotActive:   { width: 16, backgroundColor: '#2563EB' },
+  dotActive:   { width: 16, backgroundColor: '#2FD08A' },
   dotInactive: { width:  4, backgroundColor: '#CBD5E1' },
 });
 
@@ -1005,7 +1005,7 @@ const styles = StyleSheet.create({
   resetBtnText: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
   permBanner: { position: 'absolute', left: 16, right: 16, zIndex: 25, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FEF3C7', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 6, elevation: 3 },
   permBannerText: { flex: 1, fontSize: 12, fontFamily: 'Inter_400Regular', color: '#92400E' },
-  permBannerBtn: { fontSize: 12, fontFamily: 'Inter_700Bold', color: '#2563EB' },
+  permBannerBtn: { fontSize: 12, fontFamily: 'Inter_700Bold', color: '#2FD08A' },
   mapControls: { position: 'absolute', right: 12, alignItems: 'center', gap: 10, zIndex: 30 },
   mapBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 6, elevation: 4 },
   zoomGroup: { borderRadius: 12, overflow: 'hidden', backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 6, elevation: 4 },

@@ -76,9 +76,9 @@ const PIN_SIZE          = 40;
 const PIN_PROMOTED_SIZE = 50;
 
 const ROUTE_COLORS: Record<string, string> = {
-  origin: '#2563EB',
+  origin: '#2FD08A',
   stop:   '#10B981',
-  dest:   '#7C3AED',
+  dest:   '#16A46B',
 };
 
 // ── Component ─────────────────────────────────────────────────────────────
@@ -324,7 +324,7 @@ export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
           <Polyline
             coordinates={polylinePath}
             strokeWidth={5}
-            strokeColor="#2563EB"
+            strokeColor="#2FD08A"
             lineCap="round"
             lineJoin="round"
           />

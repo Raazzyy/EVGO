@@ -2,7 +2,7 @@ const colors = {
   light: {
     // Core
     text: '#0F172A',
-    tint: '#2563EB',
+    tint: '#2FD08A',
     background: '#F7F8FA',
     foreground: '#0F172A',
 
@@ -10,12 +10,12 @@ const colors = {
     card: '#FFFFFF',
     cardForeground: '#0F172A',
 
-    // Primary (blue)
-    primary: '#2563EB',
+    // Primary (EVGO green)
+    primary: '#2FD08A',
     primaryForeground: '#FFFFFF',
 
-    // Accent (violet)
-    accent: '#7C3AED',
+    // Accent (EVGO green, deep)
+    accent: '#16A46B',
     accentForeground: '#FFFFFF',
 
     // Secondary
@@ -40,8 +40,8 @@ const colors = {
     offline: '#94A3B8',
 
     // Gradient stops
-    gradientStart: '#2563EB',
-    gradientEnd: '#7C3AED',
+    gradientStart: '#2FD08A',
+    gradientEnd: '#16A46B',
   },
   radius: 16,
 };

@@ -94,7 +94,7 @@ type CompareMode = "prev_similar" | "custom";
 interface CompareState { enabled: boolean; mode: CompareMode; from: string; to: string; }
 
 // ── Palette ────────────────────────────────────────────────────────────────────
-const COLORS = ["#2563EB", "#7C3AED", "#10b981", "#f59e0b", "#ef4444", "#06b6d4"];
+const COLORS = ["#2FD08A", "#16A46B", "#10b981", "#f59e0b", "#ef4444", "#06b6d4"];
 
 // ── Duration formatter ─────────────────────────────────────────────────────────
 function fmtDuration(sec: number): string {
@@ -722,10 +722,10 @@ export default function Finance() {
                           formatter={(v: number, name: string) => [formatUzs(v), name]}
                         />
                         <Legend iconType="circle" iconSize={8} />
-                        <Line type="monotone" dataKey="Оборот"     stroke="#2563EB" strokeWidth={2} dot={false} />
+                        <Line type="monotone" dataKey="Оборот"     stroke="#2FD08A" strokeWidth={2} dot={false} />
                         <Line type="monotone" dataKey="Прибыль"    stroke="#10b981" strokeWidth={2} dot={false} strokeDasharray="4 4" />
                         {data.compare && (
-                          <Line type="monotone" dataKey="Сравнение" stroke="#7C3AED" strokeWidth={2} dot={false} strokeDasharray="6 3" connectNulls />
+                          <Line type="monotone" dataKey="Сравнение" stroke="#16A46B" strokeWidth={2} dot={false} strokeDasharray="6 3" connectNulls />
                         )}
                       </LineChart>
                     </ResponsiveContainer>
@@ -839,7 +839,7 @@ export default function Finance() {
                         contentStyle={{ borderRadius: 8, border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }}
                         labelFormatter={h => `${h}:00 – ${Number(h)+1}:00`}
                       />
-                      <Bar dataKey="sessions" name="Сессии" fill="#2563EB" radius={[3, 3, 0, 0]} maxBarSize={24} />
+                      <Bar dataKey="sessions" name="Сессии" fill="#2FD08A" radius={[3, 3, 0, 0]} maxBarSize={24} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>

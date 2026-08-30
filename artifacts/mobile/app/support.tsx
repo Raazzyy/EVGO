@@ -57,8 +57,8 @@ function ContactRow({ icon, label, value, url }: { icon: string; label: string; 
       style={[cStyles.contactRow, { borderBottomColor: colors.border }]}
       activeOpacity={0.7}
     >
-      <View style={[cStyles.contactIcon, { backgroundColor: '#EEF2FF' }]}>
-        <Feather name={icon as any} size={18} color="#2563EB" />
+      <View style={[cStyles.contactIcon, { backgroundColor: '#E7F7F0' }]}>
+        <Feather name={icon as any} size={18} color="#2FD08A" />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={[cStyles.contactLabel, { color: colors.mutedForeground }]}>{label}</Text>
@@ -258,7 +258,7 @@ const cStyles = StyleSheet.create({
   textArea: { height: 110, paddingTop: 10 },
   sendBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: '#2563EB', borderRadius: 12, paddingVertical: 14,
+    backgroundColor: '#2FD08A', borderRadius: 12, paddingVertical: 14,
   },
   sendBtnText: { color: '#fff', fontSize: 15, fontFamily: 'Inter_600SemiBold' },
 });
