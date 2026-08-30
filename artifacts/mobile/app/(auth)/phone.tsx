@@ -7,6 +7,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Pressable,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -150,6 +151,20 @@ export default function PhoneScreen() {
           disabled={!canSubmit}
           style={styles.submit}
         />
+
+        {/* Карта, станции и маршруты работают без аккаунта. Вход нужен
+            только там, где появляются личные данные: зарядка, история,
+            избранное. Требовать регистрацию до первой пользы — верный
+            способ потерять человека на первом экране. */}
+        <Pressable
+          onPress={() => router.replace('/(tabs)')}
+          style={styles.guest}
+          hitSlop={8}
+        >
+          <Text style={[styles.guestLabel, { color: colors.mutedForeground }]}>
+            {t('auth.browseAsGuest')}
+          </Text>
+        </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -216,4 +231,13 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   submit: { marginTop: 28 },
+  guest: {
+    marginTop: 18,
+    alignSelf: 'center',
+    // 44 пункта — комфортная цель для касания.
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  guestLabel: { fontFamily: 'Inter_500Medium', fontSize: 14 },
 });

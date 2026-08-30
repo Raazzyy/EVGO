@@ -43,6 +43,21 @@ const queryClient = new QueryClient({
  * Редирект делается в эффекте, а не через <Redirect>: навигатор должен успеть
  * смонтироваться, иначе expo-router ругается на переход до готовности корня.
  */
+/**
+ * Экраны, которым обязательно нужен вход.
+ *
+ * Всё остальное — карта, список станций, детали станции, маршруты — работает
+ * без аккаунта: человек должен увидеть, есть ли рядом зарядки, до того как
+ * отдаст номер телефона. Требовать регистрацию до первой пользы — верный
+ * способ потерять его на первом экране.
+ */
+const PROTECTED_ROUTES = ['charge', 'sessions', 'profile', 'cars', 'favorites', 'settings', 'payment'];
+
+function isProtected(segments: string[]): boolean {
+  // Вкладки лежат в группе (tabs), поэтому смотрим и первый сегмент, и второй.
+  return segments.some((seg) => PROTECTED_ROUTES.includes(seg));
+}
+
 function useAuthGate() {
   const { isAuthenticated, isLoading } = useAuth();
   const segments = useSegments();
@@ -53,10 +68,16 @@ function useAuthGate() {
 
     const inAuthGroup = segments[0] === '(auth)';
 
-    if (!isAuthenticated && !inAuthGroup) {
-      router.replace('/(auth)/phone');
-    } else if (isAuthenticated && inAuthGroup) {
+    // Вошедшего не держим на экранах входа.
+    if (isAuthenticated && inAuthGroup) {
       router.replace('/(tabs)');
+      return;
+    }
+
+    // Гостя отправляем на вход, только если он открыл экран, которому
+    // действительно нужен аккаунт.
+    if (!isAuthenticated && !inAuthGroup && isProtected(segments)) {
+      router.replace('/(auth)/phone');
     }
   }, [isAuthenticated, isLoading, router, segments]);
 

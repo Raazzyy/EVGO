@@ -125,10 +125,31 @@ export default function SettingsScreen() {
     });
   }, []);
 
+  // Настройки уведомлений дублируются на сервер: отправку решает он.
+  // Остальные (единицы измерения, тема) нужны только на устройстве.
+  const NOTIFY_FIELDS: Record<string, string> = {
+    notifSessionDone: 'notify_session_ended',
+    notifStationFree: 'notify_station_available',
+    notifDiscount: 'notify_discount_nearby',
+    notifLowBattery: 'notify_low_battery',
+  };
+
   const update = (patch: Partial<Settings>) => {
     const next = { ...settings, ...patch };
     setSettings(next);
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+
+    const serverPatch: Record<string, boolean> = {};
+    for (const [local, remote] of Object.entries(NOTIFY_FIELDS)) {
+      const value = (patch as Record<string, unknown>)[local];
+      if (typeof value === 'boolean') serverPatch[remote] = value;
+    }
+
+    if (Object.keys(serverPatch).length > 0) {
+      // Не ждём ответа: переключатель должен реагировать мгновенно.
+      // Если запрос не прошёл, локальная настройка всё равно сохранена.
+      void updateProfile(serverPatch).catch(() => {});
+    }
   };
 
   const onSignOut = async () => {

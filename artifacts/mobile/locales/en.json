@@ -18,7 +18,6 @@
     "kwh": "kWh",
     "min": "min"
   },
-
   "auth": {
     "signInTitle": "Sign in to EVGO",
     "signInSubtitle": "Enter your phone number — no password needed",
@@ -35,16 +34,15 @@
     "name": "Name",
     "namePlaceholder": "For example, Akbar",
     "language": "Language",
-    "profileSaveFailed": "Couldn't save. You can fill this in later in your profile"
+    "profileSaveFailed": "Couldn't save. You can fill this in later in your profile",
+    "browseAsGuest": "Browse the map without signing in"
   },
-
   "tabs": {
     "map": "Map",
     "routes": "Routes",
     "sessions": "Sessions",
     "profile": "Profile"
   },
-
   "map": {
     "map": "Map",
     "list": "List",
@@ -59,7 +57,6 @@
     "noStations": "No stations nearby",
     "noStationsHint": "Try changing the filters or widening the radius"
   },
-
   "station": {
     "connectors": "Connectors",
     "cost": "Cost",
@@ -85,7 +82,6 @@
     "reasonClosed": "Station no longer exists",
     "reasonOther": "Something else"
   },
-
   "settings": {
     "title": "Settings",
     "notifications": "Notifications",
@@ -100,7 +96,6 @@
     "signedInAs": "Signed in as +{{phone}}",
     "storedLocally": "Settings are stored on this device"
   },
-
   "errors": {
     "network": "No connection to the server. Check your internet",
     "invalidPhone": "Invalid phone number",

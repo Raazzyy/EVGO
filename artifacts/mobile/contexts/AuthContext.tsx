@@ -42,7 +42,16 @@ interface AuthContextValue {
   /** Удаляет аккаунт на сервере и выходит. Возвращает false, если сервер не ответил. */
   deleteAccount: () => Promise<boolean>;
   /** Сохраняет профиль на сервере и обновляет локальное состояние. */
-  updateProfile: (patch: { name?: string; email?: string; language?: string }) => Promise<void>;
+  updateProfile: (patch: {
+    name?: string;
+    email?: string;
+    language?: string;
+    /** Настройки уведомлений — сервер решает, слать ли push. */
+    notify_session_ended?: boolean;
+    notify_station_available?: boolean;
+    notify_discount_nearby?: boolean;
+    notify_low_battery?: boolean;
+  }) => Promise<void>;
   /** Меняет только локальное состояние, без запроса. */
   updateUser: (patch: Partial<AuthUser>) => void;
 }
@@ -130,7 +139,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const updateProfile = useCallback(
-    async (patch: { name?: string; email?: string; language?: string }) => {
+    async (patch: {
+      name?: string;
+      email?: string;
+      language?: string;
+      notify_session_ended?: boolean;
+      notify_station_available?: boolean;
+      notify_discount_nearby?: boolean;
+      notify_low_battery?: boolean;
+    }) => {
       const res = await fetch(apiUrl('/api/auth/me'), {
         method: 'PATCH',
         headers: {

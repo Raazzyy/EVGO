@@ -127,9 +127,27 @@ export async function notifyUser(
 ): Promise<void> {
   try {
     const [user] = await db
-      .select({ language: usersTable.language })
+      .select({
+        language: usersTable.language,
+        notify_session_ended: usersTable.notify_session_ended,
+        notify_station_available: usersTable.notify_station_available,
+        notify_discount_nearby: usersTable.notify_discount_nearby,
+        notify_low_battery: usersTable.notify_low_battery,
+      })
       .from(usersTable)
       .where(eq(usersTable.id, userId));
+
+    // Отключённый тип уведомлений не шлём push, но в историю пишем: человек
+    // отказался от всплывающих сообщений, а не от самой информации — на
+    // экране уведомлений она должна быть.
+    const allowed = user
+      ? {
+          session_ended: user.notify_session_ended,
+          station_available: user.notify_station_available,
+          discount_nearby: user.notify_discount_nearby,
+          low_battery: user.notify_low_battery,
+        }[type]
+      : true;
 
     const lang = pickLanguage(user?.language);
     const text = TEXTS[type][lang];
@@ -138,6 +156,8 @@ export async function notifyUser(
 
     // Историю пишем всегда: экран уведомлений читает её, а не Expo.
     await db.insert(notificationsTable).values({ user_id: userId, type, title, body });
+
+    if (!allowed) return;
 
     const tokens = await db
       .select({ token: pushTokensTable.token })

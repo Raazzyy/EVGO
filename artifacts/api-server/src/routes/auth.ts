@@ -99,7 +99,7 @@ router.post("/auth/request-code", async (req, res): Promise<void> => {
 
   try {
     // Текст обязан совпадать с шаблоном, согласованным в кабинете Eskiz.
-    await sendSms(phone, `iON: kirish uchun kod ${code}. Kodni hech kimga aytmang.`);
+    await sendSms(phone, `EVGO: kirish uchun kod ${code}. Kodni hech kimga aytmang.`);
   } catch (err) {
     logger.error({ err, phone }, "Не удалось отправить SMS с кодом");
     res.status(502).json({ error: "Не удалось отправить SMS, попробуйте позже", code: "sms_failed" });
@@ -277,6 +277,12 @@ const UpdateMeBody = z.object({
   name: z.string().trim().min(1).max(100).optional(),
   email: z.string().email().max(200).optional(),
   language: z.enum(["uz", "ru", "en"]).optional(),
+  // Настройки уведомлений живут на сервере: отправку решает он, и без них
+  // слал бы всё подряд.
+  notify_session_ended: z.boolean().optional(),
+  notify_station_available: z.boolean().optional(),
+  notify_discount_nearby: z.boolean().optional(),
+  notify_low_battery: z.boolean().optional(),
 });
 
 router.patch("/auth/me", requireAuth, async (req, res): Promise<void> => {
