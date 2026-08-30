@@ -319,7 +319,10 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   discCorner: {
-    backgroundColor: '#EF4444',
+    // Фирменный фиолетовый вместо красного: скидка — часть бренда,
+    // а не «тревожный» акцент. Красный на карточке конфликтовал
+    // с сине-фиолетовой айдентикой.
+    backgroundColor: '#7C3AED',
     paddingHorizontal: 9,
     paddingVertical: 4,
     borderBottomLeftRadius: 12,

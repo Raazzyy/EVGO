@@ -71,23 +71,28 @@ interface BannerItem {
   stationId?:      number;
 }
 
+// Фирменная палитра баннеров: тёмно-синий → индиго → фиолетовый.
+// Раньше здесь были кричащие красно-оранжевые «MEGA SALE» градиенты —
+// они конфликтовали с сине-фиолетовым брендом и читались как реклама
+// маркетплейса, а не как утилита для зарядки. Скидка осталась, но подача
+// теперь спокойная и премиальная.
 const STATIC_BANNERS: BannerItem[] = [
   {
-    id: 'static-1', badge: 'HOT DEAL', badgeIcon: 'zap',
-    title: 'MEGA SALE ⚡ −30%', subtitle: 'на быструю зарядку · только сегодня',
-    gradient: ['#7C0000', '#DC2626', '#7C3AED'],
+    id: 'static-1', badge: 'СКИДКА', badgeIcon: 'percent',
+    title: 'Выгодно сегодня · −30%', subtitle: 'на быструю зарядку · весь день',
+    gradient: ['#1E1B4B', '#4338CA', '#7C3AED'],
     showCountdown: false, ctaText: 'Маршрут',
   },
   {
-    id: 'static-2', badge: 'FLASH SALE', badgeIcon: 'clock',
-    title: 'FLASH DEAL ⚡ −20%', subtitle: 'ограниченное время · CCS2 / CHAdeMO',
-    gradient: ['#92400E', '#D97706', '#DC2626'],
+    id: 'static-2', badge: 'ОГРАНИЧЕНО', badgeIcon: 'clock',
+    title: 'Предложение дня · −20%', subtitle: 'ограниченное время · CCS2 / CHAdeMO',
+    gradient: ['#0F172A', '#1E40AF', '#2563EB'],
     showCountdown: false, ctaText: 'Маршрут',
   },
   {
     id: 'static-3', badge: 'РЯДОМ С ВАМИ', badgeIcon: 'navigation',
-    title: 'БЫСТРАЯ ЗАРЯДКА 🌙', subtitle: 'ночной тариф · DC до 150 кВт',
-    gradient: ['#0F172A', '#1E3A5F', '#1E40AF'],
+    title: 'Ночной тариф 🌙', subtitle: 'DC до 150 кВт · выгодно ночью',
+    gradient: ['#1E3A5F', '#2563EB', '#7C3AED'],
     showCountdown: false, ctaText: 'Маршрут',
   },
 ];
@@ -100,10 +105,10 @@ function makeBanners(stations: any[], userLocation: { lat: number; lng: number }
     .sort((a, b) => b.discount_pct - a.discount_pct)[0];
   if (maxDisc) {
     result.push({
-      id: `mega-${maxDisc.id}`, badge: 'HOT DEAL', badgeIcon: 'zap',
-      title: `MEGA SALE ⚡ −${maxDisc.discount_pct}%`,
+      id: `mega-${maxDisc.id}`, badge: 'СКИДКА', badgeIcon: 'percent',
+      title: `Выгодно · −${maxDisc.discount_pct}%`,
       subtitle: `${maxDisc.name} · ${maxDisc.address}`.slice(0, 46),
-      gradient: ['#7C0000', '#DC2626', '#7C3AED'],
+      gradient: ['#1E1B4B', '#4338CA', '#7C3AED'],
       showCountdown: !!maxDisc.promo_ends_at,
       countdownEndsAt: maxDisc.promo_ends_at ? new Date(maxDisc.promo_ends_at) : null,
       ctaText: 'Маршрут', stationId: maxDisc.id,
@@ -115,10 +120,10 @@ function makeBanners(stations: any[], userLocation: { lat: number; lng: number }
     .sort((a, b) => new Date(a.promo_ends_at).getTime() - new Date(b.promo_ends_at).getTime())[0];
   if (soon && soon.id !== maxDisc?.id) {
     result.push({
-      id: `flash-${soon.id}`, badge: 'FLASH SALE', badgeIcon: 'clock',
-      title: `FLASH DEAL ⚡ −${soon.discount_pct}%`,
+      id: `flash-${soon.id}`, badge: 'ОГРАНИЧЕНО', badgeIcon: 'clock',
+      title: `Предложение · −${soon.discount_pct}%`,
       subtitle: `${soon.name} · заканчивается скоро`,
-      gradient: ['#92400E', '#D97706', '#DC2626'],
+      gradient: ['#0F172A', '#1E40AF', '#2563EB'],
       showCountdown: true, countdownEndsAt: new Date(soon.promo_ends_at),
       ctaText: 'Маршрут', stationId: soon.id,
     });
@@ -132,7 +137,7 @@ function makeBanners(stations: any[], userLocation: { lat: number; lng: number }
     if (nearby && nearby.id !== maxDisc?.id && nearby.id !== soon?.id) {
       result.push({
         id: `near-${nearby.id}`, badge: 'РЯДОМ С ВАМИ', badgeIcon: 'navigation',
-        title: `РЯДОМ · ${nearby.name}`.slice(0, 28),
+        title: `Рядом · ${nearby.name}`.slice(0, 28),
         subtitle: `${(nearby._d * 1000).toFixed(0)} м · ${formatPricePerKwh(nearby.price_per_kwh)}`,
         gradient: ['#1E3A5F', '#2563EB', '#7C3AED'],
         showCountdown: false, ctaText: 'Маршрут', stationId: nearby.id,
@@ -162,7 +167,7 @@ function Countdown({ endsAt }: { endsAt: Date }) {
   if (!label) return null;
   return (
     <View style={bStyles.countdown}>
-      <Feather name="clock" size={9} color="#FCA5A5" />
+      <Feather name="clock" size={9} color="#FDE68A" />
       <Text style={bStyles.countdownText}>{label}</Text>
     </View>
   );
@@ -299,8 +304,8 @@ const bStyles = StyleSheet.create({
   subtitle:    { color: 'rgba(255,255,255,0.72)', fontSize: 12, fontFamily: 'Inter_400Regular', marginBottom: 6 },
   // Bottom row
   bottomRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  countdown:   { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(220,38,38,0.35)', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
-  countdownText: { color: '#FCA5A5', fontSize: 13, fontFamily: 'Inter_700Bold', fontVariant: ['tabular-nums'] },
+  countdown:   { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
+  countdownText: { color: '#FDE68A', fontSize: 13, fontFamily: 'Inter_700Bold', fontVariant: ['tabular-nums'] },
   // CTA
   cta:         { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#FACC15', borderRadius: 100, paddingHorizontal: 10, paddingVertical: 5 },
   ctaText:     { color: '#1E293B', fontSize: 12, fontFamily: 'Inter_700Bold' },
