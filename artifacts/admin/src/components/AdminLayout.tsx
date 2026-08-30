@@ -13,6 +13,7 @@ import {
   Tag,
   Image,
   TrendingUp,
+  Wallet as WalletIcon,
   Flag,
 } from "lucide-react";
 import {
@@ -49,6 +50,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   const navItems = [
     { label: "Dashboard",    icon: LayoutDashboard, path: "/" },
     { label: "Финансы",      icon: TrendingUp,      path: "/finance" },
+    { label: "Кошельки",     icon: WalletIcon,      path: "/wallet" },
     { label: "Станции",      icon: MapPin,           path: "/stations" },
     { label: "Жалобы",       icon: Flag,             path: "/station-reports" },
     { label: "Операторы",    icon: Briefcase,        path: "/operators" },

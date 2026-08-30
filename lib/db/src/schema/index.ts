@@ -19,3 +19,4 @@ export * from "./promos";
 export * from "./banners";
 export * from "./user_vehicles";
 export * from "./wallet";
+export * from "./web_push_subscriptions";

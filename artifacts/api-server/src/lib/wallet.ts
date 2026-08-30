@@ -1,6 +1,6 @@
 import { db } from "@workspace/db";
 import {
-  walletsTable, walletTransactionsTable, walletHoldsTable,
+  walletsTable, walletTransactionsTable, walletHoldsTable, paymentTransactionsTable,
 } from "@workspace/db";
 import { eq, and, sql, lt } from "drizzle-orm";
 
@@ -224,6 +224,42 @@ export async function debit(
   });
 }
 
+/**
+ * Ручная корректировка баланса администратором (задача 48).
+ *
+ * Знаковая сумма: плюс — начислить, минус — списать. Комментарий обязателен
+ * (кто и почему поправил баланс). В отличие от `debit`, отрицательная
+ * корректировка НЕ проверяет доступное и может увести баланс в минус — это
+ * административное полномочие, а не пользовательская операция.
+ */
+export async function adminAdjust(
+  userId: string,
+  amountTiyin: number,
+  comment: string,
+): Promise<{ balance_tiyin: number }> {
+  if (!Number.isInteger(amountTiyin) || amountTiyin === 0) {
+    throw new Error("adminAdjust: сумма должна быть целым числом тийин и не 0");
+  }
+  if (!comment || !comment.trim()) {
+    throw new Error("adminAdjust: комментарий обязателен");
+  }
+  return db.transaction(async (tx) => {
+    const wallet = await lockWallet(tx, userId);
+    const newBalance = wallet.balance + amountTiyin;
+    await tx.update(walletsTable)
+      .set({ balance_tiyin: newBalance, updated_at: new Date() })
+      .where(eq(walletsTable.user_id, userId));
+    await tx.insert(walletTransactionsTable).values({
+      user_id: userId,
+      type: "adjustment",
+      amount_tiyin: amountTiyin,
+      balance_after_tiyin: newBalance,
+      comment: comment.trim(),
+    });
+    return { balance_tiyin: newBalance };
+  });
+}
+
 const HOLD_TTL_MS = 15 * 60 * 1000; // 15 минут
 
 /**
@@ -328,4 +364,66 @@ export async function expireStaleHolds(): Promise<number> {
     .where(and(eq(walletHoldsTable.status, "active"), lt(walletHoldsTable.expires_at, new Date())))
     .returning({ id: walletHoldsTable.id });
   return rows.length;
+}
+
+const PAYMENT_TIMEOUT_MS = 12 * 60 * 60 * 1000; // 12 часов — окно Payme
+
+/**
+ * Автоотмена «созданных», но так и не проведённых платёжных транзакций старше
+ * 12 часов (задача 40). Payme считает такие протухшими (reason 4). Возвращает
+ * число отменённых.
+ */
+export async function cancelStalePayments(): Promise<number> {
+  const cutoff = Date.now() - PAYMENT_TIMEOUT_MS;
+  const rows = await db.update(paymentTransactionsTable)
+    .set({ state: "cancelled", provider_state: -1, cancel_reason: 4, cancel_time: Date.now(), updated_at: new Date() })
+    .where(and(
+      eq(paymentTransactionsTable.state, "created"),
+      lt(paymentTransactionsTable.create_time, cutoff),
+    ))
+    .returning({ id: paymentTransactionsTable.id });
+  return rows.length;
+}
+
+export interface ReconcileMismatch {
+  user_id: string;
+  balance_tiyin: number;
+  ledger_sum_tiyin: number;
+  diff_tiyin: number;
+}
+
+/**
+ * Сверка кэша баланса с журналом (задача 46).
+ *
+ * Баланс кошелька обязан в точности равняться сумме всех строк журнала. Если
+ * где-то разошлось — это баг или ручное вмешательство в БД, и о нём нужно
+ * знать до того, как это заметит пользователь. Возвращает список расхождений
+ * (пустой = всё сходится).
+ */
+export async function reconcileWallets(): Promise<ReconcileMismatch[]> {
+  const rows = await db
+    .select({
+      user_id: walletsTable.user_id,
+      balance: walletsTable.balance_tiyin,
+      ledger: sql<number>`coalesce((
+        select sum(${walletTransactionsTable.amount_tiyin})
+        from ${walletTransactionsTable}
+        where ${walletTransactionsTable.user_id} = ${walletsTable.user_id}
+      ), 0)::bigint`,
+    })
+    .from(walletsTable);
+
+  const mismatches: ReconcileMismatch[] = [];
+  for (const r of rows) {
+    const ledger = Number(r.ledger);
+    if (ledger !== r.balance) {
+      mismatches.push({
+        user_id: r.user_id,
+        balance_tiyin: r.balance,
+        ledger_sum_tiyin: ledger,
+        diff_tiyin: r.balance - ledger,
+      });
+    }
+  }
+  return mismatches;
 }

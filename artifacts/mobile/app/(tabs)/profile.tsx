@@ -45,6 +45,7 @@ export default function ProfileScreen() {
   const bottomPad = Platform.OS === 'web' ? 34 : insets.bottom;
 
   const menuItems: MenuItem[] = [
+    { icon: 'credit-card', label: 'Кошелёк',           desc: 'Баланс и пополнение',                        onPress: () => router.push('/wallet') },
     { icon: 'activity',    label: 'История сессий',    desc: `${completedSessions.length} сессий`,       onPress: () => router.push('/sessions') },
     { icon: 'heart',       label: 'Избранные станции', desc: 'Сохраненные локации',                       onPress: () => router.push('/favorites') },
     { icon: 'cpu',         label: 'Мои автомобили',    desc: 'Управление электромобилями',                onPress: () => router.push('/cars') },

@@ -1,6 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db, pushTokensTable, notificationsTable, usersTable } from "@workspace/db";
 import { logger } from "./logger";
+import { sendWebPush } from "./webpush";
 
 /**
  * Отправка push-уведомлений через Expo Push API.
@@ -158,6 +159,10 @@ export async function notifyUser(
     await db.insert(notificationsTable).values({ user_id: userId, type, title, body });
 
     if (!allowed) return;
+
+    // Веб-push браузеру — независимо от Expo-токенов (у веб-пользователя их нет).
+    // Best-effort: не настроен VAPID или нет подписок — тихо ничего не делаем.
+    await sendWebPush(userId, { title, body, data: { type, ...data } }).catch(() => {});
 
     const tokens = await db
       .select({ token: pushTokensTable.token })

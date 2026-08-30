@@ -10,6 +10,7 @@ import React, {
 import { setAuthTokenGetter, setAuthRefreshHandler } from '@workspace/api-client-react';
 import { clearTokens, loadTokens, saveTokens } from '@/lib/tokenStorage';
 import { registerForPush } from '@/lib/push';
+import { registerWebPush } from '@/lib/webPushClient';
 
 /**
  * Состояние входа пользователя.
@@ -111,6 +112,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // человек только что вошёл, и понятно, зачем оно нужно. Не ждём ответа —
       // вход не должен зависеть от диалога с разрешением.
       void registerForPush(tokens.accessToken);
+      // Веб-версия: подписка на web-push (no-op на нативе и без VAPID).
+      void registerWebPush(() => tokens.accessToken);
     },
     [applyTokens],
   );

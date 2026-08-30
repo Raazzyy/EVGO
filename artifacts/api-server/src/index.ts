@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { scheduleOpenEvSync } from "./scripts/import-openev";
+import { startWalletMaintenance } from "./scripts/walletMaintenance";
 
 const rawPort = process.env["PORT"];
 
@@ -43,4 +44,7 @@ app.listen(port, (err) => {
 
   // Start OpenEV dataset sync (runs immediately if table empty, then weekly)
   scheduleOpenEvSync().catch(e => logger.warn({ err: e }, "OpenEV sync init failed"));
+
+  // Обслуживание кошелька: снятие протухших холдов, автоотмена платежей, сверка.
+  startWalletMaintenance();
 });

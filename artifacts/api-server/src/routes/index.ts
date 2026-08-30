@@ -18,6 +18,8 @@ import promosRouter from "./promos";
 import bannersRouter from "./banners";
 import userVehiclesRouter from "./user_vehicles";
 import walletRouter from "./wallet";
+import adminWalletRouter from "./adminWallet";
+import webPushRouter from "./webPush";
 import paymeWebhooksRouter from "./paymeWebhooks";
 
 const router = Router();
@@ -61,6 +63,8 @@ router.get("/config", (_req, res) => {
   res.json({
     yandex_maps_key:  process.env.YANDEX_JS_API_KEY      ?? "",
     google_maps_key:  process.env.GOOGLE_MAPS_ANDROID_KEY ?? "",
+    // Публичный VAPID-ключ для веб-push (приватный не покидает сервер).
+    vapid_public_key: process.env.VAPID_PUBLIC_KEY ?? "",
   });
 });
 
@@ -204,6 +208,8 @@ router.use(promosRouter);
 router.use(bannersRouter);
 router.use(userVehiclesRouter);
 router.use(walletRouter);
+router.use(adminWalletRouter);
+router.use(webPushRouter);
 router.use(paymeWebhooksRouter);
 
 export default router;
