@@ -55,7 +55,10 @@
     "ad": "Ad",
     "route": "Route",
     "noStations": "No stations nearby",
-    "noStationsHint": "Try changing the filters or widening the radius"
+    "noStationsHint": "Try changing the filters or widening the radius",
+    "occupied": "In use",
+    "fastCharge": "Fast charging",
+    "slowCharge": "Slow charging"
   },
   "station": {
     "connectors": "Connectors",
@@ -106,5 +109,16 @@
     "hourlyLimit": "Too many code requests, try again in an hour",
     "smsFailed": "Couldn't send the SMS, try again later",
     "sessionExpired": "Your session expired, please sign in again"
+  },
+  "amenity": {
+    "cafe": "Cafe",
+    "coffee": "Coffee",
+    "shop": "Shop",
+    "parking": "Parking",
+    "toilet": "Restroom",
+    "cleanZone": "Clean area",
+    "wifi": "Wi-Fi",
+    "lounge": "Lounge",
+    "around": "24/7"
   }
 }

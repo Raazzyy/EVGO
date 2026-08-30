@@ -65,14 +65,20 @@ interface ConnectorDetail {
 }
 
 // ── Amenity maps ─────────────────────────────────────────────────────────────
-const AMENITY_MAP: Record<string, { icon: string; label: string }> = {
-  'cafe':    { icon: 'coffee',       label: 'Кафе' },
-  'toilet':  { icon: 'home',         label: 'Туалет' },
-  'shop':    { icon: 'shopping-bag', label: 'Магазин' },
-  'wifi':    { icon: 'wifi',         label: 'Wi-Fi' },
-  'lounge':  { icon: 'star',         label: 'Зона отдыха' },
-  'parking': { icon: 'map-pin',      label: 'Парковка' },
-  '24/7':    { icon: 'clock',        label: '24/7' },
+/**
+ * Удобства станции: иконка и ключ перевода.
+ *
+ * Названия переводятся, а не хранятся строкой: в узбекском интерфейсе
+ * «Кафе» смотрелось бы русским вкраплением среди переведённого экрана.
+ */
+const AMENITY_MAP: Record<string, { icon: string; key: string }> = {
+  'cafe':    { icon: 'coffee',       key: 'amenity.cafe' },
+  'toilet':  { icon: 'home',         key: 'amenity.toilet' },
+  'shop':    { icon: 'shopping-bag', key: 'amenity.shop' },
+  'wifi':    { icon: 'wifi',         key: 'amenity.wifi' },
+  'lounge':  { icon: 'star',         key: 'amenity.lounge' },
+  'parking': { icon: 'map-pin',      key: 'amenity.parking' },
+  '24/7':    { icon: 'clock',        key: 'amenity.around' },
 };
 
 // ── Compact connector card (3-col, 7+ connectors) ────────────────────────────
@@ -686,7 +692,11 @@ export default function StationDetailScreen() {
           {amenities.length > 0 && (
             <View style={styles.amenitiesWrap}>
               {amenities.map((a) => {
-                const { icon, label } = AMENITY_MAP[a] ?? { icon: 'check', label: a };
+                const mapped = AMENITY_MAP[a];
+                const icon = mapped?.icon ?? 'check';
+                // Незнакомое удобство показываем как есть: лучше сырое
+                // значение из базы, чем пустая плашка.
+                const label = mapped ? t(mapped.key) : a;
                 return (
                   <View key={a} style={[styles.amenityPill, { backgroundColor: colors.muted }]}>
                     <Feather name={icon as any} size={13} color={colors.mutedForeground} />

@@ -55,7 +55,10 @@
     "ad": "Reklama",
     "route": "Marshrut",
     "noStations": "Yaqin atrofda stansiya yo'q",
-    "noStationsHint": "Filtrlarni o'zgartiring yoki radiusni kattalashtiring"
+    "noStationsHint": "Filtrlarni o'zgartiring yoki radiusni kattalashtiring",
+    "occupied": "Band",
+    "fastCharge": "Tez zaryadlash",
+    "slowCharge": "Sekin zaryadlash"
   },
   "station": {
     "connectors": "Konnektorlar",
@@ -106,5 +109,16 @@
     "hourlyLimit": "Kod so'rovlari juda ko'p, bir soatdan keyin urinib ko'ring",
     "smsFailed": "SMS yuborib bo'lmadi, keyinroq urinib ko'ring",
     "sessionExpired": "Seans tugadi, qayta kiring"
+  },
+  "amenity": {
+    "cafe": "Kafe",
+    "coffee": "Qahva",
+    "shop": "Do'kon",
+    "parking": "Avtoturargoh",
+    "toilet": "Hojatxona",
+    "cleanZone": "Toza hudud",
+    "wifi": "Wi-Fi",
+    "lounge": "Dam olish zonasi",
+    "around": "24/7"
   }
 }
