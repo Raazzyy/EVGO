@@ -9,6 +9,7 @@ import React, {
 } from 'react';
 import { setAuthTokenGetter, setAuthRefreshHandler } from '@workspace/api-client-react';
 import { clearTokens, loadTokens, saveTokens } from '@/lib/tokenStorage';
+import { registerForPush } from '@/lib/push';
 
 /**
  * Состояние входа пользователя.
@@ -96,6 +97,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (tokens: { accessToken: string; refreshToken: string }, nextUser: AuthUser) => {
       await applyTokens(tokens);
       setUser(nextUser);
+
+      // Разрешение на уведомления спрашиваем здесь, а не при первом запуске:
+      // человек только что вошёл, и понятно, зачем оно нужно. Не ждём ответа —
+      // вход не должен зависеть от диалога с разрешением.
+      void registerForPush(tokens.accessToken);
     },
     [applyTokens],
   );
@@ -202,6 +208,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (res.ok) {
           const me = (await res.json()) as AuthUser;
           if (!cancelled) setUser(me);
+          // Токен устройства меняется при переустановке приложения —
+          // обновляем его при каждом восстановлении сессии.
+          void registerForPush(stored.accessToken);
           return;
         }
 

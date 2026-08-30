@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Logo, LogoMark } from '@/components/Logo';
 import { CoverageMap } from '@/components/CoverageMap';
 import { ChargeCurve } from '@/components/ChargeCurve';
+import { LegalPage } from '@/LegalPage';
+import { PRIVACY, TERMS } from '@/legal';
 import {
   CONTENT,
   LANGUAGES,
@@ -61,6 +63,10 @@ function Section({
 
 export default function App() {
   const [lang, setLang] = useState<Lang>('ru');
+  // Роутер ради двух страниц не нужен: смотрим путь напрямую. Сервер отдаёт
+  // index.html на любой адрес (rewrite в artifact.toml), поэтому /privacy и
+  // /terms доходят сюда.
+  const path = typeof window === 'undefined' ? '/' : window.location.pathname;
 
   // Язык определяется после монтирования: на сервере localStorage и
   // navigator недоступны, а разметка должна совпасть при гидратации.
@@ -77,6 +83,15 @@ export default function App() {
   }, []);
 
   const t = CONTENT[lang];
+
+  // Ссылки на эти страницы уходят в App Store и Google Play при проверке
+  // заявки — без них приложение не примут.
+  if (path.startsWith('/privacy')) {
+    return <LegalPage doc={PRIVACY[lang]} lang={lang} onLangChange={switchLang} />;
+  }
+  if (path.startsWith('/terms')) {
+    return <LegalPage doc={TERMS[lang]} lang={lang} onLangChange={switchLang} />;
+  }
 
   return (
     <div className="min-h-screen bg-ink">

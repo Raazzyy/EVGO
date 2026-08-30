@@ -16,6 +16,7 @@ import {
 } from "@workspace/api-zod";
 
 import { requireAuth, requireUserOrAdmin } from "../middlewares/requireAuth";
+import { notifyUser, notifyConnectorWatchers } from "../lib/push";
 
 const router: IRouter = Router();
 
@@ -222,13 +223,28 @@ router.patch("/sessions/:id/stop", requireUserOrAdmin, async (req, res): Promise
     await db.update(connectorsTable)
       .set({ status: "free", current_session_id: null, updated_at: new Date() })
       .where(eq(connectorsTable.id, existing.connector_id));
-
-    // Notify watchers and remove them
-    await db.delete(connectorWatchersTable)
-      .where(eq(connectorWatchersTable.connector_id, existing.connector_id));
   }
 
+  const stationName = (station as { name?: string })?.name ?? "";
+
+  // Уведомления не должны задерживать ответ: человек уже нажал «Стоп» и ждёт
+  // экран с чеком. Отправляем следом, ошибки гасятся внутри notifyUser.
   res.json({ ...session, station });
+
+  if (existing.user_id) {
+    void notifyUser(existing.user_id, "session_ended", {
+      station: stationName,
+      energy: energyKwh.toFixed(1),
+      cost: `${Math.round(cost).toLocaleString("ru-RU")} сум`,
+    }, { sessionId: session?.id });
+  }
+
+  // Тем, кто ждал этот коннектор, — что он освободился. Подписки снимаются
+  // внутри: она одноразовая, иначе человек получал бы уведомление при каждом
+  // освобождении этой станции.
+  if (existing.connector_id) {
+    void notifyConnectorWatchers(existing.connector_id, stationName);
+  }
 });
 
 export default router;
