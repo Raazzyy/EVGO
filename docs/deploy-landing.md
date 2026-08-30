@@ -26,10 +26,17 @@ Vercel прочитает `vercel.json` в корне и подставит ко
 | Поле | Значение |
 |---|---|
 | Framework Preset | Other |
-| Build Command | `pnpm --filter @workspace/landing run build` |
-| Output Directory | `artifacts/landing/dist/public` |
+| Build Command | из `vercel.json` |
+| Output Directory | `public` |
 | Install Command | `pnpm install --frozen-lockfile` |
 | Root Directory | оставить пустым — сборка идёт из корня, там воркспейс |
+
+**Почему сборка копирует статику в `public/`.** Первая попытка деплоя
+собралась, но упала на поиске результата: Vercel искал папку с именем
+`public`, хотя в `vercel.json` был указан полный путь
+`artifacts/landing/dist/public`. Команда сборки применилась, а
+`outputDirectory` — нет. Поэтому сборка сама копирует результат туда, где
+Vercel его ищет по умолчанию; папка в git не попадает.
 
 **Root Directory менять не нужно.** Лендинг зависит от корневого
 `pnpm-workspace.yaml`, и если указать `artifacts/landing`, установка

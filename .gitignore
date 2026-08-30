@@ -64,3 +64,8 @@ attached_assets/
 
 # Сборка лендинга
 artifacts/landing/dist/
+
+# Результат сборки лендинга для Vercel: команда сборки копирует статику
+# сюда, потому что outputDirectory из vercel.json не применяется —
+# Vercel ищет папку с именем public.
+/public/
