@@ -46,7 +46,9 @@ export default function NotificationsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: '#F7F8FA' }]}>
       <View style={[styles.header, { paddingTop: topPad + 16, backgroundColor: '#FFFFFF' }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.back()}
+          accessibilityRole="button"
+          accessibilityLabel="Назад" style={styles.backButton}>
           <Feather name="arrow-left" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Уведомления</Text>

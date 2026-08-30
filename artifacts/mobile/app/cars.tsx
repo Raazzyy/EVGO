@@ -213,7 +213,9 @@ export default function CarsScreen() {
     <View style={[styles.container, { backgroundColor: '#F7F8FA' }]}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: topPad + 16, backgroundColor: '#FFFFFF' }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+        <TouchableOpacity onPress={() => router.back()}
+          accessibilityRole="button"
+          accessibilityLabel="Назад" style={styles.iconBtn}>
           <Feather name="arrow-left" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Мои автомобили</Text>
@@ -499,7 +501,7 @@ export default function CarsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
-  iconBtn: { width: 40, height: 40, justifyContent: 'center' },
+  iconBtn: { width: 44, height: 44, justifyContent: 'center' },
   headerTitle: { fontSize: 20, fontFamily: 'Inter_700Bold' },
   scrollContent: { padding: 16, gap: 12 },
   emptyState: { alignItems: 'center', paddingVertical: 48, gap: 12 },

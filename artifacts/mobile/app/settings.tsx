@@ -178,7 +178,9 @@ export default function SettingsScreen() {
   return (
     <View style={[{ flex: 1, backgroundColor: colors.background }]}>
       <View style={[sStyles.header, { paddingTop: topPad + 10, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={sStyles.iconBtn}>
+        <TouchableOpacity onPress={() => router.back()}
+          accessibilityRole="button"
+          accessibilityLabel="Назад" style={sStyles.iconBtn}>
           <Feather name="arrow-left" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[sStyles.headerTitle, { color: colors.text }]}>Настройки</Text>
@@ -270,7 +272,7 @@ const sStyles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingHorizontal: 16, paddingBottom: 14, borderBottomWidth: 1,
   },
-  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { flex: 1, fontSize: 18, fontFamily: 'Inter_700Bold', textAlign: 'center' },
   section: { gap: 6, marginBottom: 16 },
   sectionTitle: { fontSize: 11, fontFamily: 'Inter_600SemiBold', marginLeft: 4, marginBottom: 2, letterSpacing: 0.5 },

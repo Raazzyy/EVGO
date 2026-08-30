@@ -154,7 +154,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingBottom: 16, borderBottomWidth: 1,
   },
   headerTitle: { fontSize: 18, fontFamily: 'Inter_700Bold' },
-  iconBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
+  iconBtn: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
   content: { padding: 20, gap: 16, alignItems: 'center' },
   successSection: { alignItems: 'center', gap: 12, marginVertical: 12 },
   successCircle: { width: 88, height: 88, borderRadius: 44, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },

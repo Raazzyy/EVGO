@@ -976,7 +976,7 @@ const styles = StyleSheet.create({
   segmentBtn: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 100, alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' },
   segmentBtnActive: {},
   segmentText: { fontSize: 13, fontFamily: 'Inter_600SemiBold', position: 'relative', zIndex: 1 },
-  iconBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 },
+  iconBtn: { width: 44, height: 44, borderRadius: 18, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 },
   filterScroll: { position: 'absolute', left: 0, right: 0, zIndex: 20 },
   filterRow: { paddingHorizontal: 16, gap: 8 },
   filterPill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 3, elevation: 1, position: 'relative', overflow: 'hidden' },

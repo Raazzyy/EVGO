@@ -118,7 +118,9 @@ export default function FavoritesScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: topPad + 10, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+        <TouchableOpacity onPress={() => router.back()}
+          accessibilityRole="button"
+          accessibilityLabel="Назад" style={styles.iconBtn}>
           <Feather name="arrow-left" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Избранные станции</Text>
@@ -158,7 +160,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingBottom: 14,
     borderBottomWidth: 1,
   },
-  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { flex: 1, fontSize: 18, fontFamily: 'Inter_700Bold', textAlign: 'center' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 32 },
   emptyIconWrap: {

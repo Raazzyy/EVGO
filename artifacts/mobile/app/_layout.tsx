@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, Text } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
@@ -145,6 +145,13 @@ export default function RootLayout() {
   }, [fontsLoaded, fontError, languageReady]);
 
   if ((!fontsLoaded && !fontError) || !languageReady) return null;
+
+  // Ограничиваем масштаб текста, но не запрещаем его: при системном шрифте
+  // максимального размера вёрстка ломается и кнопки перестают помещаться,
+  // а полный запрет масштабирования делает приложение непригодным для тех,
+  // кому крупный шрифт нужен.
+  const TextAny = Text as unknown as { defaultProps?: Record<string, unknown> };
+  TextAny.defaultProps = { ...TextAny.defaultProps, maxFontSizeMultiplier: 1.4 };
 
   return (
     <SafeAreaProvider>

@@ -43,7 +43,9 @@ export default function AboutScreen() {
   return (
     <View style={[{ flex: 1, backgroundColor: colors.background }]}>
       <View style={[aStyles.header, { paddingTop: topPad + 10, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={aStyles.iconBtn}>
+        <TouchableOpacity onPress={() => router.back()}
+          accessibilityRole="button"
+          accessibilityLabel="Назад" style={aStyles.iconBtn}>
           <Feather name="arrow-left" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[aStyles.headerTitle, { color: colors.text }]}>О приложении</Text>
@@ -140,7 +142,7 @@ const aStyles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingHorizontal: 16, paddingBottom: 14, borderBottomWidth: 1,
   },
-  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { flex: 1, fontSize: 18, fontFamily: 'Inter_700Bold', textAlign: 'center' },
   heroWrap: { alignItems: 'center', paddingVertical: 16, gap: 8 },
   logoGradient: {

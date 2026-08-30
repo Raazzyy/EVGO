@@ -578,7 +578,9 @@ export default function StationDetailScreen() {
           style={[styles.heroSection, { paddingTop: Math.max(topPad, 16) }]}
         >
           <View style={styles.heroHeader}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+            <TouchableOpacity onPress={() => router.back()}
+          accessibilityRole="button"
+          accessibilityLabel="Назад" style={styles.iconBtn}>
               <Feather name="arrow-left" size={24} color="#fff" />
             </TouchableOpacity>
             <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -983,7 +985,7 @@ const styles = StyleSheet.create({
   loading:      { flex: 1, alignItems: 'center', justifyContent: 'center' },
   heroSection:  { height: 240, justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 24 },
   heroHeader:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 10 },
-  iconBtn:      { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
+  iconBtn:      { width: 44, height: 44, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
   heroBottom:   { gap: 8 },
   heroStationName: { fontSize: 24, fontFamily: 'Inter_700Bold', color: '#ffffff' },
   ratingRow:    { flexDirection: 'row', alignItems: 'center', gap: 6 },

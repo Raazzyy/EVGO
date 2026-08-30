@@ -319,7 +319,9 @@ export default function NewRouteScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: topPad + 10, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+        <TouchableOpacity onPress={() => router.back()}
+          accessibilityRole="button"
+          accessibilityLabel="Назад" style={styles.iconBtn}>
           <Feather name="arrow-left" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>
@@ -789,6 +791,8 @@ export default function NewRouteScreen() {
           <View style={styles.footerTwoBtn}>
             <TouchableOpacity
               onPress={() => router.back()}
+          accessibilityRole="button"
+          accessibilityLabel="Назад"
               activeOpacity={0.8}
               style={[styles.saveBtn, { borderColor: colors.border }]}
             >
@@ -907,7 +911,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingBottom: 16, borderBottomWidth: 1,
   },
   headerTitle: { fontSize: 20, fontFamily: 'Inter_700Bold' },
-  iconBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
+  iconBtn: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
   content: { padding: 16, gap: 16 },
 
   // Cards
