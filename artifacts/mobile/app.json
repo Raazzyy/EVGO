@@ -9,9 +9,9 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "image": "./assets/images/splash.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#071A1C"
     },
     "ios": {
       "supportsTablet": false,
@@ -31,7 +31,11 @@
         "ACCESS_FINE_LOCATION",
         "INTERNET",
         "POST_NOTIFICATIONS"
-      ]
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#071A1C"
+      }
     },
     "web": {
       "favicon": "./assets/images/icon.png"
