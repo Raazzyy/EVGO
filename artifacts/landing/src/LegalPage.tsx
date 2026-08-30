@@ -46,7 +46,7 @@ export function LegalPage({ doc, lang, onLangChange }: LegalPageProps) {
         <h1 className="font-display text-3xl font-semibold tracking-tight text-paper sm:text-4xl">
           {doc.title}
         </h1>
-        <p className="mt-3 font-mono text-xs uppercase tracking-wider text-muted">
+        <p className="mt-4 font-mono text-xs uppercase tracking-wider text-muted">
           {doc.updated}
         </p>
 

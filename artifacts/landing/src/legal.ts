@@ -36,12 +36,22 @@ export const COMPANY = {
   privacyEmail: 'privacy@evgo.uz',
 };
 
-const UPDATED = '30 августа 2026';
+/**
+ * Дата последнего изменения — на языке документа.
+ *
+ * Одна строка на все три языка давала «YANGILANGAN: 30 августа 2026»:
+ * заголовок переведён, а месяц остался русским.
+ */
+const UPDATED = {
+  ru: '30 августа 2026',
+  uz: '2026-yil 30-avgust',
+  en: '30 August 2026',
+} as const;
 
 export const PRIVACY: Record<'ru' | 'uz' | 'en', LegalDoc> = {
   ru: {
     title: 'Политика конфиденциальности',
-    updated: `Обновлено: ${UPDATED}`,
+    updated: `Обновлено: ${UPDATED.ru}`,
     intro:
       'Этот документ объясняет, какие данные собирает приложение EVGO, зачем они нужны и что вы можете с ними сделать. Мы собираем только то, без чего приложение не работает.',
     sections: [
@@ -116,7 +126,7 @@ export const PRIVACY: Record<'ru' | 'uz' | 'en', LegalDoc> = {
 
   uz: {
     title: 'Maxfiylik siyosati',
-    updated: `Yangilangan: ${UPDATED}`,
+    updated: `Yangilangan: ${UPDATED.uz}`,
     intro:
       "Ushbu hujjat EVGO ilovasi qanday ma'lumotlarni yig'ishini, ular nima uchun kerakligini va siz ular bilan nima qila olishingizni tushuntiradi. Biz faqat ilova ishlashi uchun zarur bo'lgan narsalarni yig'amiz.",
     sections: [
@@ -191,7 +201,7 @@ export const PRIVACY: Record<'ru' | 'uz' | 'en', LegalDoc> = {
 
   en: {
     title: 'Privacy Policy',
-    updated: `Updated: ${UPDATED}`,
+    updated: `Updated: ${UPDATED.en}`,
     intro:
       'This document explains what data the EVGO app collects, why it is needed, and what you can do about it. We collect only what the app cannot work without.',
     sections: [
@@ -268,7 +278,7 @@ export const PRIVACY: Record<'ru' | 'uz' | 'en', LegalDoc> = {
 export const TERMS: Record<'ru' | 'uz' | 'en', LegalDoc> = {
   ru: {
     title: 'Условия использования',
-    updated: `Обновлено: ${UPDATED}`,
+    updated: `Обновлено: ${UPDATED.ru}`,
     intro:
       'Устанавливая приложение EVGO, вы соглашаетесь с этими условиями. Если вы с ними не согласны — не пользуйтесь приложением.',
     sections: [
@@ -339,7 +349,7 @@ export const TERMS: Record<'ru' | 'uz' | 'en', LegalDoc> = {
 
   uz: {
     title: 'Foydalanish shartlari',
-    updated: `Yangilangan: ${UPDATED}`,
+    updated: `Yangilangan: ${UPDATED.uz}`,
     intro:
       "EVGO ilovasini o'rnatish orqali siz ushbu shartlarga rozilik bildirasiz. Agar rozi bo'lmasangiz — ilovadan foydalanmang.",
     sections: [
@@ -410,7 +420,7 @@ export const TERMS: Record<'ru' | 'uz' | 'en', LegalDoc> = {
 
   en: {
     title: 'Terms of Use',
-    updated: `Updated: ${UPDATED}`,
+    updated: `Updated: ${UPDATED.en}`,
     intro:
       'By installing the EVGO app you agree to these terms. If you do not agree with them, do not use the app.',
     sections: [
