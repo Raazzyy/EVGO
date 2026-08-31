@@ -1,6 +1,7 @@
 import React from 'react';
 import { Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useColors } from '@/hooks/useColors';
+import { useThemeScheme } from '@/contexts/ThemeContext';
 import { Feather } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { Tabs, useRouter } from 'expo-router';
@@ -27,21 +28,21 @@ function ChargeFAB(props: { onPress?: () => void }) {
 export default function TabLayout() {
   const colors = useColors();
   const isIOS = Platform.OS === 'ios';
-  const isDark = false;
+  const isDark = useThemeScheme() === 'dark';
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: '#2563EB',
-        tabBarInactiveTintColor: '#94A3B8',
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.mutedForeground,
         headerShown: false,
         tabBarStyle: {
           position: 'absolute',
-          backgroundColor: isIOS ? 'transparent' : '#FFFFFF',
+          backgroundColor: isIOS ? 'transparent' : colors.card,
           borderTopWidth: 1,
-          borderTopColor: '#E2E8F0',
+          borderTopColor: colors.border,
           elevation: 0,
           height: Platform.OS === 'web' ? 84 : 80,
           paddingBottom: Platform.OS === 'web' ? 34 : insets.bottom + 8,
@@ -55,7 +56,7 @@ export default function TabLayout() {
               style={StyleSheet.absoluteFill}
             />
           ) : (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: '#FFFFFF' }]} />
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.card }]} />
           ),
         tabBarLabelStyle: {
           fontFamily: 'Inter_500Medium',

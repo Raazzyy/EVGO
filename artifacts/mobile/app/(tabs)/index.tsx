@@ -959,17 +959,17 @@ export default function MapScreen() {
       >
         <TouchableOpacity style={styles.mapBtn} onPress={() => { haptics.tap(); mapRef.current?.locate(); }} activeOpacity={0.75}>
           <Glass glassStyle="clear" interactive style={styles.mapBtnGlass}>
-            <Feather name="navigation" size={18} color="#1E293B" />
+            <Feather name="navigation" size={18} color={colors.text} />
           </Glass>
         </TouchableOpacity>
         <View style={styles.zoomGroup}>
           <Glass glassStyle="clear" style={StyleSheet.absoluteFill} />
           <TouchableOpacity style={styles.zoomBtn} onPress={() => mapRef.current?.zoomIn()} activeOpacity={0.75}>
-            <Feather name="plus" size={20} color="#1E293B" />
+            <Feather name="plus" size={20} color={colors.text} />
           </TouchableOpacity>
           <View style={styles.zoomDivider} />
           <TouchableOpacity style={styles.zoomBtn} onPress={() => mapRef.current?.zoomOut()} activeOpacity={0.75}>
-            <Feather name="minus" size={20} color="#1E293B" />
+            <Feather name="minus" size={20} color={colors.text} />
           </TouchableOpacity>
         </View>
       </Animated.View>

@@ -17,6 +17,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { setLanguage as applyLanguage, type Language } from '@/lib/i18n';
 import { haptics } from '@/lib/haptics';
+import { useThemePref, type ThemePref } from '@/contexts/ThemeContext';
 
 const STORAGE_KEY = '@ion_settings';
 
@@ -111,6 +112,7 @@ export default function SettingsScreen() {
 
   const { user, signOut, deleteAccount, updateProfile } = useAuth();
   const { t } = useTranslation();
+  const { pref: themePref, setPref: setThemePref } = useThemePref();
 
   const [settings, setSettings] = useState<Settings>(DEFAULTS);
   const [loaded, setLoaded] = useState(false);
@@ -224,8 +226,8 @@ export default function SettingsScreen() {
           <SelectRow
             label="Цветовая схема"
             options={[{ value: 'light', label: '☀ Светлая' }, { value: 'dark', label: '● Тёмная' }, { value: 'system', label: '⚙ Авто' }]}
-            value={settings.theme}
-            onChange={v => update({ theme: v })}
+            value={themePref}
+            onChange={v => setThemePref(v as ThemePref)}
             last
           />
         </Section>
