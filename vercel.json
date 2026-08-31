@@ -3,9 +3,9 @@
 
   "installCommand": "pnpm install --frozen-lockfile",
 
-  "buildCommand": "pnpm --filter @workspace/landing run build && rm -rf public && cp -r artifacts/landing/dist/public public",
+  "buildCommand": "pnpm --filter @workspace/landing run build",
 
-  "outputDirectory": "public",
+  "outputDirectory": "dist/public",
 
   "rewrites": [
     { "source": "/privacy", "destination": "/index.html" },
