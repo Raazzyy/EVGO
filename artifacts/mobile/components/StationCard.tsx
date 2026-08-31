@@ -268,7 +268,7 @@ export const StationCard = React.memo(function StationCard({
 // ─────────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#FFFFFF',
+    // Фон задаётся inline через colors.card (тема-зависимый).
     borderRadius: 18,
     padding: 15,
     marginBottom: 12,

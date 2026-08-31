@@ -210,9 +210,9 @@ export default function CarsScreen() {
   const BATTERY_LEVELS = [85, 42, 100, 67, 55, 90, 38, 72, 48];
 
   return (
-    <View style={[styles.container, { backgroundColor: '#F7F8FA' }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: topPad + 16, backgroundColor: '#FFFFFF' }]}>
+      <View style={[styles.header, { paddingTop: topPad + 16, backgroundColor: colors.card }]}>
         <TouchableOpacity onPress={() => router.back()}
           accessibilityRole="button"
           accessibilityLabel="Назад" style={styles.iconBtn}>
@@ -241,7 +241,7 @@ export default function CarsScreen() {
             return (
               <View key={uv.id}>
                 <TouchableOpacity activeOpacity={0.85} onPress={() => setSelectedVehicleId(uv.id)}
-                  style={[styles.carCard, { backgroundColor: '#FFFFFF', borderColor: isDefault ? colors.primary : 'transparent', borderWidth: isDefault ? 2 : 0 }]}>
+                  style={[styles.carCard, { backgroundColor: colors.card, borderColor: isDefault ? colors.primary : 'transparent', borderWidth: isDefault ? 2 : 0 }]}>
                   <View style={[styles.carIconBox, { backgroundColor: colors.muted }]}>
                     <Feather name="zap" size={26} color={isDefault ? colors.primary : colors.mutedForeground} />
                   </View>
@@ -285,7 +285,7 @@ export default function CarsScreen() {
           })
         )}
 
-        <View style={[styles.settingsCard, { backgroundColor: '#FFFFFF' }]}>
+        <View style={[styles.settingsCard, { backgroundColor: colors.card }]}>
           <View style={[styles.settingRow, { borderBottomWidth: 1, borderBottomColor: colors.border }]}>
             <Text style={[styles.settingLabel, { color: colors.text }]}>Только совместимые станции</Text>
             <Switch value={showCompatible} onValueChange={setShowCompatible} trackColor={{ false: colors.border, true: colors.primary }} thumbColor="#FFFFFF" />

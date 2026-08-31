@@ -420,7 +420,7 @@ export default function NavigateScreen() {
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Full-screen map — ref used for camera follow during navigation */}
       <MapViewWrapper
         ref={mapRef}

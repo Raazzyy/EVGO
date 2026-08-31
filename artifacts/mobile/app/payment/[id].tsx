@@ -22,7 +22,7 @@ export default function PaymentScreen() {
 
   if (isLoading || !session) {
     return (
-      <View style={[styles.loadingContainer, { backgroundColor: '#F7F8FA' }]}>
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
@@ -36,8 +36,8 @@ export default function PaymentScreen() {
   const fee = 0;
 
   return (
-    <View style={[styles.container, { backgroundColor: '#F7F8FA' }]}>
-      <View style={[styles.header, { paddingTop: topPad + 16, backgroundColor: '#FFFFFF' }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { paddingTop: topPad + 16, backgroundColor: colors.card }]}>
         <TouchableOpacity onPress={() => router.back()}
           accessibilityRole="button"
           accessibilityLabel="Назад" style={styles.backButton}>
@@ -49,7 +49,7 @@ export default function PaymentScreen() {
 
       <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPad + 100 }]} showsVerticalScrollIndicator={false}>
         
-        <View style={[styles.amountCard, { backgroundColor: '#FFFFFF' }]}>
+        <View style={[styles.amountCard, { backgroundColor: colors.card }]}>
           <Text style={[styles.amountLabel, { color: colors.mutedForeground }]}>Сумма</Text>
           <Text style={[styles.amountValue, { color: colors.text }]}>
             {formatMoney(Math.round(cost))}
@@ -57,7 +57,7 @@ export default function PaymentScreen() {
         </View>
 
         <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>Способ оплаты</Text>
-        <View style={[styles.paymentMethodCard, { backgroundColor: '#FFFFFF' }]}>
+        <View style={[styles.paymentMethodCard, { backgroundColor: colors.card }]}>
           <View style={styles.cardRow}>
             <View style={styles.uzcardLogo}>
               <Text style={styles.uzcardText}>U</Text>
@@ -69,7 +69,7 @@ export default function PaymentScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={[styles.detailsCard, { backgroundColor: '#FFFFFF' }]}>
+        <View style={[styles.detailsCard, { backgroundColor: colors.card }]}>
           <Text style={[styles.detailsTitle, { color: colors.text }]}>Детали</Text>
           
           <View style={styles.detailRow}>
@@ -110,7 +110,7 @@ export default function PaymentScreen() {
 
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: bottomPad + 16, backgroundColor: '#FFFFFF' }]}>
+      <View style={[styles.footer, { paddingBottom: bottomPad + 16, backgroundColor: colors.card }]}>
         <TouchableOpacity activeOpacity={0.8} style={styles.payButton} onPress={() => router.push('/')}>
           <LinearGradient
             colors={['#2563EB', '#7C3AED']}

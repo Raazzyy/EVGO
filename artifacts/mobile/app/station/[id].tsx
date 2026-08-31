@@ -301,7 +301,7 @@ function FullConnectorCard({
             style={[
               stylesC.outlineBtn,
               { borderColor: watching ? '#3B82F6' : colors.border, flex: 1,
-                backgroundColor: watching ? '#EFF6FF' : colors.muted },
+                backgroundColor: watching ? colors.primary + '1A' : colors.muted },
             ]}
           >
             <Feather name="bell" size={13} color={watching ? '#2563EB' : colors.mutedForeground} />
@@ -330,7 +330,7 @@ function FullConnectorCard({
           style={[
             stylesC.outlineBtn,
             { borderColor: watching ? '#3B82F6' : colors.border,
-              backgroundColor: watching ? '#EFF6FF' : colors.muted },
+              backgroundColor: watching ? colors.primary + '1A' : colors.muted },
           ]}
         >
           <Feather name="bell" size={13} color={watching ? '#2563EB' : colors.mutedForeground} />
