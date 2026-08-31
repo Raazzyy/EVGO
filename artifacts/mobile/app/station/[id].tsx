@@ -34,6 +34,7 @@ import { ReportStationSheet } from '@/components/ReportStationSheet';
 import { haptics } from '@/lib/haptics';
 import { useTranslation } from 'react-i18next';
 import { formatAmount, formatMoney } from '@/lib/format';
+import { DEMO_STATIONS } from '@/lib/demoStations';
 
 const API = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
@@ -427,9 +428,15 @@ export default function StationDetailScreen() {
   });
 
   const stationId = id ? Number(id) : NaN;
-  const { data: station, isLoading } = useGetStation(stationId, {
+  const { data: apiStation, isLoading } = useGetStation(stationId, {
     query: { enabled: !isNaN(stationId) && stationId > 0 },
   });
+  // Демо-станции имеют отрицательный id (см. lib/demoStations) — их деталь
+  // отдаём из локального набора, чтобы тап по демо-пину не открывал пустой
+  // экран.
+  const isDemo = stationIdNum < 0;
+  const demoStation = isDemo ? DEMO_STATIONS.find((s) => s.id === stationIdNum) ?? null : null;
+  const station = apiStation ?? demoStation;
 
   const startMutation = useStartSession({
     mutation: {
@@ -486,6 +493,10 @@ export default function StationDetailScreen() {
 
   function handleCharge(connectorId?: number) {
     if (!station) return;
+    if (isDemo) {
+      Alert.alert('Демо-станция', 'Это пример станции для показа. Зарядку можно запустить на реальной станции.');
+      return;
+    }
     if (station.status === 'offline') {
       Alert.alert('Станция недоступна', 'Эта станция сейчас не в сети.');
       return;

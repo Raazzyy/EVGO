@@ -27,6 +27,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Glass } from '@/components/Glass';
 import { formatPricePerKwh } from '@/lib/format';
 import { haptics } from '@/lib/haptics';
+import { DEMO_STATIONS, DEMO_PROMOTED } from '@/lib/demoStations';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -519,8 +520,20 @@ export default function MapScreen() {
   const { data: stationsData, isLoading: stationsLoading } = useGetStations(undefined, {
     query: { refetchInterval: isFocused ? 30_000 : false },
   });
-  const allStations      = useMemo(() => (stationsData?.nearby    ?? []) as any[], [stationsData]);
-  const promotedFromApi  = useMemo(() => (stationsData?.promoted  ?? []) as any[], [stationsData]);
+  // Пока нет реальных станций (первая загрузка, нет сети или боевая база ещё
+  // не наполнена) — показываем демо-станции, чтобы карта/список никогда не
+  // были пустыми (важно и для демонстрации, и для ревью Apple). Как только
+  // приходят настоящие данные — они сразу вытесняют демо.
+  const allStations = useMemo(() => {
+    const real = (stationsData?.nearby ?? []) as any[];
+    return real.length > 0 ? real : (DEMO_STATIONS as any[]);
+  }, [stationsData]);
+  const promotedFromApi = useMemo(() => {
+    const real = (stationsData?.promoted ?? []) as any[];
+    if (real.length > 0) return real;
+    const hasRealNearby = ((stationsData?.nearby ?? []) as any[]).length > 0;
+    return hasRealNearby ? [] : (DEMO_PROMOTED as any[]);
+  }, [stationsData]);
 
   // ── Filters ───────────────────────────────────────────────────────────────
   const applyChipFilter = useCallback(<T extends { status: string }>(list: T[]): T[] => {
