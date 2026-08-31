@@ -8,7 +8,8 @@
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "import:ocm": "tsx src/scripts/import-ocm.ts"
+    "import:ocm": "tsx src/scripts/import-ocm.ts",
+    "import:osm": "tsx src/scripts/import-osm.ts"
   },
   "dependencies": {
     "@workspace/api-zod": "workspace:*",

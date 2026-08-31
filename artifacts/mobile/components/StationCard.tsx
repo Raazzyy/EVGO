@@ -9,6 +9,7 @@ import { Feather } from '@expo/vector-icons';
 import { useColors } from '@/hooks/useColors';
 import { LinearGradient } from 'expo-linear-gradient';
 import { formatAmount } from '@/lib/format';
+import { PressableScale } from '@/components/PressableScale';
 
 interface Connector {
   type: string;
@@ -122,9 +123,8 @@ export const StationCard = React.memo(function StationCard({
     : [];
 
   return (
-    <TouchableOpacity
+    <PressableScale
       onPress={onPress}
-      activeOpacity={0.88}
       style={[
         styles.card,
         compact && styles.cardCompact,
@@ -260,7 +260,7 @@ export const StationCard = React.memo(function StationCard({
           })}
         </View>
       )}
-    </TouchableOpacity>
+    </PressableScale>
   );
 });
 

@@ -24,6 +24,7 @@ import { MapViewWrapper, MapApi } from '@/components/MapViewWrapper';
 import { FiltersSheet, FiltersState } from '@/components/FiltersSheet';
 import { StationQuickView, type QuickViewStation } from '@/components/StationQuickView';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import { formatPricePerKwh } from '@/lib/format';
 import { haptics } from '@/lib/haptics';
 
@@ -768,7 +769,7 @@ export default function MapScreen() {
       ] as { id: FilterStatus; label: string }[]).map(f => {
         const isActive = activeChip === f.id;
         return (
-          <Pressable key={f.id} onPress={() => setActiveChip(f.id)}
+          <Pressable key={f.id} onPress={() => { haptics.tap(); setActiveChip(f.id); }}
             style={({ pressed }) => [
               styles.filterPill,
               { backgroundColor: isActive ? 'transparent' : colors.card, borderColor: isActive ? 'transparent' : colors.border, opacity: pressed ? 0.75 : 1 },
@@ -945,15 +946,18 @@ export default function MapScreen() {
         style={[styles.mapControls, mapControlsStyle]}
         pointerEvents={sheetAtTop ? 'none' : 'box-none'}
       >
-        <TouchableOpacity style={styles.mapBtn} onPress={() => mapRef.current?.locate()} activeOpacity={0.8}>
-          <Feather name="navigation" size={18} color="#1E293B" />
+        <TouchableOpacity style={styles.mapBtn} onPress={() => mapRef.current?.locate()} activeOpacity={0.75}>
+          <BlurView intensity={70} tint="light" style={styles.mapBtnGlass}>
+            <Feather name="navigation" size={18} color="#1E293B" />
+          </BlurView>
         </TouchableOpacity>
         <View style={styles.zoomGroup}>
-          <TouchableOpacity style={styles.zoomBtn} onPress={() => mapRef.current?.zoomIn()} activeOpacity={0.8}>
+          <BlurView intensity={70} tint="light" style={StyleSheet.absoluteFill} />
+          <TouchableOpacity style={styles.zoomBtn} onPress={() => mapRef.current?.zoomIn()} activeOpacity={0.75}>
             <Feather name="plus" size={20} color="#1E293B" />
           </TouchableOpacity>
           <View style={styles.zoomDivider} />
-          <TouchableOpacity style={styles.zoomBtn} onPress={() => mapRef.current?.zoomOut()} activeOpacity={0.8}>
+          <TouchableOpacity style={styles.zoomBtn} onPress={() => mapRef.current?.zoomOut()} activeOpacity={0.75}>
             <Feather name="minus" size={20} color="#1E293B" />
           </TouchableOpacity>
         </View>
@@ -1012,8 +1016,11 @@ const styles = StyleSheet.create({
   permBannerText: { flex: 1, fontSize: 12, fontFamily: 'Inter_400Regular', color: '#92400E' },
   permBannerBtn: { fontSize: 12, fontFamily: 'Inter_700Bold', color: '#2563EB' },
   mapControls: { position: 'absolute', right: 12, alignItems: 'center', gap: 10, zIndex: 30 },
-  mapBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 6, elevation: 4 },
-  zoomGroup: { borderRadius: 12, overflow: 'hidden', backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 6, elevation: 4 },
+  // Стеклянные контролы поверх карты: сам блюр даёт подложку, поэтому фон не
+  // задаём. Тонкая светлая граница — блик материала, ловящего свет.
+  mapBtn: { width: 44, height: 44, borderRadius: 14, overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.5)', shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 8, elevation: 4 },
+  mapBtnGlass: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.35)' },
+  zoomGroup: { borderRadius: 14, overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.5)', backgroundColor: 'rgba(255,255,255,0.35)', shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 8, elevation: 4 },
   zoomBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   zoomDivider: { height: 1, backgroundColor: '#E2E8F0', width: 44 },
 });
