@@ -24,7 +24,7 @@ import { MapViewWrapper, MapApi } from '@/components/MapViewWrapper';
 import { FiltersSheet, FiltersState } from '@/components/FiltersSheet';
 import { StationQuickView, type QuickViewStation } from '@/components/StationQuickView';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
+import { Glass } from '@/components/Glass';
 import { formatPricePerKwh } from '@/lib/format';
 import { haptics } from '@/lib/haptics';
 
@@ -734,9 +734,11 @@ export default function MapScreen() {
           </TouchableOpacity>
         ))}
       </View>
-      <TouchableOpacity style={[styles.iconBtn, { backgroundColor: colors.card }]}
-        onPress={() => router.push('/notifications')}>
-        <Feather name="bell" size={18} color={colors.text} />
+      <TouchableOpacity style={styles.iconBtn}
+        onPress={() => { haptics.tap(); router.push('/notifications'); }}>
+        <Glass glassStyle="clear" interactive style={styles.iconBtnGlass}>
+          <Feather name="bell" size={18} color={colors.text} />
+        </Glass>
       </TouchableOpacity>
     </View>
   );
@@ -946,13 +948,13 @@ export default function MapScreen() {
         style={[styles.mapControls, mapControlsStyle]}
         pointerEvents={sheetAtTop ? 'none' : 'box-none'}
       >
-        <TouchableOpacity style={styles.mapBtn} onPress={() => mapRef.current?.locate()} activeOpacity={0.75}>
-          <BlurView intensity={70} tint="light" style={styles.mapBtnGlass}>
+        <TouchableOpacity style={styles.mapBtn} onPress={() => { haptics.tap(); mapRef.current?.locate(); }} activeOpacity={0.75}>
+          <Glass glassStyle="clear" interactive style={styles.mapBtnGlass}>
             <Feather name="navigation" size={18} color="#1E293B" />
-          </BlurView>
+          </Glass>
         </TouchableOpacity>
         <View style={styles.zoomGroup}>
-          <BlurView intensity={70} tint="light" style={StyleSheet.absoluteFill} />
+          <Glass glassStyle="clear" style={StyleSheet.absoluteFill} />
           <TouchableOpacity style={styles.zoomBtn} onPress={() => mapRef.current?.zoomIn()} activeOpacity={0.75}>
             <Feather name="plus" size={20} color="#1E293B" />
           </TouchableOpacity>
@@ -986,7 +988,8 @@ const styles = StyleSheet.create({
   segmentBtn: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 100, alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' },
   segmentBtnActive: {},
   segmentText: { fontSize: 13, fontFamily: 'Inter_600SemiBold', position: 'relative', zIndex: 1 },
-  iconBtn: { width: 44, height: 44, borderRadius: 18, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 },
+  iconBtn: { width: 44, height: 44, borderRadius: 18, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 6, elevation: 3 },
+  iconBtnGlass: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   filterScroll: { position: 'absolute', left: 0, right: 0, zIndex: 20 },
   filterRow: { paddingHorizontal: 16, gap: 8 },
   filterPill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 3, elevation: 1, position: 'relative', overflow: 'hidden' },
@@ -1018,9 +1021,10 @@ const styles = StyleSheet.create({
   mapControls: { position: 'absolute', right: 12, alignItems: 'center', gap: 10, zIndex: 30 },
   // Стеклянные контролы поверх карты: сам блюр даёт подложку, поэтому фон не
   // задаём. Тонкая светлая граница — блик материала, ловящего свет.
-  mapBtn: { width: 44, height: 44, borderRadius: 14, overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.5)', shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 8, elevation: 4 },
-  mapBtnGlass: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.35)' },
-  zoomGroup: { borderRadius: 14, overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.5)', backgroundColor: 'rgba(255,255,255,0.35)', shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 8, elevation: 4 },
+  // Стекло даёт подложку и границу — здесь только форма, тень и клип.
+  mapBtn: { width: 44, height: 44, borderRadius: 14, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 8, elevation: 4 },
+  mapBtnGlass: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  zoomGroup: { borderRadius: 14, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 8, elevation: 4 },
   zoomBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   zoomDivider: { height: 1, backgroundColor: '#E2E8F0', width: 44 },
 });

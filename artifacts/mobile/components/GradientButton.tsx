@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useColors } from '@/hooks/useColors';
+import { haptics } from '@/lib/haptics';
 
 interface GradientButtonProps {
   label: string;
@@ -31,7 +32,7 @@ export function GradientButton({
   const colors = useColors();
   return (
     <TouchableOpacity
-      onPress={onPress}
+      onPress={() => { haptics.medium(); onPress(); }}
       disabled={disabled || loading}
       activeOpacity={0.85}
       style={[styles.wrapper, style, disabled && { opacity: 0.5 }]}

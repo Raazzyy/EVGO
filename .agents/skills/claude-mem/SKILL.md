@@ -1,50 +1,40 @@
 ---
 name: claude-mem
-description: Persistent, episodic, and semantic memory system across agent sessions. Preserves architectural decisions, critical constraints, business rules, API schemas, and historical pitfalls. Prevents context degradation, memory loss across restarts, and enables instantaneous workspace context recall.
+description: Continuous context memory, architecture decision logging, and long-term project memory system. Preserves workspace knowledge, past architectural decisions, gotchas, user preferences, and cross-session state in structured markdown files to avoid context loss and repetitive explanations.
 license: MIT
 metadata:
-  author: Agentic Systems
-  version: "2.0.0"
+  author: Continuous Memory Systems
+  version: "2.1.0"
 ---
 
-# Claude Mem — Persistent Agentic Memory & Knowledge Bank
+# Claude Mem — Continuous Long-Term Agent Memory
 
-A universal memory and context management framework for autonomous coding agents.
+`claude-mem` is a state-of-the-art long-term memory and context distillation skill designed for autonomous coding agents.
 
 ## 1. Memory Architecture
 
 ```
-[ Active Conversation Context ]
-          │
-          ▼ (Index & Distill)
-[ .agents/memory/MEMORY.md ] ─── Core Architecture & Active Context
-          ├── [ .agents/memory/decisions/ ] ── Immutable Architecture Decision Records (ADR)
-          ├── [ .agents/memory/pitfalls/ ]  ── Known Gotchas, Anti-patterns, Bug Records
-          └── [ .agents/memory/domain/ ]    ── Business & Product Knowledge Graphs
+.agents/
+├── memory/
+│   ├── index.md           # Master index of project state & key decisions
+│   ├── architecture.md    # System design, data flow, single-source-of-truth rules
+│   ├── gotchas.md         # Discovered traps, platform quirks, and bugs
+│   └── user_prefs.md      # User coding style, languages, communication preferences
 ```
 
-## 2. Memory Tiering
+## 2. When to Read & Write Memory
 
-### Tier 1: Working Memory (In-Session)
-- Current task plan, execution trace, active files, uncommitted diffs.
-- Ephemeral, reset per task.
+### On Turn Initialization (Read):
+1. Check `.agents/memory/` and `replit.md` before starting non-trivial tasks.
+2. Cross-reference past architectural decisions (e.g. why `openapi.yaml` drives types, why `bigint` is used for money).
 
-### Tier 2: Episodic Memory (Project-Level)
-- Stored in `.agents/memory/MEMORY.md`.
-- Records:
-  - Tech stack versions and platform constraints (e.g. Node 24, pnpm workspaces, Replit Linux-x64 overrides).
-  - Business logic models (e.g. Tiyns in bigint, OCPI 2.2.1 flow, Eskiz SMS templates).
-  - Key environment variables and secrets hierarchy.
+### On Major Milestones (Write):
+1. **New Architectural Decision**: Log to `.agents/memory/architecture.md`.
+2. **Hidden Bug / Platform Gotcha Solved**: Log to `.agents/memory/gotchas.md`.
+3. **User Preference Stated**: Log to `.agents/memory/user_prefs.md`.
 
-### Tier 3: Semantic Decision Memory (ADRs)
-- Stored in `.agents/memory/decisions/YYYY-MM-DD-title.md`.
-- Records: Why decision X was chosen over Y (e.g. Schema-First OpenAPI with Orval over manual TypeScript interfaces).
+## 3. Best Practices for Memory Management
 
-## 3. Autonomous Memory Protocol
-
-1. **Before Executing Any Large Task**:
-   - Inspect `.agents/memory/` to check for prior decisions, constraints, or banned patterns.
-2. **After Resolving Any Non-Trivial Bug**:
-   - Record the root cause, fix pattern, and regression test under `.agents/memory/`.
-3. **When Architecture Changes**:
-   - Atomically update both code and the corresponding memory file.
+- **Keep Entries Atomic & Chronological**: Use short, date-stamped bullet points.
+- **Never Store Secrets**: Keep API keys, private tokens, and passwords out of memory logs.
+- **Reference File Paths**: Always link to files via markdown links `[file.ts](file:///path/to/file.ts)`.
