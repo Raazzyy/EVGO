@@ -4,7 +4,7 @@ import React, {
 import {
   View, Text, StyleSheet, ScrollView, FlatList, TextInput,
   TouchableOpacity, Pressable, Platform,
-  Dimensions, Linking,
+  Dimensions, Linking, ActivityIndicator,
 } from 'react-native';
 import Animated, {
   useSharedValue, useAnimatedStyle, withTiming, Easing,
@@ -516,7 +516,7 @@ export default function MapScreen() {
     return () => setIsFocused(false);
   }, []));
 
-  const { data: stationsData } = useGetStations(undefined, {
+  const { data: stationsData, isLoading: stationsLoading } = useGetStations(undefined, {
     query: { refetchInterval: isFocused ? 30_000 : false },
   });
   const allStations      = useMemo(() => (stationsData?.nearby    ?? []) as any[], [stationsData]);
@@ -820,6 +820,32 @@ export default function MapScreen() {
           initialNumToRender={8}
           maxToRenderPerBatch={6}
           removeClippedSubviews
+          ListEmptyComponent={
+            // Без этого при загрузке или пустом результате список был чёрной
+            // пустотой — выглядело как сломанный экран.
+            stationsLoading ? (
+              <View style={styles.listEmpty}>
+                <ActivityIndicator color={colors.primary} />
+                <Text style={[styles.emptySubtitle, { color: colors.mutedForeground }]}>Загружаем станции…</Text>
+              </View>
+            ) : (
+              <View style={styles.listEmpty}>
+                <Feather name="map-pin" size={36} color={colors.mutedForeground} />
+                <Text style={[styles.emptyTitle, { color: colors.text }]}>Станций нет</Text>
+                <Text style={[styles.emptySubtitle, { color: colors.mutedForeground }]}>
+                  {hasActiveFilters || search.trim() ? 'Ничего не найдено по вашему запросу' : 'Попробуйте позже'}
+                </Text>
+                {(hasActiveFilters || search.trim()) && (
+                  <TouchableOpacity
+                    onPress={() => { setActiveFilters(DEFAULT_FILTERS); setActiveChip('all'); setSearch(''); }}
+                    style={[styles.resetBtn, { borderColor: colors.primary }]}
+                  >
+                    <Text style={[styles.resetBtnText, { color: colors.primary }]}>Сбросить</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )
+          }
           renderItem={({ item: s, index: i }) => (
             <Animated.View entering={FadeInDown.delay(Math.min(i, 8) * 35).duration(300).easing(IOS_EASE)}>
               <StationCard station={s} onPress={() => router.push(`/station/${s.id}`)}
@@ -1020,6 +1046,7 @@ const styles = StyleSheet.create({
   hSection: { marginHorizontal: -16, marginBottom: 4 },
   hSectionContent: { paddingLeft: 16, paddingBottom: 8 },
   emptyState: { alignItems: 'center', paddingVertical: 40, gap: 8 },
+  listEmpty: { alignItems: 'center', paddingTop: 80, gap: 10 },
   emptyTitle: { fontSize: 16, fontFamily: 'Inter_700Bold', marginTop: 4 },
   emptySubtitle: { fontSize: 13, fontFamily: 'Inter_400Regular', textAlign: 'center' },
   resetBtn: { marginTop: 8, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12, borderWidth: 1.5 },
