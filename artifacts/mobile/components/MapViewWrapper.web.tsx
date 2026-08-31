@@ -105,18 +105,20 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
           zoomControl: false, attributionControl: false,
         });
         mapRef.current = map;
-        // Esri «Light Gray Canvas» — чистая приглушённая подложка без
-        // ключа. Сырые OSM-тайлы выглядели пёстро и дёшево, а CARTO с
-        // недавних пор требует API-ключ (иначе поверх тайлов печатается
-        // «API KEY REQUIRED»). Серая канва убирает визуальный шум, и
-        // цветные пины станций на ней читаются премиально.
+        // Esri Canvas — чистая приглушённая подложка без ключа. В тёмной теме
+        // берём Dark Gray Canvas, чтобы карта не была светлым пятном; иначе —
+        // Light Gray. Серая канва убирает визуальный шум, цветные пины
+        // станций на ней читаются премиально.
+        const prefersDark = typeof window !== 'undefined'
+          && window.matchMedia?.('(prefers-color-scheme: dark)').matches;
+        const canvas = prefersDark ? 'Dark_Gray' : 'Light_Gray';
         L.tileLayer(
-          'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+          `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_${canvas}_Base/MapServer/tile/{z}/{y}/{x}`,
           { maxZoom: 16 },
         ).addTo(map);
-        // Тонкие подписи улиц/районов поверх серой канвы — отдельным слоем.
+        // Тонкие подписи улиц/районов поверх канвы — отдельным слоем.
         L.tileLayer(
-          'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
+          `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_${canvas}_Reference/MapServer/tile/{z}/{y}/{x}`,
           { maxZoom: 16 },
         ).addTo(map);
 

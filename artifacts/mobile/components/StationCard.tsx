@@ -127,6 +127,7 @@ export const StationCard = React.memo(function StationCard({
       onPress={onPress}
       style={[
         styles.card,
+        { backgroundColor: colors.card },
         compact && styles.cardCompact,
         is_promoted && styles.cardPromoted,
       ]}
@@ -181,9 +182,9 @@ export const StationCard = React.memo(function StationCard({
       {/* ── ROW 2: chip row ──────────────────────────────────────────── */}
       <View style={styles.chipRow}>
         {/* Power chip */}
-        <View style={[styles.chip, { backgroundColor: '#EFF6FF' }]}>
-          <Feather name="zap" size={11} color="#2563EB" />
-          <Text style={[styles.chipText, { color: '#2563EB' }]}>{station.power_kw} кВт</Text>
+        <View style={[styles.chip, { backgroundColor: colors.primary + '1A' }]}>
+          <Feather name="zap" size={11} color={colors.primary} />
+          <Text style={[styles.chipText, { color: colors.primary }]}>{station.power_kw} кВт</Text>
         </View>
 
         {/* Availability chip */}
@@ -196,9 +197,9 @@ export const StationCard = React.memo(function StationCard({
 
         {/* Rating chip — only promoted */}
         {rating != null && Number(rating) > 0 && (
-          <View style={[styles.chip, { backgroundColor: '#FFFBEB' }]}>
-            <Feather name="star" size={11} color="#F59E0B" />
-            <Text style={[styles.chipText, { color: '#D97706' }]}>{Number(rating)}</Text>
+          <View style={[styles.chip, { backgroundColor: colors.occupied + '1A' }]}>
+            <Feather name="star" size={11} color={colors.occupied} />
+            <Text style={[styles.chipText, { color: colors.occupied }]}>{Number(rating)}</Text>
           </View>
         )}
       </View>
@@ -222,9 +223,9 @@ export const StationCard = React.memo(function StationCard({
 
       {/* Savings strip — только при ненулевой экономии */}
       {Number(savingsPerKwh) > 0 && (
-        <View style={styles.savingsStrip}>
-          <Feather name="tag" size={12} color="#92400E" />
-          <Text style={styles.savingsText}>
+        <View style={[styles.savingsStrip, { backgroundColor: colors.occupied + '1A' }]}>
+          <Feather name="tag" size={12} color={colors.occupied} />
+          <Text style={[styles.savingsText, { color: colors.occupied }]}>
             {'Экономия '}
             {formatAmount(savingsPerKwh)}
             {' сум/кВт·ч'}

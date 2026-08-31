@@ -694,10 +694,14 @@ export default function MapScreen() {
       style={styles.hSection}
       contentContainerStyle={[styles.hSectionContent, { paddingRight: 16 + (SCREEN_WIDTH - CARD_W - 16) }]}
     >
-      {stations.map((s, i) => (
+      {/* Горизонтальная лента — не виртуализируется, поэтому рендерим не всё:
+          с сотнями станций (после импорта из OSM) полный .map отрисовал бы
+          сотни карточек разом и ронял бы FPS открытия. Топ-20 хватает для
+          «пролистать рядом»; полный список — во вкладке «Список». */}
+      {stations.slice(0, 20).map((s, i) => (
         <Animated.View
           key={s.id}
-          entering={FadeInRight.delay(i * 40).duration(260).easing(IOS_EASE)}
+          entering={FadeInRight.delay(Math.min(i, 8) * 40).duration(260).easing(IOS_EASE)}
           style={{ width: CARD_W, marginRight: 12 }}
         >
           <StationCard

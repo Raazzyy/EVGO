@@ -44,8 +44,8 @@ export default function NotificationsScreen() {
   const topPad = Platform.OS === 'web' ? 20 : insets.top;
 
   return (
-    <View style={[styles.container, { backgroundColor: '#F7F8FA' }]}>
-      <View style={[styles.header, { paddingTop: topPad + 16, backgroundColor: '#FFFFFF' }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { paddingTop: topPad + 16, backgroundColor: colors.card }]}>
         <TouchableOpacity onPress={() => router.back()}
           accessibilityRole="button"
           accessibilityLabel="Назад" style={styles.backButton}>
@@ -67,7 +67,7 @@ export default function NotificationsScreen() {
           MOCK_NOTIFICATIONS.map((item) => {
             const { color, icon } = getNotificationStyle(item.type);
             return (
-              <View key={item.id} style={[styles.card, { backgroundColor: '#FFFFFF' }]}>
+              <View key={item.id} style={[styles.card, { backgroundColor: colors.card }]}>
                 <View style={[styles.iconCircle, { backgroundColor: color + '1A' }]}>
                   <Feather name={icon} size={18} color={color} />
                 </View>

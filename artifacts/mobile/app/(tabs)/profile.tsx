@@ -16,6 +16,7 @@ import { useApp } from '@/contexts/AppContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { formatAmount } from '@/lib/format';
+import { PressableScale } from '@/components/PressableScale';
 
 interface MenuItem {
   icon: string;
@@ -69,7 +70,7 @@ export default function ProfileScreen() {
 
   return (
     <ScrollView
-      style={[styles.container, { backgroundColor: '#F7F8FA' }]}
+      style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={{ paddingBottom: bottomPad + 100 }}
       showsVerticalScrollIndicator={false}
     >
@@ -96,7 +97,7 @@ export default function ProfileScreen() {
         </View>
       </LinearGradient>
 
-      <View style={[styles.statsRow, { backgroundColor: '#FFFFFF' }]}>
+      <View style={[styles.statsRow, { backgroundColor: colors.card }]}>
         <View style={styles.statItem}>
           <Text style={[styles.statValue, { color: colors.text }]}>
             {completedSessions.length}
@@ -122,12 +123,13 @@ export default function ProfileScreen() {
         </View>
       </View>
 
-      <View style={[styles.menuCard, { backgroundColor: '#FFFFFF' }]}>
+      <View style={[styles.menuCard, { backgroundColor: colors.card }]}>
         {menuItems.map((item, i) => (
-          <TouchableOpacity
+          <PressableScale
             key={item.label}
             onPress={item.onPress}
-            activeOpacity={0.7}
+            haptic
+            activeScale={0.98}
             style={[
               styles.menuItem,
               i < menuItems.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border },
@@ -141,7 +143,7 @@ export default function ProfileScreen() {
               <Text style={[styles.menuDesc, { color: colors.mutedForeground }]}>{item.desc}</Text>
             </View>
             <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
-          </TouchableOpacity>
+          </PressableScale>
         ))}
       </View>
 

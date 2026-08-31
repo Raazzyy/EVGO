@@ -16,6 +16,7 @@ import { useColors } from '@/hooks/useColors';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { setLanguage as applyLanguage, type Language } from '@/lib/i18n';
+import { haptics } from '@/lib/haptics';
 
 const STORAGE_KEY = '@ion_settings';
 
@@ -84,7 +85,7 @@ function SelectRow<T extends string>({
         {options.map(opt => (
           <TouchableOpacity
             key={opt.value}
-            onPress={() => onChange(opt.value)}
+            onPress={() => { haptics.tap(); onChange(opt.value); }}
             style={[
               sStyles.optionBtn,
               { borderColor: value === opt.value ? '#2563EB' : colors.border },
