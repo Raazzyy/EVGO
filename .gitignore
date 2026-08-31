@@ -69,3 +69,5 @@ artifacts/landing/dist/
 # сюда, потому что outputDirectory из vercel.json не применяется —
 # Vercel ищет папку с именем public.
 /public/
+.vercel
+.env*
