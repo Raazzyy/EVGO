@@ -2,6 +2,7 @@ import React, {
   useEffect, useRef, useState, useImperativeHandle, forwardRef,
 } from 'react';
 import { View, StyleSheet } from 'react-native';
+import { useThemeScheme } from '@/contexts/ThemeContext';
 
 const TASHKENT: [number, number] = [41.2995, 69.2401];
 
@@ -50,6 +51,8 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
     const markersRef = useRef<any[]>([]);
     const userMarkerRef = useRef<any>(null);
     const routeLayerRef = useRef<any>(null);
+    const baseTileRef = useRef<any>(null);
+    const refTileRef = useRef<any>(null);
     const onPressRef        = useRef(onStationPress);
     const onMapPressRef     = useRef(onMapPress);
     const onRegionChangeRef = useRef(onRegionChange);
@@ -59,6 +62,9 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
     onMapPressRef.current     = onMapPress;
     onRegionChangeRef.current = onRegionChange;
     const [mapReady, setMapReady] = useState(false);
+    // Тема карты — из настроек приложения, а не из системной (иначе при выборе
+    // тёмной темы вручную тайлы оставались бы светлыми).
+    const darkTheme = useThemeScheme() === 'dark';
 
     useImperativeHandle(ref, () => ({
       zoomIn:  () => mapRef.current?.zoomIn(),
@@ -105,22 +111,9 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
           zoomControl: false, attributionControl: false,
         });
         mapRef.current = map;
-        // Esri Canvas — чистая приглушённая подложка без ключа. В тёмной теме
-        // берём Dark Gray Canvas, чтобы карта не была светлым пятном; иначе —
-        // Light Gray. Серая канва убирает визуальный шум, цветные пины
-        // станций на ней читаются премиально.
-        const prefersDark = typeof window !== 'undefined'
-          && window.matchMedia?.('(prefers-color-scheme: dark)').matches;
-        const canvas = prefersDark ? 'Dark_Gray' : 'Light_Gray';
-        L.tileLayer(
-          `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_${canvas}_Base/MapServer/tile/{z}/{y}/{x}`,
-          { maxZoom: 16 },
-        ).addTo(map);
-        // Тонкие подписи улиц/районов поверх канвы — отдельным слоем.
-        L.tileLayer(
-          `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_${canvas}_Reference/MapServer/tile/{z}/{y}/{x}`,
-          { maxZoom: 16 },
-        ).addTo(map);
+        // Тайлы подложки ставит отдельный эффект (ниже) — он же меняет их при
+        // смене темы. Тема грузится из хранилища асинхронно, уже после init,
+        // поэтому ставить тайлы прямо здесь нельзя: подхватили бы системную.
 
         // Map-level click → close quick view (skip if a marker was just clicked)
         map.on('click', () => {
@@ -152,6 +145,27 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
         setMapReady(false);
       };
     }, []);
+
+    // Подложка карты по теме приложения. Отдельный эффект, потому что тема
+    // приезжает из хранилища асинхронно уже после init; при смене темы тайлы
+    // пересоздаются. Esri Canvas — бесключевая, приглушённая; в тёмной берём
+    // Dark Gray, чтобы карта не была светлым пятном.
+    useEffect(() => {
+      const L = leafletRef.current;
+      const map = mapRef.current;
+      if (!L || !map) return;
+      baseTileRef.current?.remove();
+      refTileRef.current?.remove();
+      const canvas = darkTheme ? 'Dark_Gray' : 'Light_Gray';
+      baseTileRef.current = L.tileLayer(
+        `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_${canvas}_Base/MapServer/tile/{z}/{y}/{x}`,
+        { maxZoom: 16 },
+      ).addTo(map);
+      refTileRef.current = L.tileLayer(
+        `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_${canvas}_Reference/MapServer/tile/{z}/{y}/{x}`,
+        { maxZoom: 16 },
+      ).addTo(map);
+    }, [darkTheme, mapReady]);
 
     // Sync station markers
     useEffect(() => {
