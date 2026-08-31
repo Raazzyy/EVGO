@@ -717,7 +717,8 @@ export default function MapScreen() {
   const TopBar = (
     <View style={[styles.topBar, { top: topOffset + 8 }]}>
       <Text style={[styles.logo, { color: colors.primary }]}>EVGO</Text>
-      <View style={[styles.segmentControl, { backgroundColor: colors.card }]}>
+      <View style={styles.segmentControl}>
+        <Glass glassStyle="clear" style={[StyleSheet.absoluteFill, { borderRadius: 100 }]} />
         {(['map', 'list'] as const).map(mode => (
           <TouchableOpacity
             key={mode}
@@ -756,10 +757,12 @@ export default function MapScreen() {
         onPress={() => setFiltersVisible(true)}
         style={({ pressed }) => [
           styles.filterPill,
-          { backgroundColor: hasActiveFilters ? 'transparent' : colors.card, borderColor: hasActiveFilters ? 'transparent' : colors.border, opacity: pressed ? 0.75 : 1 },
+          { backgroundColor: 'transparent', opacity: pressed ? 0.8 : 1 },
         ]}
       >
-        {hasActiveFilters && <LinearGradient colors={[colors.gradientStart, colors.gradientEnd]} style={[StyleSheet.absoluteFill, { borderRadius: 20 }]} />}
+        {hasActiveFilters
+          ? <LinearGradient colors={[colors.gradientStart, colors.gradientEnd]} style={[StyleSheet.absoluteFill, { borderRadius: 20 }]} />
+          : <Glass glassStyle="clear" style={[StyleSheet.absoluteFill, { borderRadius: 20 }]} />}
         <Feather name="sliders" size={14} color={hasActiveFilters ? '#fff' : colors.text} style={{ position: 'relative', zIndex: 1 }} />
         <Text style={[styles.filterText, { color: hasActiveFilters ? '#fff' : colors.text }]}>
           Фильтры{hasActiveFilters ? ' ●' : ''}
@@ -774,10 +777,12 @@ export default function MapScreen() {
           <Pressable key={f.id} onPress={() => { haptics.tap(); setActiveChip(f.id); }}
             style={({ pressed }) => [
               styles.filterPill,
-              { backgroundColor: isActive ? 'transparent' : colors.card, borderColor: isActive ? 'transparent' : colors.border, opacity: pressed ? 0.75 : 1 },
+              { backgroundColor: 'transparent', opacity: pressed ? 0.8 : 1 },
             ]}
           >
-            {isActive && <LinearGradient colors={[colors.gradientStart, colors.gradientEnd]} style={[StyleSheet.absoluteFill, { borderRadius: 20 }]} />}
+            {isActive
+              ? <LinearGradient colors={[colors.gradientStart, colors.gradientEnd]} style={[StyleSheet.absoluteFill, { borderRadius: 20 }]} />
+              : <Glass glassStyle="clear" style={[StyleSheet.absoluteFill, { borderRadius: 20 }]} />}
             <Text style={[styles.filterText, { color: isActive ? '#fff' : colors.text }]}>{f.label}</Text>
           </Pressable>
         );
@@ -984,7 +989,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   topBar: { position: 'absolute', left: 16, right: 16, zIndex: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   logo: { fontSize: 22, fontFamily: 'Inter_700Bold' },
-  segmentControl: { flexDirection: 'row', borderRadius: 100, padding: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 8, elevation: 4 },
+  segmentControl: { flexDirection: 'row', borderRadius: 100, padding: 4, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 8, elevation: 4 },
   segmentBtn: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 100, alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' },
   segmentBtnActive: {},
   segmentText: { fontSize: 13, fontFamily: 'Inter_600SemiBold', position: 'relative', zIndex: 1 },
@@ -992,7 +997,7 @@ const styles = StyleSheet.create({
   iconBtnGlass: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   filterScroll: { position: 'absolute', left: 0, right: 0, zIndex: 20 },
   filterRow: { paddingHorizontal: 16, gap: 8 },
-  filterPill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 3, elevation: 1, position: 'relative', overflow: 'hidden' },
+  filterPill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 5, elevation: 2, position: 'relative', overflow: 'hidden' },
   filterText: { fontSize: 13, fontFamily: 'Inter_500Medium', position: 'relative', zIndex: 1 },
   searchWrap: { paddingHorizontal: 16, marginBottom: 8 },
   searchInput: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, borderWidth: 1 },
