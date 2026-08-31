@@ -21,6 +21,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useColors } from '@/hooks/useColors';
 import { ConnectorBadge } from '@/components/ConnectorBadge';
 import { formatAmount } from '@/lib/format';
+import { haptics } from '@/lib/haptics';
 
 // ── Layout constants ──────────────────────────────────────────────────────
 const CARD_W     = 300;
@@ -293,7 +294,7 @@ export function StationQuickView({
         {/* ── CTA buttons ─────────────────────────────────────────────── */}
         <View style={styles.ctaRow}>
           <TouchableOpacity
-            onPress={onNavigate}
+            onPress={() => { haptics.tap(); onNavigate(); }}
             activeOpacity={0.8}
             style={[styles.routeBtn, { borderColor: colors.border, backgroundColor: colors.muted }]}
           >
@@ -301,7 +302,7 @@ export function StationQuickView({
             <Text style={[styles.routeBtnText, { color: colors.text }]}>Маршрут</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            onPress={onCharge}
+            onPress={() => { haptics.medium(); onCharge(); }}
             activeOpacity={0.85}
             disabled={station.status === 'offline'}
             style={styles.chargeBtnWrap}
