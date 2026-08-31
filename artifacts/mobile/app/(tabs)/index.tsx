@@ -799,7 +799,10 @@ export default function MapScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, paddingTop: topOffset }]}>
         {TopBar}
-        <View style={[styles.searchWrap, { marginTop: topOffset + 70 }]}>
+        {/* Поиск идёт ПОД рядом фильтров: чипы позиционированы абсолютно на
+            top+60 (высота ~40), поэтому поиск начинаем ниже, иначе он уезжал
+            под чипы. */}
+        <View style={[styles.searchWrap, { marginTop: topOffset + 112 }]}>
           <View style={[styles.searchInput, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Feather name="search" size={16} color={colors.mutedForeground} />
             <TextInput
@@ -814,7 +817,7 @@ export default function MapScreen() {
         <FlatList
           data={nearbyStations}
           keyExtractor={(s) => String(s.id)}
-          contentContainerStyle={{ padding: 16, paddingTop: 56, paddingBottom: bottomPad }}
+          contentContainerStyle={{ padding: 16, paddingTop: 8, paddingBottom: bottomPad }}
           showsVerticalScrollIndicator={false}
           windowSize={5}
           initialNumToRender={8}
