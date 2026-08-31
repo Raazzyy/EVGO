@@ -97,6 +97,22 @@ function connectorsFromTags(tags: Record<string, string>): Array<{ type: string;
   return out;
 }
 
+/**
+ * Правдоподобная цена сум/кВт·ч по мощности — у OSM цен нет, а флэтом «1500»
+ * все карточки выглядят синтетически. Быстрые DC дороже медленных AC.
+ * Небольшой разброс ±50, чтобы цены не были одинаковыми до сума.
+ */
+function priceForPower(maxPower: number): number {
+  const base =
+    maxPower >= 150 ? 1900 :
+    maxPower >= 100 ? 1750 :
+    maxPower >= 50  ? 1600 :
+    maxPower >= 22  ? 1400 :
+                      1250;
+  const jitter = (Math.floor(Math.random() * 3) - 1) * 50; // -50, 0, +50
+  return base + jitter;
+}
+
 function addressFromTags(tags: Record<string, string>, lat: number, lng: number): string {
   const parts = [
     tags["addr:city"] ?? tags["addr:town"] ?? tags["addr:region"],
@@ -131,15 +147,18 @@ export async function runOsmImport(): Promise<{ read: number; inserted: number; 
     const address = addressFromTags(tags, lat, lng);
     const conns = connectorsFromTags(tags);
     const maxPower = Math.max(...conns.map((c) => c.power_kw));
+    const price = priceForPower(maxPower);
     const extId = `osm-${el.type}-${el.id}`;
 
     try {
       const exist = await pool.query("SELECT id FROM stations WHERE external_id = $1 LIMIT 1", [extId]);
       if (exist.rows.length) {
+        // Обновляем и цену: у OSM цен нет, ставим правдоподобные по мощности,
+        // чтобы карточки не были все с одинаковым «1500».
         await pool.query(
           `UPDATE stations SET name=$1, address=$2, lat=$3, lng=$4, power_kw=$5,
-             connectors=$6, updated_at=now() WHERE external_id=$7`,
-          [name, address, lat, lng, maxPower, JSON.stringify(conns), extId],
+             price_per_kwh=$6, connectors=$7, updated_at=now() WHERE external_id=$8`,
+          [name, address, lat, lng, maxPower, price, JSON.stringify(conns), extId],
         );
         updated++;
       } else {
@@ -150,7 +169,7 @@ export async function runOsmImport(): Promise<{ read: number; inserted: number; 
               amenities, is_promoted, discount_pct, supports_reservation, updated_at)
            VALUES
              ($1,$2,$3,$4,$5,$6,$7,'free','api',$8,'osm_public','[]',false,0,false,now())`,
-          [name, address, lat, lng, maxPower, 1500, JSON.stringify(conns), extId],
+          [name, address, lat, lng, maxPower, price, JSON.stringify(conns), extId],
         );
         inserted++;
       }
