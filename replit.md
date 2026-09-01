@@ -35,6 +35,10 @@
 | `ESKIZ_EMAIL`, `ESKIZ_PASSWORD` | нет | SMS-шлюз. Пароль — секретный ключ из кабинета, не пароль аккаунта |
 | `ESKIZ_FROM` | нет | Имя отправителя SMS, по умолчанию `4546` (песочница) |
 | `ESKIZ_CALLBACK_URL` | нет | Куда Eskiz шлёт статус доставки |
+| `PAYME_MERCHANT_ID`, `PAYME_MERCHANT_KEYS` | нет | Касса Payme (после договора). Без них пополнение отдаёт «касса не настроена» |
+| `PAYME_TEST_MODE`, `PAYME_ENFORCE_IP` | нет | `true`/`false`: песочница Payme и жёсткий allowlist IP кассы |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | нет | Web-push уведомления |
+| `OCM_API_KEY` | нет | Импорт станций из OpenChargeMap (`import:ocm`) |
 
 Секреты генерируются так:
 
@@ -161,6 +165,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 
 ## Pointers
 
+- **Запуск на Replit по шагам + сводка для ревью — `docs/REPLIT_HANDOVER.md`**
 - Аудит состояния, план по этапам и оценки — `docs/audit-and-roadmap.md`
 - Спецификация платежей (Payme, Click, Uzum) — `docs/payments-uzbekistan.md`
 - Полный список задач — `docs/tasks.md`
