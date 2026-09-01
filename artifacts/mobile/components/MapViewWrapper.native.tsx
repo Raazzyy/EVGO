@@ -223,10 +223,7 @@ export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
       }
 
       if (polylineCoords && polylineCoords.length >= 2) {
-        // п.1 — диагностика: залогировать сколько точек пришло с сервера
-        console.log('[map] polyline points (raw from server):', polylineCoords.length);
         const pts = cap(polylineCoords.map(([lat, lng]) => ({ latitude: lat, longitude: lng })));
-        console.log('[map] polyline points (after cap):', pts.length);
         return pts;
       }
       if (routePoints && routePoints.length >= 2) {

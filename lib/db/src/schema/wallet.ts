@@ -1,6 +1,7 @@
 import {
-  pgTable, text, serial, integer, bigint, timestamp, pgEnum, json,
+  pgTable, text, serial, integer, bigint, timestamp, pgEnum, json, uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -48,7 +49,15 @@ export const walletTransactionsTable = pgTable("wallet_transactions", {
   /** Обязателен для ручных корректировок — кто и почему. */
   comment:             text("comment"),
   created_at:          timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  // Идемпотентность зачисления/возврата на уровне БД: одна платёжная
+  // транзакция даёт максимум одну строку каждого типа (topup / refund).
+  // Код и так защищён локом кошелька, но этот индекс делает двойное
+  // зачисление физически невозможным даже при будущих изменениях логики.
+  uniqueIndex("uq_wallet_txn_payment_type")
+    .on(t.payment_txn_id, t.type)
+    .where(sql`${t.payment_txn_id} is not null`),
+]);
 
 // ── Холды (замороженные средства под активную сессию) ───────────────────
 export const walletHoldStatusEnum = pgEnum("wallet_hold_status", [
@@ -99,7 +108,14 @@ export const paymentTransactionsTable = pgTable("payment_transactions", {
   raw_payload:     json("raw_payload"),
   created_at:      timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updated_at:      timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  // Один _id провайдера = одна транзакция. Защищает CreateTransaction от гонки:
+  // без индекса два одновременных вызова с одним Payme _id прошли бы SELECT и
+  // создали два дубля. Частичный — старые записи без provider_txn_id не мешают.
+  uniqueIndex("uq_payment_txn_provider_id")
+    .on(t.provider, t.provider_txn_id)
+    .where(sql`${t.provider_txn_id} is not null`),
+]);
 
 // ── Zod / типы ──────────────────────────────────────────────────────────
 export const insertWalletSchema = createInsertSchema(walletsTable);

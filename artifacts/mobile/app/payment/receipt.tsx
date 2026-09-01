@@ -61,16 +61,6 @@ export default function ReceiptScreen() {
     ? `мин. ${formatMoney(pricePerKwh)}`
     : `${formatMoney(totalCost)}`;
 
-  // Временное логирование для диагностики нулей (только DEV)
-  if (__DEV__) {
-    console.log('[Receipt] session data:', JSON.stringify({
-      id: (session as any)?.id,
-      energy_kwh: (session as any)?.energy_kwh,
-      cost: (session as any)?.cost,
-      station_price_per_kwh: (session as any)?.station?.price_per_kwh,
-    }));
-  }
-
   const items = [
     { label: 'Станция',       value: stationName },
     { label: 'Энергия',       value: energyLabel },
