@@ -67,7 +67,7 @@ export default function Vehicles() {
     mutationFn: (id: number) => apiFetch<ManualVehicle>(`/api/admin/vehicles/${id}/verify`, { method: "PATCH" }),
     onSuccess: (v) => {
       qc.invalidateQueries({ queryKey: ["admin", "vehicles"] });
-      toast({ title: "Verified", description: `${v.name} has been verified and made public.` });
+      toast({ title: "Подтверждён", description: ` проверен и опубликован.` });
     },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
@@ -76,7 +76,7 @@ export default function Vehicles() {
     mutationFn: (id: number) => apiFetch<null>(`/api/vehicles/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "vehicles"] });
-      toast({ title: "Deleted", description: "Vehicle removed." });
+      toast({ title: "Удалён", description: "Автомобиль удалён." });
       setDeletingId(null);
     },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
@@ -87,13 +87,13 @@ export default function Vehicles() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Vehicles</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Автомобили</h1>
           <p className="text-muted-foreground text-sm mt-0.5">
-            Review user-submitted vehicles and verify or remove them
+            Проверка автомобилей, добавленных пользователями
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-2">
-          <RefreshCw className="h-4 w-4" /> Refresh
+          <RefreshCw className="h-4 w-4" /> Обновить
         </Button>
       </div>
 
@@ -101,31 +101,31 @@ export default function Vehicles() {
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Pending Review</CardDescription>
+            <CardDescription>На проверке</CardDescription>
             <CardTitle className="text-3xl">{manualVehicles.filter(v => !v.is_verified).length}</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-xs text-muted-foreground">Awaiting admin verification</p>
+            <p className="text-xs text-muted-foreground">Ожидают проверки админом</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Total Manual</CardDescription>
+            <CardDescription>Добавлено вручную</CardDescription>
             <CardTitle className="text-3xl">{manualVehicles.length}</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-xs text-muted-foreground">All user-submitted records</p>
+            <p className="text-xs text-muted-foreground">Все записи от пользователей</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Connectors</CardDescription>
+            <CardDescription>Разъёмы</CardDescription>
             <CardTitle className="text-3xl">
               {new Set(manualVehicles.map(v => v.connector_type)).size}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-xs text-muted-foreground">Unique connector types</p>
+            <p className="text-xs text-muted-foreground">Уникальные типы разъёмов</p>
           </CardContent>
         </Card>
       </div>
@@ -135,10 +135,10 @@ export default function Vehicles() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Car className="h-5 w-5 text-muted-foreground" />
-            User-Submitted Vehicles
+            Автомобили от пользователей
           </CardTitle>
           <CardDescription>
-            These vehicles were added manually by users. Verify them to make them visible in the global dataset.
+            Эти автомобили добавлены пользователями вручную. Подтвердите их, чтобы они появились в общей базе.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -149,20 +149,20 @@ export default function Vehicles() {
           ) : manualVehicles.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-32 gap-2 text-muted-foreground">
               <CheckCircle className="h-8 w-8 text-green-500" />
-              <p className="text-sm">No pending submissions — all caught up!</p>
+              <p className="text-sm">Нет заявок на проверку — всё разобрано!</p>
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Connector</TableHead>
-                  <TableHead className="text-right">Battery</TableHead>
-                  <TableHead className="text-right">Range</TableHead>
-                  <TableHead>Body</TableHead>
-                  <TableHead>User</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead>Название</TableHead>
+                  <TableHead>Разъём</TableHead>
+                  <TableHead className="text-right">Батарея</TableHead>
+                  <TableHead className="text-right">Запас хода</TableHead>
+                  <TableHead>Кузов</TableHead>
+                  <TableHead>Пользователь</TableHead>
+                  <TableHead>Статус</TableHead>
+                  <TableHead className="text-right">Действия</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -186,11 +186,11 @@ export default function Vehicles() {
                     <TableCell>
                       {v.is_verified ? (
                         <Badge variant="outline" className="text-green-600 border-green-300 bg-green-50 gap-1">
-                          <CheckCircle className="h-3 w-3" /> Verified
+                          <CheckCircle className="h-3 w-3" /> Проверен
                         </Badge>
                       ) : (
                         <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50 gap-1">
-                          <AlertTriangle className="h-3 w-3" /> Pending
+                          <AlertTriangle className="h-3 w-3" /> На проверке
                         </Badge>
                       )}
                     </TableCell>
@@ -203,7 +203,7 @@ export default function Vehicles() {
                             onClick={() => verifyMutation.mutate(v.id)}
                             disabled={verifyMutation.isPending}
                           >
-                            <CheckCircle className="h-3 w-3" /> Verify
+                            <CheckCircle className="h-3 w-3" /> Подтвердить
                           </Button>
                         )}
                         <AlertDialog>
@@ -214,13 +214,13 @@ export default function Vehicles() {
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>Delete vehicle?</AlertDialogTitle>
+                              <AlertDialogTitle>Удалить автомобиль?</AlertDialogTitle>
                               <AlertDialogDescription>
-                                This will permanently remove <strong>{v.name}</strong> from the database.
+                                Автомобиль <strong>{v.name}</strong> будет навсегда удалён из базы.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogCancel>Отмена</AlertDialogCancel>
                               <AlertDialogAction
                                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                 onClick={() => deleteMutation.mutate(v.id)}

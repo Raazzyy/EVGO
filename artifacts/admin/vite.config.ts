@@ -69,6 +69,14 @@ export default defineConfig({
     strictPort: true,
     host: '0.0.0.0',
     allowedHosts: true,
+    // Админка ходит в API относительными путями /api/* (в проде её отдаёт тот
+    // же сервер). В dev проксируем на бэкенд, иначе запросы уходят в никуда.
+    proxy: {
+      '/api': {
+        target: process.env.API_URL ?? 'http://localhost:8080',
+        changeOrigin: true,
+      },
+    },
     fs: {
       strict: true,
     },

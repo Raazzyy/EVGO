@@ -48,7 +48,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   }
 
   const navItems = [
-    { label: "Dashboard",    icon: LayoutDashboard, path: "/" },
+    { label: "Дашборд",     icon: LayoutDashboard, path: "/" },
     { label: "Финансы",      icon: TrendingUp,      path: "/finance" },
     { label: "Кошельки",     icon: WalletIcon,      path: "/wallet" },
     { label: "Станции",      icon: MapPin,           path: "/stations" },
@@ -76,7 +76,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-violet-600 flex items-center justify-center shadow-lg">
                 <Zap className="h-5 w-5 text-white" />
               </div>
-              <span className="font-bold text-lg tracking-tight">VoltAdmin</span>
+              <span className="font-bold text-lg tracking-tight">EVGO Admin</span>
             </div>
           </SidebarHeader>
           <SidebarContent className="p-2">
@@ -105,7 +105,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               <SidebarMenuItem>
                 <SidebarMenuButton onClick={handleLogout} className="text-muted-foreground hover:text-foreground">
                   <LogOut className="h-5 w-5" />
-                  <span>Logout</span>
+                  <span>Выход</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>

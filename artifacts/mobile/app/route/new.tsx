@@ -138,6 +138,11 @@ export default function NewRouteScreen() {
   const deleteRoute = useDeleteRoute();
   const createRoute = useCreateRoute({
     mutation: {
+      // Телефон ходит в API по Wi-Fi к компьютеру — связь моргает. Сетевой сбой
+      // (у ошибки нет HTTP-статуса) повторяем автоматически пару раз; ошибки
+      // сервера/валидации (4xx/5xx) не повторяем — они не пройдут и с ретраем.
+      retry: (count: number, err: any) => !err?.status && count < 2,
+      retryDelay: 700,
       onSuccess: (res) => {
         qc.invalidateQueries({ queryKey: getGetRoutesQueryKey() });
         setRouteResult(res);
@@ -145,11 +150,25 @@ export default function NewRouteScreen() {
         setRouteMode('fast');
         setActiveRouteId(res.id);
       },
-      onError: () =>
-        showAlert(
-          'Маршрут не построился',
-          'Проверьте адреса и подключение к интернету. Если адреса верны — попробуйте выбрать другую точку рядом.',
-        ),
+      onError: (err: any) => {
+        // Разные причины — разные подсказки, чтобы не винить адреса зря.
+        const status = err?.status as number | undefined;
+        if (status === 401) {
+          showAlert('Сессия истекла', 'Войдите снова, чтобы построить маршрут.');
+        } else if (!status) {
+          showAlert(
+            'Нет связи с сервером',
+            'Проверьте, что телефон и компьютер в одной сети Wi-Fi, и попробуйте ещё раз.',
+          );
+        } else if (status >= 500) {
+          showAlert('Сервер занят', 'Не удалось построить маршрут. Попробуйте ещё раз через пару секунд.');
+        } else {
+          showAlert(
+            'Маршрут не построился',
+            'Проверьте адреса. Если они верны — выберите точку рядом.',
+          );
+        }
+      },
     },
   });
 

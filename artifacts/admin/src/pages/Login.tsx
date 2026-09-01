@@ -44,9 +44,9 @@ export default function Login() {
           <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-violet-600 flex items-center justify-center shadow-lg mb-2">
             <Zap className="h-7 w-7 text-white" />
           </div>
-          <CardTitle className="text-2xl font-bold tracking-tight">VoltAdmin Center</CardTitle>
+          <CardTitle className="text-2xl font-bold tracking-tight">EVGO Admin</CardTitle>
           <CardDescription>
-            Enter your credentials to access the operations panel
+            Введите данные для входа в панель управления
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -56,7 +56,7 @@ export default function Login() {
               <Input 
                 id="email" 
                 type="email" 
-                placeholder="admin@volt.network" 
+                placeholder="admin@evgo.uz" 
                 required 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -82,7 +82,7 @@ export default function Login() {
           </form>
         </CardContent>
         <CardFooter className="flex justify-center text-sm text-muted-foreground">
-          Secure access for network operators only
+          Доступ только для операторов сети EVGO
         </CardFooter>
       </Card>
     </div>

@@ -413,7 +413,7 @@ export default function Banners() {
         <div className="px-4 py-4 border-b flex items-center justify-between flex-shrink-0">
           <div>
             <h1 className="text-lg font-semibold">Баннеры</h1>
-            <p className="text-xs text-muted-foreground">{banners.length} баннеров · drag для сортировки</p>
+            <p className="text-xs text-muted-foreground">{banners.length} баннеров · перетащите для сортировки</p>
           </div>
           <div className="flex gap-1.5">
             <Button variant="outline" size="icon" onClick={fetchBanners} disabled={loading}>

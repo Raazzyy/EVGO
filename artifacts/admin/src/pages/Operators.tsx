@@ -8,6 +8,7 @@ import {
   Operator,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { pluralStations } from "@/lib/plural";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -586,7 +587,7 @@ export default function Operators() {
                   <div className="font-medium text-sm truncate">{op.name}</div>
                   <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                     <MapPin className="h-3 w-3" />
-                    {op.station_count ?? 0} станций
+                    {pluralStations(op.station_count ?? 0)}
                   </div>
                 </div>
                 <Button
@@ -627,7 +628,7 @@ export default function Operators() {
                   )}
                   <div>
                     <h2 className="font-bold text-lg">{detail.name}</h2>
-                    <p className="text-xs text-muted-foreground">{detail.station_count ?? 0} станций</p>
+                    <p className="text-xs text-muted-foreground">{pluralStations(detail.station_count ?? 0)}</p>
                   </div>
                   <div className="ml-auto">
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDelete(detail.id)}>

@@ -7,6 +7,7 @@ import {
 } from "recharts";
 import { MapPin, BatteryCharging, Users, Banknote, Activity } from "lucide-react";
 import { formatUzs } from "@/lib/formatUzs";
+import { pluralStations } from "@/lib/plural";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Dashboard() {
@@ -15,7 +16,7 @@ export default function Dashboard() {
   if (isLoading || !stats) {
     return (
       <div className="p-8 space-y-6">
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Дашборд</h1>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-32 w-full rounded-xl" />)}
         </div>
@@ -39,9 +40,9 @@ export default function Dashboard() {
   ];
 
   const statusData = [
-    { name: 'Free', value: stats.free_stations, color: '#10b981' },
-    { name: 'Occupied', value: stats.occupied_stations, color: '#f59e0b' },
-    { name: 'Offline', value: stats.offline_stations, color: '#ef4444' },
+    { name: 'Свободно', value: stats.free_stations, color: '#10b981' },
+    { name: 'Заняты', value: stats.occupied_stations, color: '#f59e0b' },
+    { name: 'Оффлайн', value: stats.offline_stations, color: '#ef4444' },
   ];
 
   const statCards = [
@@ -57,12 +58,12 @@ export default function Dashboard() {
         
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">Operations Center</h1>
-            <p className="text-muted-foreground mt-1">Real-time network overview</p>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">Центр управления</h1>
+            <p className="text-muted-foreground mt-1">Обзор сети в реальном времени</p>
           </div>
           <div className="flex items-center gap-2 text-sm bg-card px-3 py-1.5 rounded-full border shadow-sm">
             <Activity className="h-4 w-4 text-emerald-500 animate-pulse" />
-            <span className="font-medium">System Healthy</span>
+            <span className="font-medium">Система работает</span>
           </div>
         </div>
 
@@ -90,7 +91,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <Card className="lg:col-span-2 shadow-sm border-none bg-white dark:bg-card">
             <CardHeader>
-              <CardTitle className="text-base font-semibold">Sessions Over Time (Last 7 Days)</CardTitle>
+              <CardTitle className="text-base font-semibold">Сессии за 7 дней</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-[300px] w-full">
@@ -112,7 +113,7 @@ export default function Dashboard() {
 
           <Card className="shadow-sm border-none bg-white dark:bg-card flex flex-col">
             <CardHeader>
-              <CardTitle className="text-base font-semibold">Station Status</CardTitle>
+              <CardTitle className="text-base font-semibold">Статус станций</CardTitle>
             </CardHeader>
             <CardContent className="flex-1 flex flex-col items-center justify-center">
               <div className="h-[200px] w-full">
@@ -156,7 +157,7 @@ export default function Dashboard() {
         {stats.top_operators && stats.top_operators.length > 0 && (
           <Card className="shadow-sm border-none bg-white dark:bg-card">
             <CardHeader>
-              <CardTitle className="text-base font-semibold">Top Operators by Stations</CardTitle>
+              <CardTitle className="text-base font-semibold">Топ операторов по станциям</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -172,7 +173,7 @@ export default function Dashboard() {
                       )}
                       <span className="font-medium">{op.name}</span>
                     </div>
-                    <div className="font-semibold">{op.station_count} stations</div>
+                    <div className="font-semibold">{pluralStations(op.station_count ?? 0)}</div>
                   </div>
                 ))}
               </div>

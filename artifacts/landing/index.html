@@ -12,24 +12,56 @@
     <meta name="robots" content="index, follow" />
     <meta name="theme-color" content="#0a0e1a" />
 
+    <!-- Канонический адрес. Пока лендинг живёт на Vercel; при подключении
+         домена evgo.uz заменить базовый URL здесь, в og:url и в sitemap.xml. -->
+    <link rel="canonical" href="https://evgo-landing.vercel.app/" />
+
     <!-- Ссылку на лендинг чаще всего кидают в Telegram — карточка там
-         формируется по Open Graph. -->
+         формируется по Open Graph. Соцсети-краулеры требуют абсолютный og:image. -->
     <meta property="og:title" content="EVGO — зарядки для электромобилей по всему Узбекистану" />
     <meta
       property="og:description"
       content="Видно, свободна ли станция, до того как вы поехали. Маршрут с остановками, оплата с баланса у любого партнёра."
     />
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="EVGO" />
+    <meta property="og:url" content="https://evgo-landing.vercel.app/" />
     <meta property="og:locale" content="ru_RU" />
-    <meta property="og:image" content="/og.svg" />
+    <meta property="og:image" content="https://evgo-landing.vercel.app/og.svg" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="EVGO — зарядки Узбекистана на одной карте" />
     <meta
       name="twitter:description"
       content="Видно, свободна ли станция, до того как вы поехали."
     />
+    <meta name="twitter:image" content="https://evgo-landing.vercel.app/og.svg" />
 
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- Structured data: помогает Google показывать карточку организации
+         и поиск по сайту. Schema.org Organization + WebSite. -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "name": "EVGO",
+            "url": "https://evgo-landing.vercel.app/",
+            "logo": "https://evgo-landing.vercel.app/favicon.svg",
+            "description": "Агрегатор зарядных станций для электромобилей в Узбекистане.",
+            "areaServed": { "@type": "Country", "name": "Узбекистан" },
+            "email": "support@evgo.uz"
+          },
+          {
+            "@type": "WebSite",
+            "name": "EVGO",
+            "url": "https://evgo-landing.vercel.app/",
+            "inLanguage": "ru-RU"
+          }
+        ]
+      }
+    </script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

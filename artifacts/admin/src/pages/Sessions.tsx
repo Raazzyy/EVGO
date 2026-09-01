@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
+import { ru } from "date-fns/locale";
 import { Clock, Zap, MapPin, StopCircle } from "lucide-react";
 import { formatUzs } from "@/lib/formatUzs";
 import { useToast } from "@/hooks/use-toast";
@@ -39,9 +40,9 @@ export default function Sessions() {
 
   const getStatusBadge = (status: string) => {
     switch(status) {
-      case 'active': return <Badge className="bg-blue-100 text-blue-800 border-0">Charging</Badge>;
-      case 'completed': return <Badge className="bg-emerald-100 text-emerald-800 border-0">Completed</Badge>;
-      case 'cancelled': return <Badge className="bg-rose-100 text-rose-800 border-0">Cancelled</Badge>;
+      case 'active': return <Badge className="bg-blue-100 text-blue-800 border-0">Зарядка</Badge>;
+      case 'completed': return <Badge className="bg-emerald-100 text-emerald-800 border-0">Завершена</Badge>;
+      case 'cancelled': return <Badge className="bg-rose-100 text-rose-800 border-0">Отменена</Badge>;
       default: return <Badge variant="outline">{status}</Badge>;
     }
   };
@@ -50,31 +51,31 @@ export default function Sessions() {
     const startTime = new Date(start).getTime();
     const endTime = end ? new Date(end).getTime() : Date.now();
     const mins = Math.floor((endTime - startTime) / 60000);
-    if (mins < 60) return `${mins}m`;
+    if (mins < 60) return `${mins} мин`;
     const hrs = Math.floor(mins / 60);
     const remMins = mins % 60;
-    return `${hrs}h ${remMins}m`;
+    return `${hrs} ч ${remMins} мин`;
   };
 
   return (
     <div className="flex-1 flex flex-col h-full bg-[#F7F8FA] dark:bg-background overflow-hidden">
       <div className="p-8 pb-4 flex items-center justify-between shrink-0">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Charging Sessions</h1>
-          <p className="text-muted-foreground text-sm mt-1">Live transaction log and historical records</p>
+          <h1 className="text-2xl font-bold tracking-tight">Сессии зарядки</h1>
+          <p className="text-muted-foreground text-sm mt-1">Журнал сессий и история операций</p>
         </div>
       </div>
 
       <div className="px-8 pb-4 flex gap-4 shrink-0">
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[200px] bg-white dark:bg-card border-none shadow-sm">
-            <SelectValue placeholder="Filter Status" />
+            <SelectValue placeholder="Фильтр статуса" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Sessions</SelectItem>
-            <SelectItem value="active">Active (Charging)</SelectItem>
-            <SelectItem value="completed">Completed</SelectItem>
-            <SelectItem value="cancelled">Cancelled/Failed</SelectItem>
+            <SelectItem value="all">Все сессии</SelectItem>
+            <SelectItem value="active">Активные (зарядка)</SelectItem>
+            <SelectItem value="completed">Завершена</SelectItem>
+            <SelectItem value="cancelled">Отменённые/сбой</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -85,37 +86,37 @@ export default function Sessions() {
             <Table>
               <TableHeader className="bg-muted/50 sticky top-0 z-10 backdrop-blur-sm">
                 <TableRow className="border-none">
-                  <TableHead className="font-semibold w-[250px]">Station</TableHead>
-                  <TableHead className="font-semibold">User ID</TableHead>
-                  <TableHead className="font-semibold">Start Time</TableHead>
-                  <TableHead className="font-semibold text-right">Duration</TableHead>
-                  <TableHead className="font-semibold text-right">Energy / Cost</TableHead>
-                  <TableHead className="font-semibold text-center w-[120px]">Status</TableHead>
-                  <TableHead className="w-[100px] text-right">Action</TableHead>
+                  <TableHead className="font-semibold w-[250px]">Станция</TableHead>
+                  <TableHead className="font-semibold">ID пользователя</TableHead>
+                  <TableHead className="font-semibold">Начало</TableHead>
+                  <TableHead className="font-semibold text-right">Длительность</TableHead>
+                  <TableHead className="font-semibold text-right">Энергия / Стоимость</TableHead>
+                  <TableHead className="font-semibold text-center w-[120px]">Статус</TableHead>
+                  <TableHead className="w-[100px] text-right">Действие</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow><TableCell colSpan={7} className="text-center py-8">Loading...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="text-center py-8">Загрузка…</TableCell></TableRow>
                 ) : sessions?.length === 0 ? (
-                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No sessions found.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Сессии не найдены.</TableCell></TableRow>
                 ) : (
                   sessions?.map((session) => (
                     <TableRow key={session.id} className="border-b border-border/50 hover:bg-muted/30">
                       <TableCell>
                         <div className="font-medium text-sm text-foreground flex items-center gap-2">
                           <MapPin className="h-3 w-3 text-muted-foreground" />
-                          {session.station?.name || `Station #${session.station_id}`}
+                          {session.station?.name || `Станция #${session.station_id}`}
                         </div>
                         <div className="text-xs text-muted-foreground mt-1">
-                          Connector: {session.connector_type || 'Unknown'}
+                          Разъём: {session.connector_type || 'Не указан'}
                         </div>
                       </TableCell>
                       <TableCell className="text-sm font-mono text-muted-foreground">
                         {session.user_id ? session.user_id.split('-')[0] : 'Guest'}
                       </TableCell>
                       <TableCell className="text-sm">
-                        {format(new Date(session.started_at), "MMM d, HH:mm")}
+                        {format(new Date(session.started_at), "d MMM, HH:mm", { locale: ru })}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1 text-sm font-medium">
