@@ -425,8 +425,24 @@ export default function StationDetailScreen() {
         await fetch(`${API}/favorites/${stationIdNum}?user_id=${encodeURIComponent(userId ?? '')}`, { method: 'DELETE' });
       }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['favorites', userId] }),
+    onSuccess: () => { haptics.success(); qc.invalidateQueries({ queryKey: ['favorites', userId] }); },
+    onError: () => { haptics.warning(); Alert.alert('Не удалось', 'Попробуйте ещё раз чуть позже.'); },
   });
+
+  function handleFavorite() {
+    if (stationIdNum < 0) {
+      Alert.alert('Демо-станция', 'Это пример станции. Избранное доступно для реальных станций.');
+      return;
+    }
+    if (!userId) {
+      Alert.alert('Нужен вход', 'Войдите, чтобы добавлять станции в избранное.', [
+        { text: 'Отмена', style: 'cancel' },
+        { text: 'Войти', onPress: () => router.push('/(auth)/phone') },
+      ]);
+      return;
+    }
+    favMutation.mutate(!isFavorite);
+  }
 
   const stationId = id ? Number(id) : NaN;
   const { data: apiStation, isLoading } = useGetStation(stationId, {
@@ -610,7 +626,7 @@ export default function StationDetailScreen() {
               <TouchableOpacity onPress={handleShare} style={styles.iconBtn}>
                 <Feather name="share" size={20} color="#fff" />
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => favMutation.mutate(!isFavorite)} style={styles.iconBtn}>
+              <TouchableOpacity onPress={handleFavorite} style={styles.iconBtn}>
                 <Feather name="heart" size={20} color={isFavorite ? '#EF4444' : '#fff'} />
               </TouchableOpacity>
             </View>
