@@ -14,12 +14,13 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { apiOrigin } from '@/lib/apiBase';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useColors } from '@/hooks/useColors';
 import { useApp } from '@/contexts/AppContext';
 
-const API = process.env.EXPO_PUBLIC_DOMAIN
-  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
+const API = apiOrigin()
+  ? `${apiOrigin()}/api`
   : '/api';
 
 const FAQ = [

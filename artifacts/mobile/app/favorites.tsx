@@ -13,6 +13,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { apiOrigin } from '@/lib/apiBase';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useColors } from '@/hooks/useColors';
 import { useApp } from '@/contexts/AppContext';
@@ -21,8 +22,8 @@ import { formatPricePerKwh } from '@/lib/format';
 import { StationListSkeleton } from '@/components/Skeleton';
 import { EmptyState } from '@/components/EmptyState';
 
-const API = process.env.EXPO_PUBLIC_DOMAIN
-  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
+const API = apiOrigin()
+  ? `${apiOrigin()}/api`
   : '/api';
 
 function useFavorites(userId: string | undefined) {

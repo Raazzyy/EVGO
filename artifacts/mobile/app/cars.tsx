@@ -6,6 +6,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { apiOrigin } from '@/lib/apiBase';
 import { useQueryClient } from '@tanstack/react-query';
 import { useColors } from '@/hooks/useColors';
 import { useApp } from '@/contexts/AppContext';
@@ -59,7 +60,7 @@ function vehicleIcon(item: SearchResult): React.ComponentProps<typeof Feather>['
   return 'zap';
 }
 
-const API_BASE = process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` : '';
+const API_BASE = apiOrigin();
 const CONNECTOR_OPTIONS: Array<'CCS2' | 'CHAdeMO' | 'Type2' | 'GB-T'> = ['CCS2', 'CHAdeMO', 'Type2', 'GB-T'];
 const BODY_STYLE_OPTIONS = ['sedan', 'hatchback', 'crossover', 'suv', 'coupe', 'wagon', 'van', 'pickup'];
 

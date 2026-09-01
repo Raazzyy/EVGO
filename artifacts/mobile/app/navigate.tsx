@@ -5,6 +5,7 @@ import * as Speech from 'expo-speech';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { apiOrigin } from '@/lib/apiBase';
 import { useColors } from '@/hooks/useColors';
 import { useApp } from '@/contexts/AppContext';
 import { useGetRoute } from '@workspace/api-client-react';
@@ -162,8 +163,7 @@ export default function NavigateScreen() {
       const cur = routeRef.current;
       if (!cur) return;
 
-      const domain = (process.env as any).EXPO_PUBLIC_DOMAIN;
-      const base   = domain ? `https://${domain}` : '';
+      const base   = apiOrigin();
 
       // Best-effort reverse geocode for origin label
       let originLabel = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;

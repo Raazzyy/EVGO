@@ -1,4 +1,5 @@
 import type { AuthUser } from '@/contexts/AuthContext';
+import { apiUrl } from '@/lib/apiBase';
 
 /**
  * Клиент к /api/auth/*.
@@ -7,11 +8,6 @@ import type { AuthUser } from '@/contexts/AuthContext';
  * подставляет токен и обрабатывает 401 обновлением пары — здесь это лишнее
  * и приводило бы к рекурсии. Эндпоинты описаны в openapi.yaml для документации.
  */
-
-function apiUrl(path: string): string {
-  const domain = process.env.EXPO_PUBLIC_DOMAIN;
-  return domain ? `https://${domain}${path}` : path;
-}
 
 /**
  * Ошибка с кодом и подсказками от сервера.

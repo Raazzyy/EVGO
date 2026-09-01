@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
+import { apiUrl } from '@/lib/apiBase';
 
 /**
  * Регистрация устройства для push-уведомлений.
@@ -15,10 +16,6 @@ import Constants from 'expo-constants';
  * уведомления остаются в приложении, на экране «Уведомления».
  */
 
-function apiUrl(path: string): string {
-  const domain = process.env.EXPO_PUBLIC_DOMAIN;
-  return domain ? `https://${domain}${path}` : path;
-}
 
 /** Показывать уведомление, даже когда приложение открыто. */
 Notifications.setNotificationHandler({

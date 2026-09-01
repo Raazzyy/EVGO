@@ -20,10 +20,12 @@ import { ThemeProvider } from '@/contexts/ThemeContext';
 // Побочный импорт: инициализирует i18next до первого рендера.
 import { restoreLanguage } from '@/lib/i18n';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { apiOrigin } from '@/lib/apiBase';
 
-// Set API base URL from env (injected at bundle time by dev script)
-if (process.env.EXPO_PUBLIC_DOMAIN) {
-  setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
+// Set API base URL from env (http для локалки/LAN, https для боевого домена).
+const _apiOrigin = apiOrigin();
+if (_apiOrigin) {
+  setBaseUrl(_apiOrigin);
 }
 
 SplashScreen.preventAutoHideAsync();

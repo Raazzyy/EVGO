@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import Animated, { FadeIn, FadeInDown, Easing } from 'react-native-reanimated';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { apiOrigin } from '@/lib/apiBase';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -36,8 +37,8 @@ import { useTranslation } from 'react-i18next';
 import { formatAmount, formatMoney } from '@/lib/format';
 import { DEMO_STATIONS } from '@/lib/demoStations';
 
-const API = process.env.EXPO_PUBLIC_DOMAIN
-  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
+const API = apiOrigin()
+  ? `${apiOrigin()}/api`
   : '/api';
 
 interface Connector {

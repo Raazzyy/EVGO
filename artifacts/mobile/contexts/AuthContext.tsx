@@ -11,6 +11,7 @@ import { setAuthTokenGetter, setAuthRefreshHandler } from '@workspace/api-client
 import { clearTokens, loadTokens, saveTokens } from '@/lib/tokenStorage';
 import { registerForPush } from '@/lib/push';
 import { registerWebPush } from '@/lib/webPushClient';
+import { apiUrl } from '@/lib/apiBase';
 
 /**
  * Состояние входа пользователя.
@@ -59,11 +60,7 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-/** Запросы к /auth/* идут мимо сгенерированного клиента, поэтому база нужна здесь. */
-function apiUrl(path: string): string {
-  const domain = process.env.EXPO_PUBLIC_DOMAIN;
-  return domain ? `https://${domain}${path}` : path;
-}
+/** Запросы к /auth/* идут мимо сгенерированного клиента (см. lib/apiBase). */
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);

@@ -7,6 +7,7 @@ import {
 import * as Location from 'expo-location';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { apiOrigin } from '@/lib/apiBase';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
@@ -23,8 +24,8 @@ import { MapViewWrapper, MapApi } from '@/components/MapViewWrapper';
 import { PromoCountdown } from '@/components/PromoCountdown';
 import { formatAmount, formatMoney } from '@/lib/format';
 
-const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
-  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
+const API_BASE = apiOrigin()
+  ? apiOrigin()
   : '';
 
 interface Suggestion {
@@ -180,8 +181,7 @@ export default function NewRouteScreen() {
         if (!loc) { setOrigin('Ташкент, Узбекистан'); setLocating(false); return; }
         const { latitude: lat, longitude: lng } = loc.coords;
         setOriginCoords({ lat, lng });
-        const domain = process.env.EXPO_PUBLIC_DOMAIN;
-        const base   = domain ? `https://${domain}` : '';
+        const base   = apiOrigin();
         const r = await fetch(`${base}/api/geocode/reverse?lat=${lat}&lng=${lng}`);
         if (r.ok) { const { address } = await r.json(); setOrigin(address ?? `${lat.toFixed(5)}, ${lng.toFixed(5)}`); }
         else setOrigin(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
