@@ -71,6 +71,11 @@ function buildEcoVariant(fast: any): any {
   };
 }
 
+// Entering-анимации reanimated с задержкой на вебе иногда не запускаются и
+// оставляют блок невидимым (карточка авто и заряд «пропадали»). На вебе
+// отключаем анимацию — контент показывается сразу; на нативе всё как было.
+const enter = (d: number) => (Platform.OS === 'web' ? undefined : FadeInDown.delay(d).springify());
+
 // Cycling stop colors (operator-like gradient palette)
 const STOP_GRADS: [string, string][] = [
   ['#2563EB', '#7C3AED'],
@@ -359,7 +364,7 @@ export default function NewRouteScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* ── Origin / Destination ────────────────────────────────────── */}
-        <Animated.View entering={FadeInDown.delay(0).springify()} style={{ zIndex: 30 }}>
+        <Animated.View entering={enter(0)} style={{ zIndex: 30 }}>
           <View style={[styles.card, { backgroundColor: colors.card }]}>
             {/* Origin row */}
             <View style={styles.inputRow}>
@@ -441,7 +446,7 @@ export default function NewRouteScreen() {
         </Animated.View>
 
         {/* ── Car card ────────────────────────────────────────────────── */}
-        <Animated.View entering={FadeInDown.delay(60).springify()}>
+        <Animated.View entering={enter(60)}>
           <View style={[styles.card, { backgroundColor: colors.card }]}>
             {/* Car row — tap opens inline picker */}
             <TouchableOpacity
@@ -560,7 +565,7 @@ export default function NewRouteScreen() {
 
         {/* ── Insufficient charge / no stations warning ─────────────── */}
         {routeResult?.insufficient_charge && (
-          <Animated.View entering={FadeInDown.delay(50).springify()}>
+          <Animated.View entering={enter(50)}>
             <View style={[styles.warnCard, { backgroundColor: '#FEF3C7', borderColor: '#FCD34D' }]}>
               <Feather name="alert-triangle" size={20} color="#92400E" />
               <View style={{ flex: 1, gap: 3 }}>
@@ -574,7 +579,7 @@ export default function NewRouteScreen() {
         )}
 
         {routeResult?.no_stations_along_route && !routeResult?.insufficient_charge && (
-          <Animated.View entering={FadeInDown.delay(50).springify()}>
+          <Animated.View entering={enter(50)}>
             <View style={[styles.warnCard, { backgroundColor: '#FFF7ED', borderColor: '#FDBA74' }]}>
               <Feather name="map-pin" size={20} color="#C2410C" />
               <View style={{ flex: 1, gap: 3 }}>
@@ -588,7 +593,7 @@ export default function NewRouteScreen() {
         )}
 
         {routeResult?.arrival_below_threshold && !routeResult?.insufficient_charge && !routeResult?.no_stations_along_route && (
-          <Animated.View entering={FadeInDown.delay(50).springify()}>
+          <Animated.View entering={enter(50)}>
             <View style={[styles.warnCard, { backgroundColor: '#FFF7ED', borderColor: '#FDBA74' }]}>
               <Feather name="battery" size={20} color="#D97706" />
               <View style={{ flex: 1, gap: 3 }}>
@@ -603,7 +608,7 @@ export default function NewRouteScreen() {
 
         {/* ── Route result ────────────────────────────────────────────── */}
         {routeResult && activeResult && (
-          <Animated.View entering={FadeInDown.delay(80).springify()} style={{ gap: 16 }}>
+          <Animated.View entering={enter(80)} style={{ gap: 16 }}>
 
             {/* Route mode switcher */}
             <View style={styles.modeRow}>
@@ -687,7 +692,7 @@ export default function NewRouteScreen() {
 
             {/* ── Total savings banner ───────────────────────────────── */}
             {totalSavings > 0 && (
-              <Animated.View entering={FadeInDown.delay(60).springify()}>
+              <Animated.View entering={enter(60)}>
                 <LinearGradient
                   colors={['#ECFDF5', '#D1FAE5']}
                   start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
