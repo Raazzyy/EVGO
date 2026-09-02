@@ -28,6 +28,7 @@ import { Glass } from '@/components/Glass';
 import { formatPricePerKwh } from '@/lib/format';
 import { haptics } from '@/lib/haptics';
 import { DEMO_STATIONS, DEMO_PROMOTED } from '@/lib/demoStations';
+import { PIN_LEGEND } from '@/lib/mapPins';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -1016,6 +1017,22 @@ export default function MapScreen() {
         </View>
       </Animated.View>
 
+      {/* Легенда: что значат цвета пинов (скорость зарядки). */}
+      <Animated.View
+        style={[styles.legend, mapControlsStyle]}
+        pointerEvents="none"
+      >
+        <Glass glassStyle="clear" style={StyleSheet.absoluteFill} />
+        {PIN_LEGEND.map((item) => (
+          <View key={item.tier} style={styles.legendRow}>
+            <View style={[styles.legendDot, { backgroundColor: item.color }]} />
+            <Text style={[styles.legendText, { color: colors.text }]}>
+              {item.tier === 'slow' ? 'AC' : item.tier === 'fast' ? 'Быстрая' : 'Ультра'}
+            </Text>
+          </View>
+        ))}
+      </Animated.View>
+
       <FiltersSheet visible={filtersVisible} onClose={() => setFiltersVisible(false)} onApply={f => setActiveFilters(f)} />
 
       {selectedStation && (
@@ -1071,6 +1088,14 @@ const styles = StyleSheet.create({
   permBannerText: { flex: 1, fontSize: 12, fontFamily: 'Inter_400Regular', color: '#92400E' },
   permBannerBtn: { fontSize: 12, fontFamily: 'Inter_700Bold', color: '#2563EB' },
   mapControls: { position: 'absolute', right: 12, alignItems: 'center', gap: 10, zIndex: 30 },
+  legend: {
+    position: 'absolute', left: 12, borderRadius: 14, overflow: 'hidden',
+    paddingVertical: 8, paddingHorizontal: 11, gap: 6, zIndex: 30,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 8, elevation: 4,
+  },
+  legendRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  legendDot: { width: 10, height: 10, borderRadius: 5 },
+  legendText: { fontSize: 11, fontFamily: 'Inter_500Medium' },
   // Стеклянные контролы поверх карты: сам блюр даёт подложку, поэтому фон не
   // задаём. Тонкая светлая граница — блик материала, ловящего свет.
   // Стекло даёт подложку и границу — здесь только форма, тень и клип.
