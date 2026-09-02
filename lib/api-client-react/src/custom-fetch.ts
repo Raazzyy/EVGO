@@ -43,6 +43,20 @@ async function refreshOnce(): Promise<boolean> {
   return _refreshInFlight;
 }
 
+// Запрос к недоступному серверу иначе висит до OS-таймаута (десятки секунд) —
+// экран крутит спиннер без конца. Ограничиваем ожидание, если рантайм умеет.
+const REQUEST_TIMEOUT_MS = 20_000;
+
+function defaultTimeoutSignal(): AbortSignal | undefined {
+  try {
+    return typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"
+      ? AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Set a base URL that is prepended to every relative request URL
  * (i.e. paths that start with `/`).
@@ -409,7 +423,11 @@ async function runFetch<T>(
 
   const requestInfo = { method, url: resolveUrl(input) };
 
-  const response = await fetch(input, { ...init, method, headers });
+  // Дефолтный таймаут: без него запрос к недоступному серверу (плохая сеть,
+  // закрытый порт) висит до OS-таймаута минуты — экран крутит спиннер вечно.
+  // С таймаутом fetch падает, react-query покажет ошибку/пустое состояние.
+  const signal = init.signal ?? defaultTimeoutSignal();
+  const response = await fetch(input, { ...init, method, headers, signal });
 
   if (!response.ok) {
     // Токен протух — обновляем пару и повторяем запрос ровно один раз.

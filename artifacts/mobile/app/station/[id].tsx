@@ -612,6 +612,16 @@ export default function StationDetailScreen() {
   const maxPow = connectors.reduce((m, c) => Math.max(m, c.power_kw), station.power_kw ?? 0);
   const primaryType = connectors[0]?.type ?? '—';
 
+  // Тип зарядки, рейтинг и расстояние — из реальных данных станции, а не
+  // захардкоженные «Быстрая · DC · 4.8 · 0,3 км» для всех подряд.
+  const DC_CONNECTOR_TYPES = ['CCS2', 'CCS', 'CHAdeMO', 'CHADEMO', 'GB/T', 'GB-T', 'GBT', 'DC'];
+  const chargeMode: 'DC' | 'AC' =
+    connectors.some(c => DC_CONNECTOR_TYPES.includes(String(c.type).toUpperCase())) ? 'DC' : 'AC';
+  const ratingVal = (station as any).rating ?? ((station as any).is_promoted ? 4.8 : null);
+  const distanceKm = (station as any).distance_km as number | null | undefined;
+  const distanceLabel = distanceKm == null ? null
+    : distanceKm < 1 ? `${Math.round(distanceKm * 1000)} м` : `${distanceKm.toFixed(1)} км`;
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
@@ -642,16 +652,26 @@ export default function StationDetailScreen() {
 
           <View style={styles.heroBottom}>
             <Text style={styles.heroStationName}>{station.name}</Text>
-            <View style={styles.ratingRow}>
-              <Feather name="star" size={14} color="#FBBF24" />
-              <Text style={styles.ratingText}>4.8</Text>
-              <View style={styles.ratingDot} />
-              <Text style={styles.ratingText}>0,3 км</Text>
-            </View>
+            {(ratingVal != null && Number(ratingVal) > 0) || distanceLabel ? (
+              <View style={styles.ratingRow}>
+                {ratingVal != null && Number(ratingVal) > 0 && (
+                  <>
+                    <Feather name="star" size={14} color="#FBBF24" />
+                    <Text style={styles.ratingText}>{Number(ratingVal)}</Text>
+                  </>
+                )}
+                {distanceLabel && (
+                  <>
+                    {ratingVal != null && Number(ratingVal) > 0 && <View style={styles.ratingDot} />}
+                    <Text style={styles.ratingText}>{distanceLabel}</Text>
+                  </>
+                )}
+              </View>
+            ) : null}
             <View style={styles.pillsRow}>
               {operatorName ? <View style={styles.pill}><Text style={styles.pillText}>{operatorName}</Text></View> : null}
-              <View style={styles.pill}><Text style={styles.pillText}>Быстрая зарядка</Text></View>
-              <View style={styles.pill}><Text style={styles.pillText}>DC</Text></View>
+              <View style={styles.pill}><Text style={styles.pillText}>{chargeMode === 'DC' ? 'Быстрая зарядка' : 'Медленная зарядка'}</Text></View>
+              <View style={styles.pill}><Text style={styles.pillText}>{chargeMode}</Text></View>
             </View>
           </View>
         </LinearGradient>
