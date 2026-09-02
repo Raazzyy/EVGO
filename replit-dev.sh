@@ -31,7 +31,7 @@ BASE_PATH=/ PORT=5002 pnpm --filter @workspace/landing run dev &
 echo ""
 echo "Сервисы поднимаются. Открой веб-превью Replit:"
 echo "  API      :8080  (проверка: /api/stations)"
-echo "  Админка  :5001  (вход admin@admin.uz / Admin123*)"
+echo "  Админка  :5001  (вход под ADMIN_EMAIL / ADMIN_PASSWORD из Secrets)"
 echo "  Лендинг  :5002"
 echo "Ctrl+C — остановить все."
 
