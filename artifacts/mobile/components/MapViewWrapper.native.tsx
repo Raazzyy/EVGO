@@ -15,6 +15,7 @@
 import React, { forwardRef, useImperativeHandle, useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import { StyleSheet, View, Text } from 'react-native';
 import MapView, { Marker, Polyline, Callout, Region } from 'react-native-maps';
+import { pinColor, pinOpacity } from '@/lib/mapPins';
 import { Feather } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 
@@ -271,9 +272,9 @@ export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
       >
         {/* ── Station markers (culled to visible viewport) ────────────── */}
         {visibleStations.map((s) => {
-          const statusColor =
-            s.status === 'free'     ? '#10B981' :
-            s.status === 'occupied' ? '#F59E0B' : '#94A3B8';
+          // Цвет = скорость зарядки, прозрачность = занятость (lib/mapPins).
+          const pinFill = pinColor(s.power_kw, s.status);
+          const pinAlpha = pinOpacity(s.status);
           const promoted = !!s.is_promoted;
           const size     = promoted ? PIN_PROMOTED_SIZE : PIN_SIZE;
 
@@ -298,7 +299,8 @@ export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
                     width:           size,
                     height:          size,
                     borderRadius:    size / 2,
-                    backgroundColor: statusColor,
+                    backgroundColor: pinFill,
+                    opacity:         pinAlpha,
                   },
                   promoted && styles.pinPromoted,
                 ]}

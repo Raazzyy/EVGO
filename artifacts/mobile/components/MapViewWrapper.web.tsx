@@ -3,6 +3,7 @@ import React, {
 } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useThemeScheme } from '@/contexts/ThemeContext';
+import { pinColor, pinOpacity } from '@/lib/mapPins';
 
 const TASHKENT: [number, number] = [41.2995, 69.2401];
 
@@ -62,6 +63,9 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
     onMapPressRef.current     = onMapPress;
     onRegionChangeRef.current = onRegionChange;
     const [mapReady, setMapReady] = useState(false);
+    // Счётчик для перерисовки маркеров при остановке панорамы/зума — нужен для
+    // culling: на большом наборе рендерим только пины в видимой области.
+    const [cullVer, setCullVer] = useState(0);
     // Тема карты — из настроек приложения, а не из системной (иначе при выборе
     // тёмной темы вручную тайлы оставались бы светлыми).
     const darkTheme = useThemeScheme() === 'dark';
@@ -131,6 +135,9 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
         };
         map.on('move', fireRegionChange);
         map.on('zoom', fireRegionChange);
+        // Перерисовать видимые маркеры, когда движение остановилось (culling).
+        map.on('moveend', () => setCullVer((v) => v + 1));
+        map.on('zoomend', () => setCullVer((v) => v + 1));
 
         if (!cancelled) setMapReady(true);
       })();
@@ -174,10 +181,22 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
       if (!L || !map) return;
       markersRef.current.forEach((m) => m.remove());
       markersRef.current = [];
-      stations.forEach((s) => {
-        const color =
-          s.status === 'free'     ? '#10B981' :
-          s.status === 'occupied' ? '#F59E0B' : '#94A3B8';
+      // Culling: на большом наборе (сотни станций) рендерим только те пины,
+      // что попадают в видимую область (с запасом), иначе Leaflet создаёт
+      // сотни DOM-иконок и карта заметно тормозит. Мелкие наборы — как есть.
+      let visible = stations;
+      if (stations.length > 250) {
+        try {
+          const b = map.getBounds().pad(0.3);
+          const culled = stations.filter((s) => b.contains([s.lat, s.lng]));
+          // Подстраховка: если в кадре пусто (сильно отдалили) — покажем всё.
+          visible = culled.length > 0 ? culled : stations;
+        } catch { visible = stations; }
+      }
+      visible.forEach((s) => {
+        // Цвет = скорость зарядки, прозрачность = занятость (см. lib/mapPins).
+        const color = pinColor(s.power_kw, s.status);
+        const opacity = pinOpacity(s.status);
         const promoted = !!s.is_promoted;
         const size = promoted ? 50 : 36;
         const border = promoted ? '3px solid #FCD34D' : '3px solid white';
@@ -188,7 +207,7 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
           ? `<div style="position:absolute;top:-6px;right:-6px;width:16px;height:16px;border-radius:50%;background:#F59E0B;border:1.5px solid #fff;display:flex;align-items:center;justify-content:center;font-size:9px;line-height:1;color:#fff;font-weight:700;">★</div>`
           : '';
         const icon = L.divIcon({
-          html: `<div style="position:relative;background:${color};width:${size}px;height:${size}px;border-radius:50%;border:${border};box-shadow:${shadow};display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .15s">
+          html: `<div style="position:relative;background:${color};opacity:${opacity};width:${size}px;height:${size}px;border-radius:50%;border:${border};box-shadow:${shadow};display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .15s">
             <svg width="${promoted ? 18 : 14}" height="${promoted ? 18 : 14}" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
             </svg>
@@ -205,7 +224,7 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
         });
         markersRef.current.push(marker);
       });
-    }, [stations, mapReady]);
+    }, [stations, mapReady, cullVer]);
 
     // User location dot
     useEffect(() => {
