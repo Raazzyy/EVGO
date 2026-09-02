@@ -7,8 +7,9 @@ import {
   TouchableOpacity,
   Platform,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
-import { Feather } from '@expo/vector-icons';
+import { Feather, FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGetUser, useGetSessions } from '@workspace/api-client-react';
 import { useColors } from '@/hooks/useColors';
@@ -27,6 +28,32 @@ interface MenuItem {
 }
 
 const VERSION = '1.0.0';
+
+// Соцсети EVGO. Хендлы — placeholder'ы, поменять на реальные аккаунты.
+const SOCIALS: Array<{ icon: string; url: string; label: string }> = [
+  { icon: 'telegram',  url: 'https://t.me/evgo_uz',            label: 'Telegram' },
+  { icon: 'instagram', url: 'https://instagram.com/evgo.uz',   label: 'Instagram' },
+  { icon: 'youtube',   url: 'https://youtube.com/@evgo',       label: 'YouTube' },
+];
+
+function SocialLinks() {
+  return (
+    <View style={styles.socialRow}>
+      {SOCIALS.map((s) => (
+        <TouchableOpacity
+          key={s.label}
+          onPress={() => Linking.openURL(s.url)}
+          accessibilityRole="link"
+          accessibilityLabel={s.label}
+          activeOpacity={0.75}
+          style={styles.socialBtn}
+        >
+          <FontAwesome5 name={s.icon as any} size={18} color="#fff" />
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+}
 
 export default function ProfileScreen() {
   const colors = useColors();
@@ -126,6 +153,7 @@ export default function ProfileScreen() {
           ))}
         </View>
 
+        <SocialLinks />
         <Text style={[styles.version, { color: colors.mutedForeground }]}>EVGO · v{VERSION}</Text>
       </ScrollView>
     );
@@ -219,6 +247,8 @@ export default function ProfileScreen() {
         <Feather name="log-out" size={18} color={colors.destructive} />
         <Text style={[styles.signOutText, { color: colors.destructive }]}>Выйти</Text>
       </PressableScale>
+
+      <SocialLinks />
 
       <Text style={[styles.version, { color: colors.mutedForeground }]}>
         EVGO · v{VERSION}
@@ -346,4 +376,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 14, borderWidth: 1,
   },
   signOutText: { fontSize: 15, fontFamily: 'Inter_600SemiBold' },
+  socialRow: { flexDirection: 'row', justifyContent: 'center', gap: 14, marginTop: 18 },
+  socialBtn: {
+    width: 44, height: 44, borderRadius: 22, backgroundColor: '#7C3AED',
+    alignItems: 'center', justifyContent: 'center',
+  },
 });
