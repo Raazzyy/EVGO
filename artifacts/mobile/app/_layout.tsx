@@ -54,7 +54,9 @@ const queryClient = new QueryClient({
  * отдаст номер телефона. Требовать регистрацию до первой пользы — верный
  * способ потерять его на первом экране.
  */
-const PROTECTED_ROUTES = ['charge', 'sessions', 'profile', 'cars', 'favorites', 'settings', 'payment'];
+// route/navigate требуют авторизации (POST /routes — requireAuth): без них
+// при мёртвой сессии пользователь застревал на экране маршрута с вечными 401.
+const PROTECTED_ROUTES = ['charge', 'sessions', 'profile', 'cars', 'favorites', 'settings', 'payment', 'route', 'navigate'];
 
 function isProtected(segments: string[]): boolean {
   // Вкладки лежат в группе (tabs), поэтому смотрим и первый сегмент, и второй.

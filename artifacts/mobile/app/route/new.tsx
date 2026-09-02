@@ -513,19 +513,21 @@ export default function NewRouteScreen() {
                     style={[
                       styles.pickerItem,
                       { borderColor: colors.border },
-                      isSelected && { backgroundColor: '#EEF2FF', borderColor: '#2563EB' },
+                      // Выбранный пункт — сплошной синий: читается и в светлой,
+                      // и в тёмной теме (раньше был светлый фон + белый текст = невидимо).
+                      isSelected && { backgroundColor: colors.primary, borderColor: colors.primary },
                     ]}
                   >
-                    <View style={[styles.pickerItemIcon, { backgroundColor: isSelected ? '#DBEAFE' : colors.muted }]}>
-                      <Feather name="truck" size={18} color={isSelected ? '#2563EB' : colors.mutedForeground} />
+                    <View style={[styles.pickerItemIcon, { backgroundColor: isSelected ? 'rgba(255,255,255,0.2)' : colors.muted }]}>
+                      <Feather name="truck" size={18} color={isSelected ? '#fff' : colors.mutedForeground} />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={[styles.pickerItemName, { color: colors.text }]}>{item.name}</Text>
-                      <Text style={[styles.pickerItemSub, { color: colors.mutedForeground }]}>
+                      <Text style={[styles.pickerItemName, { color: isSelected ? '#fff' : colors.text }]}>{item.name}</Text>
+                      <Text style={[styles.pickerItemSub, { color: isSelected ? 'rgba(255,255,255,0.85)' : colors.mutedForeground }]}>
                         {item.battery_kwh} кВт·ч · {item.range_km} км · {item.connector_type}
                       </Text>
                     </View>
-                    {isSelected && <Feather name="check-circle" size={20} color="#2563EB" />}
+                    {isSelected && <Feather name="check-circle" size={20} color="#fff" />}
                   </TouchableOpacity>
                 );
               }}

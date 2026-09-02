@@ -170,7 +170,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // иначе 401 от самого refresh снова позвал бы этот обработчик.
   const refreshTokens = useCallback(async (): Promise<boolean> => {
     const refreshToken = refreshRef.current;
-    if (!refreshToken) return false;
+    if (!refreshToken) {
+      // Обновиться нечем — сессия невосстановима. Чистим её, чтобы гард увёл
+      // на экран входа, а не оставлял пользователя с бесконечными 401.
+      await applyTokens(null);
+      setUser(null);
+      return false;
+    }
 
     try {
       const res = await fetch(apiUrl('/api/auth/refresh'), {

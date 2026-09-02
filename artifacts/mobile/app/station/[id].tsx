@@ -465,12 +465,20 @@ export default function StationDetailScreen() {
         qc.invalidateQueries({ queryKey: getGetStationsQueryKey() });
         router.push('/charge');
       },
-      onError: () => {
+      onError: (err: any) => {
         haptics.error();
-        Alert.alert(
-          'Зарядка не началась',
-          'Коннектор мог занять кто-то другой. Обновите страницу станции и попробуйте снова.',
-        );
+        const status = err?.status as number | undefined;
+        if (status === 401) {
+          Alert.alert('Сессия истекла', 'Войдите снова, чтобы начать зарядку.');
+        } else if (!status) {
+          Alert.alert('Нет связи с сервером', 'Проверьте интернет и попробуйте ещё раз.');
+        } else if (status === 409) {
+          Alert.alert('Коннектор занят', 'Его только что заняли. Обновите станцию и выберите другой.');
+        } else if (status >= 500) {
+          Alert.alert('Сервер занят', 'Не удалось начать зарядку. Попробуйте через пару секунд.');
+        } else {
+          Alert.alert('Зарядка не началась', 'Обновите страницу станции и попробуйте снова.');
+        }
       },
     },
   });
