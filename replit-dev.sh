@@ -4,17 +4,17 @@
 # Запуск:  bash replit-dev.sh
 set -uo pipefail
 
-# Освобождаем порт API (8080), если на нём висит старый процесс.
+# Освобождаем порт API (8080): бьём старый процесс всеми доступными способами.
 free_port() {
   local p="$1"
-  if command -v fuser >/dev/null 2>&1; then fuser -k "${p}/tcp" 2>/dev/null || true
-  elif command -v lsof  >/dev/null 2>&1; then kill "$(lsof -t -i:"${p}" 2>/dev/null)" 2>/dev/null || true
-  else pkill -f "dist/index.mjs" 2>/dev/null || true; fi
+  pkill -f "dist/index.mjs" 2>/dev/null || true
+  command -v fuser >/dev/null 2>&1 && fuser -k "${p}/tcp" 2>/dev/null || true
+  command -v lsof  >/dev/null 2>&1 && kill $(lsof -t -i:"${p}" 2>/dev/null) 2>/dev/null || true
 }
 
-echo "==> Освобождаю порт 8080"
+echo "==> Освобождаю порт 8080 (гашу старый API)"
 free_port 8080
-sleep 1
+sleep 2
 
 # Когда скрипт завершается (Ctrl+C) — гасим все дочерние процессы.
 trap 'echo; echo "Останавливаю сервисы..."; kill 0' EXIT
