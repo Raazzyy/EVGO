@@ -108,6 +108,7 @@ export default function NewRouteScreen() {
   const { selectedVehicleId, setSelectedVehicleId, setActiveRouteId } = useApp();
   const [carPickerVisible, setCarPickerVisible] = useState(false);
   const [pendingVehicleId, setPendingVehicleId] = useState<number | null>(null);
+  const [carSearch, setCarSearch] = useState('');
   const mapRef  = useRef<MapApi>(null);
 
   const params = useLocalSearchParams<{
@@ -140,6 +141,14 @@ export default function NewRouteScreen() {
   const { data: vehicles = [] }        = useGetVehicles();
   const { data: existingRoutes = [] }  = useGetRoutes();
   const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId) || vehicles[0];
+
+  // Каталог большой (сотни моделей) — фильтруем по запросу, как «Add your EV».
+  // Пока пусто — показываем начало списка, чтобы было с чего стартовать.
+  const filteredVehicles = useMemo(() => {
+    const q = carSearch.trim().toLowerCase();
+    if (!q) return vehicles.slice(0, 40);
+    return vehicles.filter((v) => v.name.toLowerCase().includes(q)).slice(0, 60);
+  }, [vehicles, carSearch]);
 
   const deleteRoute = useDeleteRoute();
   const createRoute = useCreateRoute({
@@ -451,7 +460,7 @@ export default function NewRouteScreen() {
           <View style={[styles.card, { backgroundColor: colors.card }]}>
             {/* Car row — tap opens inline picker */}
             <TouchableOpacity
-              onPress={() => { setPendingVehicleId(selectedVehicle?.id ?? null); setCarPickerVisible(true); }}
+              onPress={() => { setCarSearch(''); setPendingVehicleId(selectedVehicle?.id ?? null); setCarPickerVisible(true); }}
               activeOpacity={0.8}
               style={styles.carRow}
             >
@@ -511,10 +520,33 @@ export default function NewRouteScreen() {
             <View style={[styles.pickerHandle, { backgroundColor: colors.mutedForeground }]} />
             <Text style={[styles.pickerTitle, { color: colors.text }]}>Выберите автомобиль</Text>
 
+            <View style={[styles.carSearchBox, { backgroundColor: colors.background, borderColor: colors.border }]}>
+              <Feather name="search" size={16} color={colors.mutedForeground} />
+              <TextInput
+                style={[styles.carSearchInput, { color: colors.text }]}
+                value={carSearch}
+                onChangeText={setCarSearch}
+                placeholder="Поиск: марка или модель"
+                placeholderTextColor={colors.mutedForeground}
+                autoCorrect={false}
+              />
+              {carSearch.length > 0 && (
+                <TouchableOpacity onPress={() => setCarSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Feather name="x" size={16} color={colors.mutedForeground} />
+                </TouchableOpacity>
+              )}
+            </View>
+
             <FlatList
-              data={vehicles}
+              data={filteredVehicles}
               keyExtractor={(v) => String(v.id)}
               style={{ maxHeight: 320 }}
+              keyboardShouldPersistTaps="handled"
+              ListEmptyComponent={
+                <Text style={{ color: colors.mutedForeground, textAlign: 'center', paddingVertical: 24, fontFamily: 'Inter_400Regular' }}>
+                  Ничего не найдено
+                </Text>
+              }
               renderItem={({ item }) => {
                 const isSelected = item.id === pendingVehicleId;
                 return (
@@ -1100,6 +1132,12 @@ const styles = StyleSheet.create({
     fontSize: 18, fontFamily: 'Inter_700Bold',
     textAlign: 'center', marginBottom: 4, paddingHorizontal: 16,
   },
+  carSearchBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    marginHorizontal: 16, marginTop: 10, marginBottom: 6,
+    borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, height: 44,
+  },
+  carSearchInput: { flex: 1, fontSize: 15, fontFamily: 'Inter_400Regular' },
   pickerItem: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     padding: 14, borderRadius: 14, borderWidth: 1.5,
