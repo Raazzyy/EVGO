@@ -22,6 +22,7 @@ import { useApp } from '@/contexts/AppContext';
 import { GradientButton } from '@/components/GradientButton';
 import { MapViewWrapper, MapApi } from '@/components/MapViewWrapper';
 import { PromoCountdown } from '@/components/PromoCountdown';
+import { PercentSlider } from '@/components/PercentSlider';
 import { formatAmount, formatMoney } from '@/lib/format';
 
 const API_BASE = apiOrigin()
@@ -469,23 +470,28 @@ export default function NewRouteScreen() {
               <Feather name="chevron-right" size={20} color={colors.mutedForeground} />
             </TouchableOpacity>
 
-            {/* Battery input — standalone, NOT wrapped in car-press handler */}
-            {!routeResult && (
-              <>
-                <View style={[styles.divider, { backgroundColor: colors.border }]} />
-                <View style={styles.paramRow}>
-                  <Text style={[styles.paramLabel, { color: colors.mutedForeground }]}>Заряд батареи</Text>
-                  <View style={styles.batteryInputRow}>
-                    <TextInput
-                      style={[styles.batteryInput, { color: colors.text, borderColor: colors.border }]}
-                      value={batteryPct} onChangeText={setBatteryPct}
-                      keyboardType="numeric" maxLength={3}
+            {/* Battery slider — понятнее числового ввода; цвет = уровень заряда */}
+            {!routeResult && (() => {
+              const pct = Math.max(0, Math.min(100, parseInt(batteryPct, 10) || 0));
+              const battColor = pct >= 50 ? '#10B981' : pct >= 20 ? '#F59E0B' : '#EF4444';
+              return (
+                <>
+                  <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                  <View style={styles.batteryBlock}>
+                    <View style={styles.batteryHeader}>
+                      <Text style={[styles.paramLabel, { color: colors.mutedForeground }]}>Заряд батареи</Text>
+                      <Text style={[styles.batteryValue, { color: battColor }]}>{pct}%</Text>
+                    </View>
+                    <PercentSlider
+                      value={pct}
+                      onChange={(v) => setBatteryPct(String(v))}
+                      color={battColor}
+                      trackColor={colors.border}
                     />
-                    <Text style={[styles.pctLabel, { color: colors.mutedForeground }]}>%</Text>
                   </View>
-                </View>
-              </>
-            )}
+                </>
+              );
+            })()}
           </View>
         </Animated.View>
 
@@ -963,6 +969,9 @@ const styles = StyleSheet.create({
   carSub: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
   divider: { height: 1, marginVertical: 12 },
   paramRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  batteryBlock: { gap: 6 },
+  batteryHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  batteryValue: { fontSize: 16, fontFamily: 'Inter_700Bold' },
   paramLabel: { fontSize: 13, fontFamily: 'Inter_400Regular' },
   batteryInputRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   batteryInput: {
