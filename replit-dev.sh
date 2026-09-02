@@ -20,7 +20,7 @@ sleep 2
 trap 'echo; echo "Останавливаю сервисы..."; kill 0' EXIT
 
 echo "==> API      → :8080"
-pnpm --filter @workspace/api-server run dev &
+PORT=8080 pnpm --filter @workspace/api-server run dev &
 
 echo "==> Админка  → :5001"
 BASE_PATH=/ PORT=5001 pnpm --filter @workspace/admin run dev &
