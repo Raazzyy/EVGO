@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGetUser, useGetSessions } from '@workspace/api-client-react';
 import { useColors } from '@/hooks/useColors';
 import { useApp } from '@/contexts/AppContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { formatAmount } from '@/lib/format';
@@ -31,6 +32,7 @@ export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { userId, userMembership } = useApp();
+  const { user: authUser, isAuthenticated, signOut } = useAuth();
   const router = useRouter();
 
   // @ts-ignore - keeping existing pattern
@@ -63,7 +65,73 @@ export default function ProfileScreen() {
     );
   }
 
-  const nameParts = (user?.name ?? 'Akbar').split(' ');
+  // ── Не вошёл: приглашение войти + доступное без входа ──────────────────────
+  if (!isAuthenticated) {
+    const guestMenu: MenuItem[] = [
+      { icon: 'headphones', label: 'Поддержка',    desc: 'Служба заботы о клиентах',  onPress: () => router.push('/support') },
+      { icon: 'info',       label: 'О приложении', desc: `EVGO v${VERSION}`,          onPress: () => router.push('/about') },
+    ];
+    const perks: Array<{ icon: string; title: string; desc: string }> = [
+      { icon: 'zap',       title: 'Зарядка из приложения', desc: 'Запускайте сессию прямо с телефона' },
+      { icon: 'clock',     title: 'История и чеки',        desc: 'Сессии, расходы и экономия CO₂' },
+      { icon: 'map',       title: 'Умные маршруты',        desc: 'Остановки под запас хода вашего авто' },
+    ];
+    return (
+      <ScrollView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        contentContainerStyle={{ paddingTop: topPad + 16, paddingHorizontal: 16, paddingBottom: bottomPad + 100, gap: 16 }}
+        showsVerticalScrollIndicator={false}
+      >
+        <LinearGradient
+          colors={['#2563EB', '#7C3AED']}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+          style={styles.guestCard}
+        >
+          <Text style={styles.guestTitle}>Войдите, чтобы открыть больше</Text>
+          <View style={{ gap: 14, marginTop: 4 }}>
+            {perks.map((p) => (
+              <View key={p.title} style={styles.perkRow}>
+                <View style={styles.perkIcon}>
+                  <Feather name={p.icon as any} size={16} color="#fff" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.perkTitle}>{p.title}</Text>
+                  <Text style={styles.perkDesc}>{p.desc}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+          <PressableScale haptic activeScale={0.97} onPress={() => router.push('/(auth)/phone')} style={styles.guestBtn}>
+            <Text style={styles.guestBtnText}>Войти</Text>
+          </PressableScale>
+        </LinearGradient>
+
+        <View style={[styles.menuCard, { backgroundColor: colors.card }]}>
+          {guestMenu.map((item, i) => (
+            <PressableScale
+              key={item.label}
+              onPress={item.onPress}
+              haptic activeScale={0.98}
+              style={[styles.menuItem, i < guestMenu.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}
+            >
+              <View style={[styles.menuIcon, { backgroundColor: colors.muted }]}>
+                <Feather name={item.icon as any} size={18} color={colors.primary} />
+              </View>
+              <View style={styles.menuText}>
+                <Text style={[styles.menuLabel, { color: colors.text }]}>{item.label}</Text>
+                <Text style={[styles.menuDesc, { color: colors.mutedForeground }]}>{item.desc}</Text>
+              </View>
+              <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+            </PressableScale>
+          ))}
+        </View>
+
+        <Text style={[styles.version, { color: colors.mutedForeground }]}>EVGO · v{VERSION}</Text>
+      </ScrollView>
+    );
+  }
+
+  const nameParts = (authUser?.name ?? user?.name ?? 'Пользователь').split(' ');
   const initials = nameParts.length > 1 
     ? `${nameParts[0][0]}${nameParts[1][0]}` 
     : (nameParts[0][0] ?? 'A');
@@ -87,8 +155,8 @@ export default function ProfileScreen() {
             </Text>
           </View>
           <View style={styles.userInfo}>
-            <Text style={styles.userName}>{user?.name ?? 'Akbar Pulatov'}</Text>
-            <Text style={styles.userEmail}>{user?.email ?? 'akbar.pulatov@example.com'}</Text>
+            <Text style={styles.userName}>{authUser?.name ?? user?.name ?? 'Пользователь'}</Text>
+            <Text style={styles.userEmail}>{authUser?.email ?? authUser?.phone ?? user?.email ?? ''}</Text>
           </View>
           <View style={styles.premiumBadge}>
             <Feather name="star" size={12} color="#F59E0B" />
@@ -147,8 +215,13 @@ export default function ProfileScreen() {
         ))}
       </View>
 
+      <PressableScale haptic activeScale={0.98} onPress={() => signOut()} style={[styles.signOutBtn, { borderColor: colors.border }]}>
+        <Feather name="log-out" size={18} color={colors.destructive} />
+        <Text style={[styles.signOutText, { color: colors.destructive }]}>Выйти</Text>
+      </PressableScale>
+
       <Text style={[styles.version, { color: colors.mutedForeground }]}>
-        EVGO · v1.0.0
+        EVGO · v{VERSION}
       </Text>
     </ScrollView>
   );
@@ -253,4 +326,24 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_400Regular',
     marginTop: 8,
   },
+  // Logged-out
+  guestCard: { borderRadius: 24, padding: 22, gap: 8 },
+  guestTitle: { color: '#fff', fontSize: 22, fontFamily: 'Inter_700Bold', lineHeight: 28 },
+  perkRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  perkIcon: {
+    width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  perkTitle: { color: '#fff', fontSize: 15, fontFamily: 'Inter_600SemiBold' },
+  perkDesc: { color: 'rgba(255,255,255,0.8)', fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 1 },
+  guestBtn: {
+    marginTop: 18, backgroundColor: '#fff', borderRadius: 16, paddingVertical: 14,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  guestBtnText: { color: '#2563EB', fontSize: 16, fontFamily: 'Inter_700Bold' },
+  signOutBtn: {
+    marginHorizontal: 16, marginTop: 16, flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 14, borderWidth: 1,
+  },
+  signOutText: { fontSize: 15, fontFamily: 'Inter_600SemiBold' },
 });

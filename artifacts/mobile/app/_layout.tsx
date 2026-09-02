@@ -56,7 +56,9 @@ const queryClient = new QueryClient({
  */
 // route/navigate требуют авторизации (POST /routes — requireAuth): без них
 // при мёртвой сессии пользователь застревал на экране маршрута с вечными 401.
-const PROTECTED_ROUTES = ['charge', 'sessions', 'profile', 'cars', 'favorites', 'settings', 'payment', 'route', 'navigate'];
+// 'profile' НЕ защищаем: таб профиля сам показывает приглашение войти гостю,
+// а его внутренние экраны (кошелёк/сессии/авто/избранное) защищены отдельно.
+const PROTECTED_ROUTES = ['charge', 'sessions', 'cars', 'favorites', 'settings', 'payment', 'route', 'navigate'];
 
 function isProtected(segments: string[]): boolean {
   // Вкладки лежат в группе (tabs), поэтому смотрим и первый сегмент, и второй.
