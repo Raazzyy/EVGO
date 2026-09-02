@@ -49,7 +49,7 @@ function haversine(lat1: number, lng1: number, lat2: number, lng2: number): numb
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-type FilterStatus = 'all' | 'my-cars' | 'ac' | 'dc' | 'free';
+type FilterStatus = 'all' | 'my-cars' | 'ac' | 'dc' | 'ultra' | 'free';
 
 const DEFAULT_FILTERS: FiltersState = {
   connectorTypes: [], availability: 'all', amenities: [],
@@ -543,6 +543,7 @@ export default function MapScreen() {
       return list.filter(s => ((s as any).connectors ?? []).some((c: any) => c.type === defaultConnectorType));
     if (activeChip === 'ac') return list.filter(s => ((s as any).connectors ?? []).some((c: any) => AC_TYPES.includes(c.type)));
     if (activeChip === 'dc') return list.filter(s => ((s as any).connectors ?? []).some((c: any) => DC_TYPES.includes(c.type)));
+    if (activeChip === 'ultra') return list.filter(s => ((s as any).power_kw ?? 0) >= 150);
     return list;
   }, [activeChip, defaultConnectorType]);
 
@@ -789,6 +790,7 @@ export default function MapScreen() {
       {([
         { id: 'all', label: 'Все' }, { id: 'free', label: 'Свободные' },
         { id: 'my-cars', label: 'Мои машины' }, { id: 'ac', label: 'AC' }, { id: 'dc', label: 'DC' },
+        { id: 'ultra', label: 'Ультра' },
       ] as { id: FilterStatus; label: string }[]).map(f => {
         const isActive = activeChip === f.id;
         return (
