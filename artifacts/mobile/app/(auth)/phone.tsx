@@ -10,8 +10,9 @@ import {
   Pressable,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useColors } from '@/hooks/useColors';
 import { GradientButton } from '@/components/GradientButton';
@@ -32,7 +33,15 @@ function formatLocal(digits: string): string {
 export default function PhoneScreen() {
   const colors = useColors();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { t } = useTranslation();
+
+  // Назад: если есть история — назад, иначе на карту (вход часто открывается
+  // как отдельный старт, и router.back() тогда некуда).
+  const onBack = useCallback(() => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/(tabs)');
+  }, [router]);
 
   const [digits, setDigits] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +99,21 @@ export default function PhoneScreen() {
       style={[styles.flex, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      {/* Кнопка «назад» — вход часто открывается принудительно с защищённого
+          экрана, и без неё пользователь заперт на форме входа. */}
+      <Pressable
+        onPress={onBack}
+        hitSlop={12}
+        accessibilityRole="button"
+        accessibilityLabel="Назад"
+        style={({ pressed }) => [
+          styles.backBtn,
+          { top: insets.top + 8, backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.6 : 1 },
+        ]}
+      >
+        <Feather name="arrow-left" size={22} color={colors.foreground} />
+      </Pressable>
+
       <ScrollView
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
@@ -172,6 +196,11 @@ export default function PhoneScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  backBtn: {
+    position: 'absolute', left: 16, zIndex: 10,
+    width: 40, height: 40, borderRadius: 20, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center',
+  },
   scroll: {
     flexGrow: 1,
     justifyContent: 'center',
