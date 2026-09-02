@@ -1,4 +1,5 @@
-import { pgTable, text, serial, real, pgEnum, boolean, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, real, pgEnum, boolean, integer, uniqueIndex } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -21,7 +22,13 @@ export const vehiclesTable = pgTable("vehicles", {
   body_style:    text("body_style"),
   vehicle_type:  text("vehicle_type"),
   is_verified:   boolean("is_verified").notNull().default(true),
-});
+}, (t) => [
+  // Каталог моделей (user_id IS NULL) — без дублей по имени. Пользовательские
+  // авто не участвуют (частичный индекс).
+  uniqueIndex("uq_vehicles_catalog_name")
+    .on(t.name)
+    .where(sql`${t.user_id} is null`),
+]);
 
 /** Alias dictionary: Cyrillic spellings + common typos → canonical Latin slug */
 export const vehicleAliasesTable = pgTable("vehicle_aliases", {
