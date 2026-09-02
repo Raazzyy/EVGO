@@ -132,6 +132,9 @@ export default function RoutesScreen() {
           <TouchableOpacity
             onPress={() => mapRef.current?.locate()}
             style={[styles.locBtn, { backgroundColor: colors.muted }]}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel="Моё местоположение"
           >
             <Feather name="navigation" size={16} color={colors.primary} />
           </TouchableOpacity>

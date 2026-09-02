@@ -199,7 +199,13 @@ export function FiltersSheet({ visible, onClose, onApply }: FiltersSheetProps) {
                 >
                   <Text style={[styles.resetText, { color: colors.primary }]}>Сбросить</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+                <TouchableOpacity
+                  onPress={onClose}
+                  style={styles.closeBtn}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Закрыть фильтры"
+                >
                   <Feather name="x" size={20} color={colors.text} />
                 </TouchableOpacity>
               </View>
