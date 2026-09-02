@@ -4,14 +4,8 @@ import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
-
-const MOCK_NOTIFICATIONS = [
-  { id:1, type:'session_ended', title:'Сессия завершена', body:'Зарядка на IONITY Premium успешно завершена.', created_at: new Date(Date.now()-3*60000).toISOString(), read: true },
-  { id:2, type:'low_battery', title:'Низкий уровень заряда', body:'Уровень заряда ниже 20%! Найдите ближайшую станцию.', created_at: new Date(Date.now()-86400000).toISOString(), read: true },
-  { id:3, type:'discount_nearby', title:'Скидка рядом', body:'IONITY Premium -10% на зарядку до 31 мая.', created_at: new Date(Date.now()-86400000).toISOString(), read: false },
-  { id:4, type:'station_available', title:'Станция снова доступна', body:'Kapital Electro снова доступна (свободно 2/4).', created_at: new Date(Date.now()-2*86400000).toISOString(), read: true },
-  { id:5, type:'payment', title:'Платёж выполнен', body:'Оплата 54 145 сум прошла успешно.', created_at: new Date(Date.now()-2*86400000).toISOString(), read: true },
-];
+import { useApp } from '@/contexts/AppContext';
+import { useGetNotifications } from '@workspace/api-client-react';
 
 function getNotificationStyle(type: string) {
   switch (type) {
@@ -40,12 +34,18 @@ export default function NotificationsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { userId } = useApp();
+
+  const { data: notifications = [] } = useGetNotifications(
+    { user_id: userId ?? '' },
+    { query: { enabled: !!userId } },
+  );
 
   const topPad = Platform.OS === 'web' ? 20 : insets.top;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPad + 16, backgroundColor: colors.card }]}>
+      <View style={[styles.header, { paddingTop: topPad + 16, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()}
           accessibilityRole="button"
           accessibilityLabel="Назад" style={styles.backButton}>
@@ -56,7 +56,7 @@ export default function NotificationsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {MOCK_NOTIFICATIONS.length === 0 ? (
+        {notifications.length === 0 ? (
           <View style={styles.emptyState}>
             <View style={[styles.emptyIconCircle, { backgroundColor: colors.muted }]}>
               <Feather name="bell" size={32} color={colors.mutedForeground} />
@@ -64,7 +64,7 @@ export default function NotificationsScreen() {
             <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Нет уведомлений</Text>
           </View>
         ) : (
-          MOCK_NOTIFICATIONS.map((item) => {
+          notifications.map((item) => {
             const { color, icon } = getNotificationStyle(item.type);
             return (
               <View key={item.id} style={[styles.card, { backgroundColor: colors.card }]}>

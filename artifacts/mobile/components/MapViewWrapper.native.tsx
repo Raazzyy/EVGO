@@ -73,8 +73,8 @@ const TASHKENT: Region = {
 const ZOOM_IN_FACTOR  = 0.5;   // multiply delta by this to zoom in
 const ZOOM_OUT_FACTOR = 2.0;   // multiply delta by this to zoom out
 
-const PIN_SIZE          = 40;
-const PIN_PROMOTED_SIZE = 50;
+const PIN_SIZE          = 28;
+const PIN_PROMOTED_SIZE = 36;
 
 const ROUTE_COLORS: Record<string, string> = {
   origin: '#2563EB',
@@ -305,7 +305,7 @@ export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
                   promoted && styles.pinPromoted,
                 ]}
               >
-                <Feather name="zap" size={promoted ? 18 : 14} color="#fff" />
+                <Feather name="zap" size={promoted ? 15 : 12} color="#fff" />
 
                 {/* Gold star badge for promoted stations */}
                 {promoted && (
@@ -379,7 +379,7 @@ const styles = StyleSheet.create({
   pin: {
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 3,
+    borderWidth: 2,
     borderColor: '#FFFFFF',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },

@@ -198,8 +198,8 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
         const color = pinColor(s.power_kw, s.status);
         const opacity = pinOpacity(s.status);
         const promoted = !!s.is_promoted;
-        const size = promoted ? 50 : 36;
-        const border = promoted ? '3px solid #FCD34D' : '3px solid white';
+        const size = promoted ? 36 : 28;
+        const border = promoted ? '2.5px solid #FCD34D' : '2px solid white';
         const shadow = promoted
           ? '0 2px 16px rgba(245,158,11,.45)'
           : '0 2px 12px rgba(0,0,0,.28)';
@@ -208,7 +208,7 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
           : '';
         const icon = L.divIcon({
           html: `<div style="position:relative;background:${color};opacity:${opacity};width:${size}px;height:${size}px;border-radius:50%;border:${border};box-shadow:${shadow};display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .15s">
-            <svg width="${promoted ? 18 : 14}" height="${promoted ? 18 : 14}" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="${promoted ? 15 : 11}" height="${promoted ? 15 : 11}" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
             </svg>
             ${starBadge}
