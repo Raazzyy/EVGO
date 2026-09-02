@@ -106,13 +106,21 @@ async function searchLocalDB(words: string[]) {
 }
 
 // ── Fuzzy search via pg_trgm ──────────────────────────────────────────────
+// similarity() требует расширения pg_trgm. Если его нет (или любая иная ошибка) —
+// возвращаем пусто, а не роняем весь поиск в 500. Расширение включается
+// миграцией docs/sql/2026-09-02-pg-trgm.sql.
 async function searchFuzzy(q: string) {
-  return db
-    .select()
-    .from(vehiclesTable)
-    .where(sql`similarity(lower(${vehiclesTable.name}), lower(${q})) > 0.2`)
-    .orderBy(sql`similarity(lower(${vehiclesTable.name}), lower(${q})) DESC`)
-    .limit(15);
+  try {
+    return await db
+      .select()
+      .from(vehiclesTable)
+      .where(sql`similarity(lower(${vehiclesTable.name}), lower(${q})) > 0.2`)
+      .orderBy(sql`similarity(lower(${vehiclesTable.name}), lower(${q})) DESC`)
+      .limit(15);
+  } catch (e) {
+    console.warn(`[vehicles/search] fuzzy отключён (нет pg_trgm?): ${(e as Error).message}`);
+    return [];
+  }
 }
 
 // ── Override search ───────────────────────────────────────────────────────
