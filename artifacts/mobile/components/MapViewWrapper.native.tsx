@@ -76,6 +76,11 @@ const ZOOM_OUT_FACTOR = 2.0;   // multiply delta by this to zoom out
 const PIN_SIZE          = 28;
 const PIN_PROMOTED_SIZE = 36;
 
+// Cap on simultaneously-rendered native markers. Each marker is an RN View +
+// icon; hundreds of them exhaust memory and OOM-crash the app on real devices
+// (and especially inside Expo Go). Promoted pins are never dropped by the cap.
+const MAX_MARKERS = 120;
+
 const ROUTE_COLORS: Record<string, string> = {
   origin: '#2563EB',
   stop:   '#10B981',
@@ -233,20 +238,39 @@ export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
       return null;
     }, [polylineCoords, routePoints]);
 
-    // ── Marker culling — only cull when dataset is large (> 300 stations)  ──
-    // With the current seed data (~50–100 stations) culling is not needed and
-    // only causes confusion (markers missing from the initial viewport).
-    // When the dataset grows, onRegionChangeComplete keeps visibleRegion in sync.
+    // ── Marker culling + hard cap ─────────────────────────────────────────
+    // Hundreds of native markers exhaust memory and OOM-crash the app on real
+    // devices (silent drop to the home screen, no JS error) — the failure seen
+    // on iPhone in Expo Go. Two guards keep the rendered set bounded:
+    //   1) viewport culling once the dataset is non-trivial;
+    //   2) a hard cap (MAX_MARKERS) — at city-wide zoom the whole city fits the
+    //      viewport, so culling alone can't help; the cap does. Promoted pins
+    //      are always kept, the rest are evenly sampled.
+    // onRegionChangeComplete keeps visibleRegion in sync so panning/zooming
+    // re-runs both guards.
     const visibleStations = useMemo(() => {
-      if (stations.length <= 300) return stations; // skip culling for small sets
-      const { latitude: cLat, longitude: cLng, latitudeDelta, longitudeDelta } = visibleRegion;
-      // 3× buffer so markers pre-load before the user pans to them
-      const latPad = latitudeDelta  * 3;
-      const lngPad = longitudeDelta * 3;
-      return stations.filter(s =>
-        s.lat >= cLat - latPad && s.lat <= cLat + latPad &&
-        s.lng >= cLng - lngPad && s.lng <= cLng + lngPad
-      );
+      let list = stations;
+
+      if (list.length > 150) {
+        const { latitude: cLat, longitude: cLng, latitudeDelta, longitudeDelta } = visibleRegion;
+        const latPad = latitudeDelta  * 1.5; // buffer so pins pre-load before a pan
+        const lngPad = longitudeDelta * 1.5;
+        list = list.filter(s =>
+          s.lat >= cLat - latPad && s.lat <= cLat + latPad &&
+          s.lng >= cLng - lngPad && s.lng <= cLng + lngPad
+        );
+      }
+
+      if (list.length > MAX_MARKERS) {
+        const promoted = list.filter(s => s.is_promoted);
+        const rest     = list.filter(s => !s.is_promoted);
+        const slots    = Math.max(0, MAX_MARKERS - promoted.length);
+        const stride   = slots > 0 ? Math.ceil(rest.length / slots) : rest.length + 1;
+        const sampled  = slots > 0 ? rest.filter((_, i) => i % stride === 0).slice(0, slots) : [];
+        list = [...promoted, ...sampled];
+      }
+
+      return list;
     }, [stations, visibleRegion]);
 
     // ── Render ──────────────────────────────────────────────────────────
