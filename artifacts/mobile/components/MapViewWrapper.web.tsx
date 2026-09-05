@@ -105,6 +105,7 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
       injectLeafletCSS();
       let cancelled = false;
       let rafId: number | null = null;
+      let resizeObs: ResizeObserver | null = null;
 
       (async () => {
         const L = (await import('leaflet')).default;
@@ -139,11 +140,20 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
         map.on('moveend', () => setCullVer((v) => v + 1));
         map.on('zoomend', () => setCullVer((v) => v + 1));
 
+        // При ресайзе/повороте (окно, поворот планшета, монитор авто) Leaflet
+        // сам не пересчитывает размер → половина карты становится серой.
+        // ResizeObserver дёргает invalidateSize (UI-03).
+        if (typeof ResizeObserver !== 'undefined' && divRef.current) {
+          resizeObs = new ResizeObserver(() => { mapRef.current?.invalidateSize(); });
+          resizeObs.observe(divRef.current);
+        }
+
         if (!cancelled) setMapReady(true);
       })();
       return () => {
         cancelled = true;
         if (rafId) cancelAnimationFrame(rafId);
+        resizeObs?.disconnect();
         markersRef.current.forEach((m) => m.remove());
         markersRef.current = [];
         mapRef.current?.remove();

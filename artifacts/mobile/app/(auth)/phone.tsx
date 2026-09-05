@@ -118,6 +118,9 @@ export default function PhoneScreen() {
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
       >
+        {/* Внутренняя колонка с ограничением ширины — чтобы на широком экране
+            (ПК/монитор авто) поле ввода и кнопка не растягивались во всю ширину. */}
+        <View style={styles.inner}>
         <LinearGradient
           colors={[colors.gradientStart, colors.gradientEnd]}
           start={{ x: 0, y: 0 }}
@@ -189,6 +192,7 @@ export default function PhoneScreen() {
             {t('auth.browseAsGuest')}
           </Text>
         </Pressable>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -204,8 +208,13 @@ const styles = StyleSheet.create({
   scroll: {
     flexGrow: 1,
     justifyContent: 'center',
+    alignItems: 'center',
     paddingHorizontal: 24,
     paddingVertical: 48,
+  },
+  inner: {
+    width: '100%',
+    maxWidth: 460,
   },
   logo: {
     width: 64,

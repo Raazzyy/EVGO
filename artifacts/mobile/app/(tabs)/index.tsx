@@ -715,7 +715,8 @@ export default function MapScreen() {
   // ── Horizontal section renderer ───────────────────────────────────────────
   // Card width = 78 % of screen; gap = 12; padding = 16 on each side.
   // ScrollView breaks out of parent's 16px horizontal padding via marginHorizontal: -16.
-  const CARD_W    = Math.round(SCREEN_WIDTH * 0.78);
+  // maxWidth 360 — на широких экранах (ПК/монитор авто) карточки не растягиваются.
+  const CARD_W    = Math.min(Math.round(SCREEN_WIDTH * 0.78), 360);
   const SNAP_STEP = CARD_W + 12;
 
   const renderHSection = useCallback((stations: any[]) => (
