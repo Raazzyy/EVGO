@@ -121,8 +121,14 @@
   зарядка» закрыта; недостаток средств не роняет ответ (фиксируется). Исправлено.
 - [x] SEC-03 — гвард `if (status !== 'active')` в stop → нет накрутки и двойного списания. Исправлено.
 - [ ] DB-01 — деньги и координаты в `real`/float (`stations.ts:16-22`, `sessions.ts:12`) → bigint тийины / doublePrecision.
-- [ ] CON-01 — гонка брони коннектора без атомарного `WHERE status='free'` (`connectors.ts:45-64`).
-- [ ] BUG-01 — `vehicle_id positive()` блокирует авто из оверрайда (id=-1) (`user_vehicles.ts:30`).
+- [x] CON-01 — атомарная бронь одним `UPDATE ... WHERE status='free' OR (reserved AND expired)`
+  (`connectors.ts`) — гонка TOCTOU закрыта. Исправлено.
+- [x] BUG-01 — `vehicle_id` больше не `positive()`; сервер при id≤0 заводит каталог из полей,
+  мобилка при id≤0 шлёт поля (`user_vehicles.ts`, `cars.tsx`). Исправлено.
+
+**Безопасность прочее:**
+- [x] CORS сужен до боевых доменов (evgo.uz/app/admin) + локалка/replit; запросы без Origin
+  (мобилка/curl) пропускаются (`app.ts`). Исправлено. Доп. домены — `CORS_EXTRA_ORIGINS`.
 
 **Баг «станция не открывается» (жалоба пользователя):**
 - [x] MAP-01 — Leaflet `stopPropagation(e.originalEvent)` — исправлено (`f65bd0e`).

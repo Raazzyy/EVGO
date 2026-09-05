@@ -30,7 +30,36 @@ app.use(
     },
   }),
 );
-app.use(cors());
+// CORS сужен до боевых доменов + локальной разработки. Раньше `cors()` открывал
+// API всему интернету (Access-Control-Allow-Origin: *) — фишинговый сайт мог из
+// браузера пользователя дёргать API. Запросы без Origin (мобильное приложение,
+// curl, серверные вызовы) пропускаем — на них CORS не распространяется.
+const CORS_ALLOWED = new Set(
+  [
+    "https://evgo.uz",
+    "https://www.evgo.uz",
+    "https://app.evgo.uz",
+    "https://admin.evgo.uz",
+    process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : "",
+    ...(process.env.CORS_EXTRA_ORIGINS ?? "").split(",").map((s) => s.trim()),
+  ].filter(Boolean),
+);
+app.use(
+  cors({
+    origin(origin, cb) {
+      if (!origin) return cb(null, true); // мобилка/curl/серверные — без Origin
+      let host = "";
+      try { host = new URL(origin).hostname; } catch { /* невалидный Origin */ }
+      const isLocalDev =
+        host === "localhost" || host === "127.0.0.1" ||
+        /^192\.168\./.test(host) || /^10\./.test(host) ||
+        /^172\.(1[6-9]|2\d|3[01])\./.test(host);
+      const isReplitApp = host.endsWith(".replit.app") || host.endsWith(".replit.dev");
+      if (CORS_ALLOWED.has(origin) || isLocalDev || isReplitApp) return cb(null, true);
+      return cb(new Error(`CORS: origin ${origin} не разрешён`));
+    },
+  }),
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

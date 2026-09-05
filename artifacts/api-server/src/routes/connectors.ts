@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and, or, lt, isNull } from "drizzle-orm";
 import { db, connectorsTable, connectorWatchersTable, stationsTable, sessionsTable } from "@workspace/db";
 
 import { requireAuth } from "../middlewares/requireAuth";
@@ -47,18 +47,6 @@ router.post<{ id: string }>("/connectors/:id/reserve", requireAuth, async (req, 
 
   const now = new Date();
 
-  // Check if reservation expired (lazy cleanup)
-  if (connector.status === "reserved" && connector.reserved_until && connector.reserved_until < now) {
-    await db.update(connectorsTable)
-      .set({ status: "free", reserved_by_user_id: null, reserved_until: null, updated_at: now })
-      .where(eq(connectorsTable.id, id));
-    connector.status = "free";
-  }
-
-  if (connector.status !== "free") {
-    res.status(409).json({ error: "Connector is not available for reservation" }); return;
-  }
-
   // Check station supports_reservation
   const [station] = await db.select().from(stationsTable).where(eq(stationsTable.id, connector.station_id));
   if (!station?.supports_reservation) {
@@ -67,6 +55,10 @@ router.post<{ id: string }>("/connectors/:id/reserve", requireAuth, async (req, 
 
   const reservedUntil = new Date(now.getTime() + 15 * 60 * 1000); // 15 minutes
 
+  // CON-01: атомарная бронь. Одним UPDATE с условием по статусу — иначе две
+  // параллельные брони проходили select-проверку и перезаписывали друг друга
+  // (гонка TOCTOU). Условие ловит и свободный коннектор, и протухшую бронь
+  // (lazy cleanup встроен). Если 0 строк — коннектор уже занят кем-то → 409.
   const [updated] = await db.update(connectorsTable)
     .set({
       status: "reserved",
@@ -74,8 +66,18 @@ router.post<{ id: string }>("/connectors/:id/reserve", requireAuth, async (req, 
       reserved_until: reservedUntil,
       updated_at: now,
     })
-    .where(eq(connectorsTable.id, id))
+    .where(and(
+      eq(connectorsTable.id, id),
+      or(
+        eq(connectorsTable.status, "free"),
+        and(eq(connectorsTable.status, "reserved"), lt(connectorsTable.reserved_until, now)),
+      ),
+    ))
     .returning();
+
+  if (!updated) {
+    res.status(409).json({ error: "Connector is not available for reservation" }); return;
+  }
 
   res.status(201).json({
     ...updated,

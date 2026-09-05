@@ -27,7 +27,9 @@ router.get("/user-vehicles", requireAuth, async (req, res): Promise<void> => {
 // POST /user-vehicles
 // Body: { user_id, vehicle_id?, name?, connector_type?, battery_kwh?, range_km?, ... }
 const CreateBody = z.object({
-  vehicle_id:    z.number().int().positive().optional(),
+  // Авто из каталога-оверрайда приходят с id ≤ 0 (напр. -1) — их нельзя
+  // отклонять; сервер в этом случае заводит каталожную запись из полей ниже.
+  vehicle_id:    z.number().int().optional(),
   name:          z.string().optional(),
   connector_type: z.enum(["CCS2", "CHAdeMO", "Type2", "GB-T"]).optional(),
   battery_kwh:   z.number().positive().optional(),
@@ -51,7 +53,9 @@ router.post("/user-vehicles", requireAuth, async (req, res): Promise<void> => {
 
   let catalogId: number;
 
-  if (vehicle_id) {
+  // Только реальный каталожный id (> 0). id ≤ 0 — это оверрайд (напр. -1),
+  // для него идём в find-or-create по полям, иначе была бы ссылка на несуществующую строку.
+  if (vehicle_id && vehicle_id > 0) {
     catalogId = vehicle_id;
   } else {
     if (!name || !connector_type || !battery_kwh || !range_km) {

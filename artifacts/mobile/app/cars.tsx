@@ -165,7 +165,9 @@ export default function CarsScreen() {
   const handleAddVehicle = useCallback((car: SearchResult) => {
     createMutation.mutate({
       user_id: userId,
-      ...(car.id ? { vehicle_id: car.id } : {
+      // id ≤ 0 — авто из каталога-оверрайда: шлём поля, чтобы сервер завёл
+      // каталожную запись (иначе vehicle_id: -1 ссылается в никуда).
+      ...(car.id && car.id > 0 ? { vehicle_id: car.id } : {
         name: car.name,
         connector_type: normalizeConnector(car.connector_type),
         battery_kwh: car.battery_kwh ?? 60,
