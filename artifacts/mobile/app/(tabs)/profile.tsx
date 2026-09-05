@@ -68,7 +68,8 @@ export default function ProfileScreen() {
 
   const completedSessions = sessions.filter((s) => s.status === 'completed');
   const totalEnergy = completedSessions.reduce((acc, s) => acc + (s.energy_kwh ?? 0), 0);
-  const totalCost = completedSessions.reduce((acc, s) => acc + (s.cost ?? 0), 0);
+  // cost_tiyin — тийины (1 сум = 100 тийин), приводим к сумам для отображения.
+  const totalCost = completedSessions.reduce((acc, s) => acc + (s.cost_tiyin ?? 0) / 100, 0);
   const co2Saved = totalEnergy * 0.4;
 
   const topPad = Platform.OS === 'web' ? 67 : insets.top;

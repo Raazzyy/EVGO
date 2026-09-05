@@ -30,7 +30,7 @@ export default function PaymentScreen() {
 
   const energyKwh = session.energy_kwh ?? 0;
   // Используем cost из БД, а не пересчитываем
-  const cost = session.cost ?? 0;
+  const cost = (session.cost_tiyin ?? 0) / 100; // тийины → сумы
   // Реальный тариф из связанной станции; fallback на 0 если станция не приложена
   const tariff = (session as any)?.station?.price_per_kwh ?? 0;
   const fee = 0;

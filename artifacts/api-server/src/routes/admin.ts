@@ -125,7 +125,7 @@ router.get("/admin/dashboard", adminAuth, async (_req, res): Promise<void> => {
   const activeSessions   = await db.select({ count: count() }).from(sessionsTable).where(eq(sessionsTable.status, "active"));
   const totalSessions    = await db.select({ count: count() }).from(sessionsTable);
   const [totalUsers]     = await db.select({ count: count() }).from(usersTable);
-  const [revenue]        = await db.select({ total: sum(sessionsTable.cost) }).from(sessionsTable).where(eq(sessionsTable.status, "completed"));
+  const [revenue]        = await db.select({ total: sql<number>`coalesce(sum(${sessionsTable.cost_tiyin}), 0) / 100.0` }).from(sessionsTable).where(eq(sessionsTable.status, "completed"));
 
   const topOperators = await db
     .select({ id: operatorsTable.id, name: operatorsTable.name, logo_url: operatorsTable.logo_url, station_count: count(stationsTable.id) })
@@ -212,7 +212,7 @@ router.get("/admin/finance", adminAuth, async (req, res): Promise<void> => {
 
     const [aggRow] = await db
       .select({
-        total_revenue:   sum(sessionsTable.cost),
+        total_revenue:   sql<number>`coalesce(sum(${sessionsTable.cost_tiyin}), 0) / 100.0`,
         total_kwh:       sum(sessionsTable.energy_kwh),
         session_count:   count(),
         unique_users:    sql<number>`cast(count(distinct ${sessionsTable.user_id}) as int)`,
@@ -223,7 +223,7 @@ router.get("/admin/finance", adminAuth, async (req, res): Promise<void> => {
     const dailyRows = await db
       .select({
         day:     sql<string>`to_char(date_trunc('day', ${sessionsTable.started_at}), 'YYYY-MM-DD')`,
-        revenue: sum(sessionsTable.cost),
+        revenue: sql<number>`coalesce(sum(${sessionsTable.cost_tiyin}), 0) / 100.0`,
         kwh:     sum(sessionsTable.energy_kwh),
         sessions: count(),
       })
@@ -327,7 +327,7 @@ router.get("/admin/finance", adminAuth, async (req, res): Promise<void> => {
     .select({
       station_id: sessionsTable.station_id,
       name:       stationsTable.name,
-      revenue:    sum(sessionsTable.cost),
+      revenue:    sql<number>`coalesce(sum(${sessionsTable.cost_tiyin}), 0) / 100.0`,
       sessions:   count(),
       kwh:        sum(sessionsTable.energy_kwh),
     })
@@ -335,7 +335,7 @@ router.get("/admin/finance", adminAuth, async (req, res): Promise<void> => {
     .leftJoin(stationsTable, eq(stationsTable.id, sessionsTable.station_id))
     .where(sessionFilter)
     .groupBy(sessionsTable.station_id, stationsTable.name)
-    .orderBy(sql`sum(${sessionsTable.cost}) desc nulls last`)
+    .orderBy(sql`sum(${sessionsTable.cost_tiyin}) desc nulls last`)
     .limit(20);
 
   // ── Top-10 vehicle models by connector type ────────────────────────────────
@@ -348,7 +348,7 @@ router.get("/admin/finance", adminAuth, async (req, res): Promise<void> => {
 
   // ── Connector split from sessions ──────────────────────────────────────────
   const connectorSplit = await db
-    .select({ connector_type: sessionsTable.connector_type, sessions: count(), revenue: sum(sessionsTable.cost) })
+    .select({ connector_type: sessionsTable.connector_type, sessions: count(), revenue: sql<number>`coalesce(sum(${sessionsTable.cost_tiyin}), 0) / 100.0` })
     .from(sessionsTable)
     .where(sessionFilter)
     .groupBy(sessionsTable.connector_type)
@@ -359,7 +359,7 @@ router.get("/admin/finance", adminAuth, async (req, res): Promise<void> => {
     .select({
       operator_id: operatorsTable.id,
       name:        operatorsTable.name,
-      revenue:     sum(sessionsTable.cost),
+      revenue:     sql<number>`coalesce(sum(${sessionsTable.cost_tiyin}), 0) / 100.0`,
       sessions:    count(),
       kwh:         sum(sessionsTable.energy_kwh),
     })
@@ -368,7 +368,7 @@ router.get("/admin/finance", adminAuth, async (req, res): Promise<void> => {
     .leftJoin(operatorsTable, eq(operatorsTable.id, stationsTable.operator_id))
     .where(sessionFilter)
     .groupBy(operatorsTable.id, operatorsTable.name)
-    .orderBy(sql`sum(${sessionsTable.cost}) desc nulls last`)
+    .orderBy(sql`sum(${sessionsTable.cost_tiyin}) desc nulls last`)
     .limit(20);
 
   // ── Hourly distribution ───────────────────────────────────────────────────
@@ -395,7 +395,7 @@ router.get("/admin/finance", adminAuth, async (req, res): Promise<void> => {
       user_id:  sessionsTable.user_id,
       sessions: count(),
       kwh:      sum(sessionsTable.energy_kwh),
-      spent:    sum(sessionsTable.cost),
+      spent:    sql<number>`coalesce(sum(${sessionsTable.cost_tiyin}), 0) / 100.0`,
     })
     .from(sessionsTable)
     .where(and(sessionFilter, sql`${sessionsTable.user_id} is not null`))

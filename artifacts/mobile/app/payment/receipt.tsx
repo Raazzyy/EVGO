@@ -48,7 +48,10 @@ export default function ReceiptScreen() {
   const pricePerKwh  = (session as any)?.station?.price_per_kwh ?? 2000;
   // Используем cost из БД (посчитан бэкендом при PATCH /stop), а не пересчитываем.
   // Пересчёт расходился с БД и ломался, если station не присоединена к ответу.
-  const totalCost    = Math.round((session as any)?.cost ?? rawEnergy * pricePerKwh);
+  // cost_tiyin из БД (посчитан бэкендом при /stop) → сумы; фолбэк — прикидка.
+  const totalCost    = (session as any)?.cost_tiyin != null
+    ? Math.round((session as any).cost_tiyin / 100)
+    : Math.round(rawEnergy * pricePerKwh);
   const duration     = (session as any)?.started_at
     ? formatDuration((session as any).started_at as string)
     : '—';

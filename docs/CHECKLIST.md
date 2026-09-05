@@ -120,7 +120,10 @@
 - [x] SEC-02 — при stop списываем стоимость с кошелька через `debit()` (тийины) — «бесплатная
   зарядка» закрыта; недостаток средств не роняет ответ (фиксируется). Исправлено.
 - [x] SEC-03 — гвард `if (status !== 'active')` в stop → нет накрутки и двойного списания. Исправлено.
-- [ ] DB-01 — деньги и координаты в `real`/float (`stations.ts:16-22`, `sessions.ts:12`) → bigint тийины / doublePrecision.
+- [x] DB-01 — координаты `lat/lng` → `doublePrecision`; `sessions.cost` → `cost_tiyin` (bigint,
+  тийины). Клиент перегенерирован (orval), admin-агрегаты считают в сумах (÷100 в SQL),
+  мобилка-читатели ÷100. Миграции: `docs/sql/2026-09-05-coords-double-precision.sql`,
+  `2026-09-05-session-cost-tiyin.sql`. tsc чист по всем пакетам. Исправлено.
 - [x] CON-01 — атомарная бронь одним `UPDATE ... WHERE status='free' OR (reserved AND expired)`
   (`connectors.ts`) — гонка TOCTOU закрыта. Исправлено.
 - [x] BUG-01 — `vehicle_id` больше не `positive()`; сервер при id≤0 заводит каталог из полей,

@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, real, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, real, bigint, timestamp, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -9,7 +9,9 @@ export const sessionsTable = pgTable("sessions", {
   station_id: integer("station_id").notNull(),
   user_id: text("user_id"),
   energy_kwh: real("energy_kwh"),
-  cost: real("cost"),
+  // Деньги — в тийинах целым bigint (1 сум = 100 тийин). real (Float32) терял
+  // точность на агрегатах выручки (DB-01). energy_kwh — измерение, остаётся real.
+  cost_tiyin: bigint("cost_tiyin", { mode: "number" }),
   status: sessionStatusEnum("status").notNull().default("active"),
   started_at: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
   ended_at: timestamp("ended_at", { withTimezone: true }),

@@ -15,8 +15,11 @@ export interface Session {
   user_id?: string | null;
   /** @nullable */
   energy_kwh?: number | null;
-  /** @nullable */
-  cost?: number | null;
+  /**
+     * Стоимость сессии в тийинах (1 сум = 100 тийин), целое.
+     * @nullable
+     */
+  cost_tiyin?: number | null;
   status: SessionStatus;
   started_at: Date;
   /** @nullable */

@@ -175,10 +175,10 @@ router.post<{ id: string }>("/sessions/:id/pay", requireAuth, async (req, res): 
     const pricePerKwh = (station as { price_per_kwh?: number })?.price_per_kwh ?? 2000;
     const durationH = Math.min((Date.now() - existing.started_at.getTime()) / 3_600_000, 0.5);
     const energy = parseFloat((durationH * powerKw).toFixed(2));
-    const cost = parseFloat((energy * pricePerKwh).toFixed(2));
+    const costTiyin = Math.round(energy * pricePerKwh * 100);
     const [updated] = await db
       .update(sessionsTable)
-      .set({ status: "completed", ended_at: new Date(), energy_kwh: energy, cost })
+      .set({ status: "completed", ended_at: new Date(), energy_kwh: energy, cost_tiyin: costTiyin })
       .where(eq(sessionsTable.id, id))
       .returning();
     await db.update(stationsTable).set({ status: "free", updated_at: new Date() }).where(eq(stationsTable.id, existing.station_id));
@@ -210,7 +210,8 @@ router.patch("/sessions/:id/stop", requireUserOrAdmin, async (req, res): Promise
   const pricePerKwh = (station as { price_per_kwh?: number })?.price_per_kwh ?? 2000;
   const powerKw = (station as { power_kw?: number })?.power_kw ?? 50;
   const energyKwh = parseFloat((powerKw * durationHours).toFixed(2));
-  const cost = parseFloat((energyKwh * pricePerKwh).toFixed(2));
+  // Стоимость сразу в тийинах целым — без хранения денег во float (DB-01).
+  const costTiyin = Math.round(energyKwh * pricePerKwh * 100);
 
   const [session] = await db
     .update(sessionsTable)
@@ -218,7 +219,7 @@ router.patch("/sessions/:id/stop", requireUserOrAdmin, async (req, res): Promise
       status: "completed",
       ended_at: new Date(),
       energy_kwh: energyKwh,
-      cost,
+      cost_tiyin: costTiyin,
     })
     .where(eq(sessionsTable.id, p.data.id))
     .returning();
@@ -240,7 +241,6 @@ router.patch("/sessions/:id/stop", requireUserOrAdmin, async (req, res): Promise
   // тийинах (1 сум = 100 тийин). Защита от двойного списания — гвард SEC-03
   // выше (списываем только на переходе active→completed). Недостаток средств
   // не роняет ответ: сессия завершается, долг фиксируется в комментарии.
-  const costTiyin = Math.round(cost * 100);
   if (existing.user_id && costTiyin > 0) {
     try {
       await debit(existing.user_id, costTiyin, {
@@ -267,7 +267,7 @@ router.patch("/sessions/:id/stop", requireUserOrAdmin, async (req, res): Promise
     void notifyUser(existing.user_id, "session_ended", {
       station: stationName,
       energy: energyKwh.toFixed(1),
-      cost: `${Math.round(cost).toLocaleString("ru-RU")} сум`,
+      cost: `${Math.round(costTiyin / 100).toLocaleString("ru-RU")} сум`,
     }, { sessionId: session?.id });
   }
 

@@ -9,7 +9,7 @@ interface Session {
   id: number;
   station?: { name: string; address: string } | null;
   energy_kwh?: number | null;
-  cost?: number | null;
+  cost_tiyin?: number | null;
   status: 'active' | 'completed' | 'cancelled';
   started_at: string;
   ended_at?: string | null;
@@ -95,11 +95,11 @@ export function SessionCard({ session, onPress, onStop }: SessionCardProps) {
             </Text>
           </View>
         )}
-        {session.cost != null && (
+        {session.cost_tiyin != null && (
           <View style={styles.stat}>
             <Feather name="credit-card" size={13} color={colors.primary} />
             <Text style={[styles.statText, { color: colors.text }]}>
-              {formatMoney(Math.round(session.cost))}
+              {formatMoney(Math.round(session.cost_tiyin / 100))}
             </Text>
           </View>
         )}

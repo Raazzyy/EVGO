@@ -1444,8 +1444,9 @@ components:
           type: ["string", "null"]
         energy_kwh:
           type: ["number", "null"]
-        cost:
-          type: ["number", "null"]
+        cost_tiyin:
+          description: Стоимость сессии в тийинах (1 сум = 100 тийин), целое.
+          type: ["integer", "null"]
         status:
           type: string
           enum: [active, completed, cancelled]
