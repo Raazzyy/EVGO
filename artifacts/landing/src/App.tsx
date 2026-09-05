@@ -13,6 +13,14 @@ import {
   type Lang,
 } from '@/content';
 
+/**
+ * Адрес веб-приложения — то же приложение, что и мобилка, прямо в браузере.
+ * Сейчас раздаётся с того же деплоя по пути /mobile/ (работает и на evgo.uz,
+ * и на replit-домене). Когда поднимут поддомен app.evgo.uz на мобильный
+ * артефакт — поменять на 'https://app.evgo.uz'.
+ */
+const WEBAPP_URL = '/mobile/';
+
 /** Плавное появление секции при попадании в область просмотра. */
 function useReveal<T extends HTMLElement>() {
   const ref = useRef<T>(null);
@@ -163,9 +171,17 @@ export default function App() {
             </p>
 
             <div className="mt-9 flex flex-wrap items-center gap-3">
+              {/* Веб-апп: то же приложение прямо в браузере, без установки —
+                  с монитора авто или любого устройства. WEBAPP_URL см. ниже. */}
+              <a
+                href={WEBAPP_URL}
+                className="rounded-full bg-gradient-to-r from-volt-deep to-violet px-6 py-3.5 font-medium text-white transition-transform hover:scale-[1.03]"
+              >
+                {t.hero.openApp}
+              </a>
               <a
                 href="#get"
-                className="rounded-full bg-gradient-to-r from-volt-deep to-violet px-6 py-3.5 font-medium text-white transition-transform hover:scale-[1.03]"
+                className="rounded-full border border-ink-line px-6 py-3.5 font-medium text-paper transition-colors hover:border-volt hover:text-volt"
               >
                 {t.hero.download}
               </a>

@@ -25,6 +25,7 @@ interface Content {
     titleLine2: string;
     lead: string;
     download: string;
+    openApp: string;
     how: string;
   };
   map: { stations: string; freeNow: string; loading: string; failed: string; live: string };
@@ -52,6 +53,7 @@ export const CONTENT: Record<Lang, Content> = {
       titleLine2: 'на одной карте',
       lead: 'Видно, свободна ли станция, — до того как вы туда поехали. Маршрут с остановками под запас хода вашей машины. Оплата с баланса у любого партнёра.',
       download: 'Скачать приложение',
+      openApp: 'Открыть в браузере',
       how: 'Как это работает',
     },
     map: {
@@ -148,6 +150,7 @@ export const CONTENT: Record<Lang, Content> = {
       titleLine2: 'bitta xaritada',
       lead: "Stansiya bo'shmi yoki yo'qmi — yo'lga chiqishdan oldin ko'rinadi. Mashinangiz quvvat zaxirasiga mos to'xtashlar bilan marshrut. Har qanday hamkorda balansdan to'lov.",
       download: 'Ilovani yuklab olish',
+      openApp: 'Brauzerda ochish',
       how: 'Qanday ishlaydi',
     },
     map: {
@@ -244,6 +247,7 @@ export const CONTENT: Record<Lang, Content> = {
       titleLine2: 'on one map',
       lead: "See whether a charger is free before you drive there. Routes with stops matched to your car's range. Pay from your balance at any partner.",
       download: 'Get the app',
+      openApp: 'Open in browser',
       how: 'How it works',
     },
     map: {

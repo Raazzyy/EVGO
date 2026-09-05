@@ -138,14 +138,19 @@ cmd_dns() {
   ----   ------   ------------------------------------
   A      @        76.76.21.21               (лендинг Vercel — или IP, что покажет Vercel)
   CNAME  www      cname.vercel-dns.com
+  CNAME  app      $DEPLOY_DOMAIN            (веб-апп — то же приложение в браузере)
   CNAME  api      $DEPLOY_DOMAIN            (API)
   CNAME  admin    $DEPLOY_DOMAIN            (админка)
 
 Затем:
   • Vercel → проект лендинга → Settings → Domains → добавь $SITE_DOMAIN и www.$SITE_DOMAIN
-  • Replit → Deploy → Custom domain → добавь api.$SITE_DOMAIN и admin.$SITE_DOMAIN
+  • Replit → Deploy → Custom domain → добавь app.$SITE_DOMAIN (мобильный артефакт),
+    api.$SITE_DOMAIN и admin.$SITE_DOMAIN
   • Мобилка на боевой API: Secrets → EXPO_PUBLIC_DOMAIN=api.$SITE_DOMAIN → пересобрать
-SSL выпустится сам за 10–30 мин. Проверка: https://$SITE_DOMAIN
+SSL выпустится сам за 10–30 мин. Проверка: https://$SITE_DOMAIN и https://app.$SITE_DOMAIN
+
+Пока app.$SITE_DOMAIN не поднят — веб-апп доступен на лендинге кнопкой «Открыть
+в браузере» и по адресу https://$DEPLOY_DOMAIN/mobile/ (то же самое приложение).
 EOF
 }
 
