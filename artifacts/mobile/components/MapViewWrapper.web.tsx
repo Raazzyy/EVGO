@@ -193,6 +193,17 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
           visible = culled.length > 0 ? culled : stations;
         } catch { visible = stations; }
       }
+      // Жёсткий лимит DOM-иконок: на общем зуме весь город влезает в кадр, и
+      // куллинг не спасает. Промо-пины оставляем всегда, остальные прореживаем.
+      const MAX_MARKERS = 120;
+      if (visible.length > MAX_MARKERS) {
+        const promoted = visible.filter((s) => s.is_promoted);
+        const rest = visible.filter((s) => !s.is_promoted);
+        const slots = Math.max(0, MAX_MARKERS - promoted.length);
+        const stride = slots > 0 ? Math.ceil(rest.length / slots) : rest.length + 1;
+        const sampled = slots > 0 ? rest.filter((_, i) => i % stride === 0).slice(0, slots) : [];
+        visible = [...promoted, ...sampled];
+      }
       visible.forEach((s) => {
         // Цвет = скорость зарядки, прозрачность = занятость (см. lib/mapPins).
         const color = pinColor(s.power_kw, s.status);
