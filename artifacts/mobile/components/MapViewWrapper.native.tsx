@@ -73,8 +73,9 @@ const TASHKENT: Region = {
 const ZOOM_IN_FACTOR  = 0.5;   // multiply delta by this to zoom in
 const ZOOM_OUT_FACTOR = 2.0;   // multiply delta by this to zoom out
 
-const PIN_SIZE          = 28;
-const PIN_PROMOTED_SIZE = 36;
+// Аккуратные небольшие пины (в духе Яндекса), не «бандуры».
+const PIN_SIZE          = 18;
+const PIN_PROMOTED_SIZE = 24;
 
 // Cap on simultaneously-rendered native markers. Each marker is an RN View +
 // icon; hundreds of them exhaust memory and OOM-crash the app on real devices
@@ -308,8 +309,9 @@ export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
               coordinate={{ latitude: s.lat, longitude: s.lng }}
               onPress={() => {
                 markerJustPressed.current = true;
-                // MapView.onPress fires ≈ a frame later; clear the flag after 200 ms
-                setTimeout(() => { markerJustPressed.current = false; }, 200);
+                // MapView.onPress may arrive later than one frame when JS is busy
+                // (sheet animation). 450 ms window so the card doesn't get cleared.
+                setTimeout(() => { markerJustPressed.current = false; }, 450);
                 onStationPressRef.current(s.id);
               }}
               // tracksViewChanges=false prevents expensive re-renders on each map move
@@ -329,14 +331,7 @@ export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
                   promoted && styles.pinPromoted,
                 ]}
               >
-                <Feather name="zap" size={promoted ? 15 : 12} color="#fff" />
-
-                {/* Gold star badge for promoted stations */}
-                {promoted && (
-                  <View style={styles.starBadge}>
-                    <Text style={styles.starText}>★</Text>
-                  </View>
-                )}
+                <Feather name="zap" size={promoted ? 12 : 9} color="#fff" />
               </View>
             </Marker>
           );
@@ -403,42 +398,22 @@ const styles = StyleSheet.create({
   pin: {
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: '#FFFFFF',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.28,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
   },
-  // Promoted override: gold border + stronger glow
+  // Promoted override: тонкое золотое кольцо + лёгкое свечение (без звезды)
   pinPromoted: {
+    borderWidth: 2,
     borderColor: '#FCD34D',
     shadowColor: '#F59E0B',
-    shadowOpacity: 0.45,
-    shadowRadius: 14,
-    elevation: 9,
-  },
-  // Tiny gold badge in the top-right corner of promoted pins
-  starBadge: {
-    position: 'absolute',
-    top:    -5,
-    right:  -5,
-    width:   16,
-    height:  16,
-    borderRadius: 8,
-    backgroundColor: '#F59E0B',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: '#fff',
-  },
-  starText: {
-    color:    '#fff',
-    fontSize: 8,
-    lineHeight: 10,
-    // Inter_700Bold may not load inside a Marker; fallback to System Bold is fine
-    fontWeight: '700',
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 6,
   },
   // Route waypoint dot
   routePin: {

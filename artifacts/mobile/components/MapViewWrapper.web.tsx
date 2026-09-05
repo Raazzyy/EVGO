@@ -209,28 +209,30 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
         const color = pinColor(s.power_kw, s.status);
         const opacity = pinOpacity(s.status);
         const promoted = !!s.is_promoted;
-        const size = promoted ? 36 : 28;
-        const border = promoted ? '2.5px solid #FCD34D' : '2px solid white';
+        // Аккуратные небольшие точки (в духе Яндекса), не «бандуры».
+        const size = promoted ? 24 : 18;
+        const border = promoted ? '2px solid #FCD34D' : '1.5px solid #fff';
         const shadow = promoted
-          ? '0 2px 16px rgba(245,158,11,.45)'
-          : '0 2px 12px rgba(0,0,0,.28)';
-        const starBadge = promoted
-          ? `<div style="position:absolute;top:-6px;right:-6px;width:16px;height:16px;border-radius:50%;background:#F59E0B;border:1.5px solid #fff;display:flex;align-items:center;justify-content:center;font-size:9px;line-height:1;color:#fff;font-weight:700;">★</div>`
-          : '';
+          ? '0 1px 6px rgba(245,158,11,.4)'
+          : '0 1px 3px rgba(0,0,0,.25)';
+        const zap = promoted ? 12 : 9;
         const icon = L.divIcon({
           html: `<div style="position:relative;background:${color};opacity:${opacity};width:${size}px;height:${size}px;border-radius:50%;border:${border};box-shadow:${shadow};display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .15s">
-            <svg width="${promoted ? 15 : 11}" height="${promoted ? 15 : 11}" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="${zap}" height="${zap}" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
             </svg>
-            ${starBadge}
           </div>`,
           className: '', iconSize: [size, size], iconAnchor: [size / 2, size / 2],
         });
         const marker = L.marker([s.lat, s.lng], { icon }).addTo(map);
         marker.on('click', (e: any) => {
-          L.DomEvent.stopPropagation(e);
+          // e — LeafletMouseEvent; нативное событие в e.originalEvent, иначе
+          // клик всплывает до map.on('click') и сбрасывает выбранную станцию.
+          if (e.originalEvent) L.DomEvent.stopPropagation(e.originalEvent);
           markerJustClicked.current = true;
-          setTimeout(() => { markerJustClicked.current = false; }, 200);
+          // На тач-экранах синтетический click приходит ~300 мс — окно 450 мс,
+          // иначе карточка станции схлопывается сразу после открытия.
+          setTimeout(() => { markerJustClicked.current = false; }, 450);
           onPressRef.current(s.id);
         });
         markersRef.current.push(marker);
