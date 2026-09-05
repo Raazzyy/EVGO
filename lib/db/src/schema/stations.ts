@@ -1,6 +1,6 @@
 import {
   pgTable, text, serial, integer, real, pgEnum,
-  json, timestamp, boolean, numeric,
+  json, timestamp, boolean, numeric, doublePrecision,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -13,8 +13,9 @@ export const stationsTable = pgTable("stations", {
   operator_id:          integer("operator_id"),
   name:                 text("name").notNull(),
   address:              text("address").notNull(),
-  lat:                  real("lat").notNull(),
-  lng:                  real("lng").notNull(),
+  // double precision — real (Float32) давал дрейф координат ~1–4 м (DB-01).
+  lat:                  doublePrecision("lat").notNull(),
+  lng:                  doublePrecision("lng").notNull(),
   connectors:           json("connectors")
     .$type<Array<{ type: string; power_kw: number; total: number; available: number }>>()
     .default([]),
