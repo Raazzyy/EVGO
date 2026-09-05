@@ -1,4 +1,4 @@
-import { createHmac, randomBytes, createHash, timingSafeEqual } from "crypto";
+import { createHmac, randomBytes, createHash, timingSafeEqual, scryptSync } from "crypto";
 
 /**
  * Аутентификация пользователей приложения: вход по номеру телефона с
@@ -18,6 +18,38 @@ export const ACCESS_TTL_MS = 30 * 60 * 1000;              // 30 минут
 export const REFRESH_TTL_MS = 60 * 24 * 60 * 60 * 1000;   // 60 дней
 export const OTP_TTL_MS = 5 * 60 * 1000;                  // 5 минут
 export const OTP_MAX_ATTEMPTS = 5;
+
+// ── Пароли (админы) ─────────────────────────────────────────────────────────
+// Хешируем через встроенный scrypt (без внешних зависимостей типа bcrypt/argon2,
+// которые тянут нативную сборку). Формат: `scrypt$<salt_hex>$<hash_hex>`.
+// Сравнение — timingSafeEqual, чтобы не утекала подсказка по времени ответа.
+
+/** Захешировать пароль для хранения в БД. */
+export function hashPassword(plain: string): string {
+  const salt = randomBytes(16);
+  const hash = scryptSync(plain, salt, 64);
+  return `scrypt$${salt.toString("hex")}$${hash.toString("hex")}`;
+}
+
+/**
+ * Проверить пароль против хранимого значения.
+ * Поддерживает legacy-плейнтекст (значения без префикса `scrypt$`), чтобы не
+ * заблокировать ранее заведённых админов — но такие стоит перехешировать.
+ */
+export function verifyPassword(plain: string, stored: string): boolean {
+  if (!stored) return false;
+  if (stored.startsWith("scrypt$")) {
+    const [, saltHex, hashHex] = stored.split("$");
+    if (!saltHex || !hashHex) return false;
+    const expected = Buffer.from(hashHex, "hex");
+    const actual = scryptSync(plain, Buffer.from(saltHex, "hex"), expected.length);
+    return expected.length === actual.length && timingSafeEqual(expected, actual);
+  }
+  // legacy plaintext: сравниваем timing-safe, длины выравниваем через хеш
+  const a = createHash("sha256").update(plain).digest();
+  const b = createHash("sha256").update(stored).digest();
+  return timingSafeEqual(a, b);
+}
 
 function masterSecret(): string {
   const secret = process.env["AUTH_JWT_SECRET"] ?? process.env["ADMIN_JWT_SECRET"];

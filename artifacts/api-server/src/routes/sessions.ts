@@ -17,6 +17,7 @@ import {
 
 import { requireAuth, requireUserOrAdmin } from "../middlewares/requireAuth";
 import { notifyUser, notifyConnectorWatchers } from "../lib/push";
+import { debit, InsufficientFundsError } from "../lib/wallet";
 
 const router: IRouter = Router();
 
@@ -195,6 +196,15 @@ router.patch("/sessions/:id/stop", requireUserOrAdmin, async (req, res): Promise
   if (!existing) { res.status(404).json({ error: "Session not found" }); return; }
   if (!ownsSession(req, existing)) { res.status(404).json({ error: "Session not found" }); return; }
 
+  // SEC-03: останавливать можно только активную сессию. Иначе повторный вызов
+  // пересчитывал бы стоимость от started_at (через часы/сутки — накрутка в разы)
+  // и списывал бы деньги повторно. Уже завершённую просто отдаём как есть.
+  if (existing.status !== "active") {
+    const station = await getStationForSession(existing.station_id);
+    res.json({ ...existing, station });
+    return;
+  }
+
   const durationHours = (Date.now() - existing.started_at.getTime()) / 3600000;
   const station = await getStationForSession(existing.station_id);
   const pricePerKwh = (station as { price_per_kwh?: number })?.price_per_kwh ?? 2000;
@@ -223,6 +233,28 @@ router.patch("/sessions/:id/stop", requireUserOrAdmin, async (req, res): Promise
     await db.update(connectorsTable)
       .set({ status: "free", current_session_id: null, updated_at: new Date() })
       .where(eq(connectorsTable.id, existing.connector_id));
+  }
+
+  // SEC-02: списываем стоимость с кошелька. Раньше стоимость считалась, но
+  // деньги не списывались («бесплатная зарядка»). cost — в сумах, кошелёк — в
+  // тийинах (1 сум = 100 тийин). Защита от двойного списания — гвард SEC-03
+  // выше (списываем только на переходе active→completed). Недостаток средств
+  // не роняет ответ: сессия завершается, долг фиксируется в комментарии.
+  const costTiyin = Math.round(cost * 100);
+  if (existing.user_id && costTiyin > 0) {
+    try {
+      await debit(existing.user_id, costTiyin, {
+        type: "charge",
+        sessionId: existing.id,
+        comment: `Зарядка · сессия #${existing.id}`,
+      });
+    } catch (e) {
+      if (e instanceof InsufficientFundsError) {
+        console.warn(`[sessions/stop] недостаточно средств для списания за сессию #${existing.id}: нужно ${costTiyin} тийин`);
+      } else {
+        console.error(`[sessions/stop] ошибка списания за сессию #${existing.id}:`, (e as Error).message);
+      }
+    }
   }
 
   const stationName = (station as { name?: string })?.name ?? "";

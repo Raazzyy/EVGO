@@ -1,5 +1,6 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
-import { createHmac, timingSafeEqual } from "crypto";
+import { createHmac, createHash, timingSafeEqual } from "crypto";
+import { verifyPassword } from "../lib/auth";
 import { eq, count, sum, gte, lte, and, sql, avg } from "drizzle-orm";
 import { db, stationsTable, sessionsTable, usersTable, operatorsTable, adminUsersTable, vehiclesTable, userVehiclesTable } from "@workspace/db";
 import { AdminLoginBody } from "@workspace/api-zod";
@@ -22,6 +23,13 @@ function signToken(email: string): string {
   const payload = Buffer.from(`${email}:${Date.now()}`).toString("base64url");
   const sig = createHmac("sha256", JWT_SECRET()).update(payload).digest("base64url");
   return `${payload}.${sig}`;
+}
+
+/** Постоянное по времени сравнение строк (через sha256, чтобы выровнять длины). */
+function safeEq(a: string, b: string): boolean {
+  const ha = createHash("sha256").update(a).digest();
+  const hb = createHash("sha256").update(b).digest();
+  return timingSafeEqual(ha, hb);
 }
 
 function verifyToken(token: string): string | null {
@@ -86,7 +94,8 @@ router.post("/admin/login", async (req, res): Promise<void> => {
   const masterPass  = process.env.ADMIN_PASSWORD;
 
   if (masterEmail && masterPass) {
-    if (email === masterEmail && password === masterPass) {
+    // timing-safe сравнение, чтобы по времени ответа не утекала подсказка
+    if (safeEq(email, masterEmail) && safeEq(password, masterPass)) {
       res.json({ token: signToken(email), email });
       return;
     }
@@ -97,7 +106,9 @@ router.post("/admin/login", async (req, res): Promise<void> => {
     .from(adminUsersTable)
     .where(eq(adminUsersTable.email, email));
 
-  if (!admin || admin.password_hash !== password) {
+  // Пароль в БД хранится как scrypt-хеш (см. hashPassword). verifyPassword
+  // держит legacy-плейнтекст ради ранее заведённых админов, но их надо перехешировать.
+  if (!admin || !verifyPassword(password, admin.password_hash)) {
     res.status(401).json({ error: "Неверный email или пароль" });
     return;
   }
