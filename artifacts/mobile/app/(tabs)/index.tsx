@@ -525,15 +525,19 @@ export default function MapScreen() {
   // не наполнена) — показываем демо-станции, чтобы карта/список никогда не
   // были пустыми (важно и для демонстрации, и для ревью Apple). Как только
   // приходят настоящие данные — они сразу вытесняют демо.
+  // Demo-станции — только в dev-сборке. В проде при пустом ответе показываем
+  // пустой список (см. ListEmptyComponent с ретраем), а не выдуманные точки.
   const allStations = useMemo(() => {
     const real = (stationsData?.nearby ?? []) as any[];
-    return real.length > 0 ? real : (DEMO_STATIONS as any[]);
+    if (real.length > 0) return real;
+    return __DEV__ ? (DEMO_STATIONS as any[]) : [];
   }, [stationsData]);
   const promotedFromApi = useMemo(() => {
     const real = (stationsData?.promoted ?? []) as any[];
     if (real.length > 0) return real;
     const hasRealNearby = ((stationsData?.nearby ?? []) as any[]).length > 0;
-    return hasRealNearby ? [] : (DEMO_PROMOTED as any[]);
+    if (hasRealNearby || !__DEV__) return [];
+    return DEMO_PROMOTED as any[];
   }, [stationsData]);
 
   // ── Filters ───────────────────────────────────────────────────────────────
