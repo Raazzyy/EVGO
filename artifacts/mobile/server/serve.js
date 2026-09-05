@@ -14,6 +14,9 @@ const fs = require('fs');
 const path = require('path');
 
 const STATIC_ROOT = path.resolve(__dirname, '..', 'static-build');
+// Веб-приложение (expo export --platform web). Если собрано — браузер получает
+// само приложение, а не страницу «скачай Expo Go».
+const WEBAPP_ROOT = path.join(STATIC_ROOT, 'web-app');
 const TEMPLATE_PATH = path.resolve(__dirname, 'templates', 'landing-page.html');
 const basePath = (process.env.BASE_PATH || '/').replace(/\/+$/, '');
 
@@ -81,27 +84,43 @@ function serveLandingPage(req, res, landingPageTemplate, appName) {
   res.end(html);
 }
 
-function serveStaticFile(urlPath, res) {
+/** Отдать файл из указанного корня. Возвращает true, если отдал. */
+function tryServeFromRoot(root, urlPath, res) {
   const safePath = path.normalize(urlPath).replace(/^(\.\.(\/|\\|$))+/, '');
-  const filePath = path.join(STATIC_ROOT, safePath);
-
-  if (!filePath.startsWith(STATIC_ROOT)) {
+  const filePath = path.join(root, safePath);
+  if (!filePath.startsWith(root)) {
     res.writeHead(403);
     res.end('Forbidden');
-    return;
+    return true;
   }
-
   if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
-    res.writeHead(404);
-    res.end('Not Found');
-    return;
+    return false;
   }
-
   const ext = path.extname(filePath).toLowerCase();
   const contentType = MIME_TYPES[ext] || 'application/octet-stream';
-  const content = fs.readFileSync(filePath);
   res.writeHead(200, { 'content-type': contentType });
-  res.end(content);
+  res.end(fs.readFileSync(filePath));
+  return true;
+}
+
+const webAppExists = fs.existsSync(path.join(WEBAPP_ROOT, 'index.html'));
+
+/** SPA: любой браузерный маршрут без файла → index.html веб-приложения. */
+function serveWebAppIndex(res) {
+  const html = fs.readFileSync(path.join(WEBAPP_ROOT, 'index.html'));
+  res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+  res.end(html);
+}
+
+function serveStaticFile(urlPath, res) {
+  // 1) файл веб-приложения (entry.js, favicon, assets) — приоритет для браузера
+  if (webAppExists && tryServeFromRoot(WEBAPP_ROOT, urlPath, res)) return;
+  // 2) native-бандлы/ассеты Expo Go (лежат под таймстампом в static-build/)
+  if (tryServeFromRoot(STATIC_ROOT, urlPath, res)) return;
+  // 3) клиентский маршрут веб-приложения (нет расширения) → SPA index.html
+  if (webAppExists && !path.extname(urlPath)) return serveWebAppIndex(res);
+  res.writeHead(404);
+  res.end('Not Found');
 }
 
 const landingPageTemplate = fs.readFileSync(TEMPLATE_PATH, 'utf-8');
@@ -122,6 +141,9 @@ const server = http.createServer((req, res) => {
     }
 
     if (pathname === '/') {
+      // Браузер: отдаём само веб-приложение. Если веб не собран —
+      // деградируем на страницу «скачай Expo Go».
+      if (webAppExists) return serveWebAppIndex(res);
       return serveLandingPage(req, res, landingPageTemplate, appName);
     }
   }
