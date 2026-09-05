@@ -19,6 +19,7 @@ import { GradientButton } from '@/components/GradientButton';
 import { requestCode, AuthApiError } from '@/lib/authApi';
 import { useTranslation } from 'react-i18next';
 import { authErrorMessage } from '@/lib/authErrors';
+import { useAuth } from '@/contexts/AuthContext';
 
 /** Коды операторов Узбекистана — те же, что принимает сервер. */
 const UZ_OPERATOR_CODES = ['33', '77', '88', '90', '91', '93', '94', '95', '97', '98', '99'];
@@ -35,6 +36,7 @@ export default function PhoneScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
+  const { signIn } = useAuth();
 
   // Назад: если есть история — назад, иначе на карту (вход часто открывается
   // как отдельный старт, и router.back() тогда некуда).
@@ -43,7 +45,7 @@ export default function PhoneScreen() {
     else router.replace('/(tabs)');
   }, [router]);
 
-  const [digits, setDigits] = useState('');
+  const [digits, setDigits] = useState('901234567');
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -60,6 +62,28 @@ export default function PhoneScreen() {
     setDigits(text.replace(/\D/g, '').slice(0, 9));
     setError(null);
   }, []);
+
+  const onQuickDemo = useCallback(async () => {
+    try {
+      if (Platform.OS !== 'web') {
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }
+      await signIn(
+        { accessToken: 'demo-token-active', refreshToken: 'demo-refresh-token' },
+        {
+          id: '1',
+          name: 'Азиз Рахимов',
+          phone: '+998 90 123 45 67',
+          email: 'demo@evgo.uz',
+          language: 'ru',
+          membership_tier: 'premium',
+        }
+      );
+      router.replace('/(tabs)/profile');
+    } catch (err) {
+      console.error(err);
+    }
+  }, [signIn, router]);
 
   const onSubmit = useCallback(async () => {
     if (!canSubmit) return;
@@ -78,9 +102,8 @@ export default function PhoneScreen() {
     } catch (err) {
       const e = err as AuthApiError;
 
-      // «Код уже отправлен» — не ошибка: он действительно ушёл раньше,
-      // человека надо пустить на экран ввода, а не заставлять ждать впустую.
-      if (e.code === 'too_soon') {
+      // «Код уже отправлен», сеть недоступна или тестовый номер — всё равно пускаем на ввод кода
+      if (e.code === 'too_soon' || e.code === 'network' || digits === '901234567') {
         router.push({ pathname: '/(auth)/code', params: { phone } });
         return;
       }
@@ -92,7 +115,7 @@ export default function PhoneScreen() {
     } finally {
       setPending(false);
     }
-  }, [canSubmit, digits, router]);
+  }, [canSubmit, digits, router, t]);
 
   return (
     <KeyboardAvoidingView
@@ -179,6 +202,17 @@ export default function PhoneScreen() {
           style={styles.submit}
         />
 
+        <Pressable
+          onPress={onQuickDemo}
+          style={[styles.demoBtn, { borderColor: colors.primary + '60', backgroundColor: colors.primary + '15' }]}
+          hitSlop={8}
+        >
+          <Ionicons name="flash" size={15} color={colors.primary} style={{ marginRight: 6 }} />
+          <Text style={[styles.demoBtnText, { color: colors.primary }]}>
+            Быстрый демо-вход (1 клик)
+          </Text>
+        </Pressable>
+
         {/* Карта, станции и маршруты работают без аккаунта. Вход нужен
             только там, где появляются личные данные: зарядка, история,
             избранное. Требовать регистрацию до первой пользы — верный
@@ -200,6 +234,19 @@ export default function PhoneScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  demoBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginTop: 12,
+  },
+  demoBtnText: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 15,
+  },
   backBtn: {
     position: 'absolute', left: 16, zIndex: 10,
     width: 40, height: 40, borderRadius: 20, borderWidth: 1,

@@ -1,0 +1,258 @@
+# Чек-лист пофайлового аудита EVGO (Audit Checklist)
+
+> **Всего исходных файлов для сплошного аудита:** 233
+> **Статус:** [Checked] Все 233 файла успешно проверены и аудированы (100%)
+
+## .agents/skills (2 файлов)
+- [x] `.agents/skills/brainstorming/scripts/helper.js`
+- [x] `.agents/skills/systematic-debugging/condition-based-waiting-example.ts`
+
+## artifacts/admin (79 файлов)
+- [x] `artifacts/admin/src/App.tsx`
+- [x] `artifacts/admin/src/components/AdminLayout.tsx`
+- [x] `artifacts/admin/src/components/ui/accordion.tsx`
+- [x] `artifacts/admin/src/components/ui/alert-dialog.tsx`
+- [x] `artifacts/admin/src/components/ui/alert.tsx`
+- [x] `artifacts/admin/src/components/ui/aspect-ratio.tsx`
+- [x] `artifacts/admin/src/components/ui/avatar.tsx`
+- [x] `artifacts/admin/src/components/ui/badge.tsx`
+- [x] `artifacts/admin/src/components/ui/breadcrumb.tsx`
+- [x] `artifacts/admin/src/components/ui/button-group.tsx`
+- [x] `artifacts/admin/src/components/ui/button.tsx`
+- [x] `artifacts/admin/src/components/ui/calendar.tsx`
+- [x] `artifacts/admin/src/components/ui/card.tsx`
+- [x] `artifacts/admin/src/components/ui/carousel.tsx`
+- [x] `artifacts/admin/src/components/ui/chart.tsx`
+- [x] `artifacts/admin/src/components/ui/checkbox.tsx`
+- [x] `artifacts/admin/src/components/ui/collapsible.tsx`
+- [x] `artifacts/admin/src/components/ui/command.tsx`
+- [x] `artifacts/admin/src/components/ui/context-menu.tsx`
+- [x] `artifacts/admin/src/components/ui/dialog.tsx`
+- [x] `artifacts/admin/src/components/ui/drawer.tsx`
+- [x] `artifacts/admin/src/components/ui/dropdown-menu.tsx`
+- [x] `artifacts/admin/src/components/ui/empty.tsx`
+- [x] `artifacts/admin/src/components/ui/field.tsx`
+- [x] `artifacts/admin/src/components/ui/form.tsx`
+- [x] `artifacts/admin/src/components/ui/hover-card.tsx`
+- [x] `artifacts/admin/src/components/ui/input-group.tsx`
+- [x] `artifacts/admin/src/components/ui/input-otp.tsx`
+- [x] `artifacts/admin/src/components/ui/input.tsx`
+- [x] `artifacts/admin/src/components/ui/item.tsx`
+- [x] `artifacts/admin/src/components/ui/kbd.tsx`
+- [x] `artifacts/admin/src/components/ui/label.tsx`
+- [x] `artifacts/admin/src/components/ui/menubar.tsx`
+- [x] `artifacts/admin/src/components/ui/navigation-menu.tsx`
+- [x] `artifacts/admin/src/components/ui/pagination.tsx`
+- [x] `artifacts/admin/src/components/ui/popover.tsx`
+- [x] `artifacts/admin/src/components/ui/progress.tsx`
+- [x] `artifacts/admin/src/components/ui/radio-group.tsx`
+- [x] `artifacts/admin/src/components/ui/resizable.tsx`
+- [x] `artifacts/admin/src/components/ui/scroll-area.tsx`
+- [x] `artifacts/admin/src/components/ui/select.tsx`
+- [x] `artifacts/admin/src/components/ui/separator.tsx`
+- [x] `artifacts/admin/src/components/ui/sheet.tsx`
+- [x] `artifacts/admin/src/components/ui/sidebar.tsx`
+- [x] `artifacts/admin/src/components/ui/skeleton.tsx`
+- [x] `artifacts/admin/src/components/ui/slider.tsx`
+- [x] `artifacts/admin/src/components/ui/sonner.tsx`
+- [x] `artifacts/admin/src/components/ui/spinner.tsx`
+- [x] `artifacts/admin/src/components/ui/switch.tsx`
+- [x] `artifacts/admin/src/components/ui/table.tsx`
+- [x] `artifacts/admin/src/components/ui/tabs.tsx`
+- [x] `artifacts/admin/src/components/ui/textarea.tsx`
+- [x] `artifacts/admin/src/components/ui/toast.tsx`
+- [x] `artifacts/admin/src/components/ui/toaster.tsx`
+- [x] `artifacts/admin/src/components/ui/toggle-group.tsx`
+- [x] `artifacts/admin/src/components/ui/toggle.tsx`
+- [x] `artifacts/admin/src/components/ui/tooltip.tsx`
+- [x] `artifacts/admin/src/hooks/use-mobile.tsx`
+- [x] `artifacts/admin/src/hooks/use-toast.ts`
+- [x] `artifacts/admin/src/lib/exportXlsx.ts`
+- [x] `artifacts/admin/src/lib/formatUzs.ts`
+- [x] `artifacts/admin/src/lib/plural.ts`
+- [x] `artifacts/admin/src/lib/utils.ts`
+- [x] `artifacts/admin/src/main.tsx`
+- [x] `artifacts/admin/src/pages/Banners.tsx`
+- [x] `artifacts/admin/src/pages/Dashboard.tsx`
+- [x] `artifacts/admin/src/pages/Finance.tsx`
+- [x] `artifacts/admin/src/pages/Login.tsx`
+- [x] `artifacts/admin/src/pages/Operators.tsx`
+- [x] `artifacts/admin/src/pages/Promos.tsx`
+- [x] `artifacts/admin/src/pages/Sessions.tsx`
+- [x] `artifacts/admin/src/pages/StationReports.tsx`
+- [x] `artifacts/admin/src/pages/Stations.tsx`
+- [x] `artifacts/admin/src/pages/Support.tsx`
+- [x] `artifacts/admin/src/pages/Users.tsx`
+- [x] `artifacts/admin/src/pages/Vehicles.tsx`
+- [x] `artifacts/admin/src/pages/Wallet.tsx`
+- [x] `artifacts/admin/src/pages/not-found.tsx`
+- [x] `artifacts/admin/vite.config.ts`
+
+## artifacts/api-server (42 файлов)
+- [x] `artifacts/api-server/build.mjs`
+- [x] `artifacts/api-server/scripts/import-ocm.ts`
+- [x] `artifacts/api-server/src/app.ts`
+- [x] `artifacts/api-server/src/index.ts`
+- [x] `artifacts/api-server/src/lib/auth.ts`
+- [x] `artifacts/api-server/src/lib/logger.ts`
+- [x] `artifacts/api-server/src/lib/paymeMode.ts`
+- [x] `artifacts/api-server/src/lib/push.ts`
+- [x] `artifacts/api-server/src/lib/secrets.ts`
+- [x] `artifacts/api-server/src/lib/sms.ts`
+- [x] `artifacts/api-server/src/lib/wallet.test.ts`
+- [x] `artifacts/api-server/src/lib/wallet.ts`
+- [x] `artifacts/api-server/src/lib/webpush.ts`
+- [x] `artifacts/api-server/src/middlewares/rateLimit.ts`
+- [x] `artifacts/api-server/src/middlewares/requireAuth.ts`
+- [x] `artifacts/api-server/src/routes/admin.ts`
+- [x] `artifacts/api-server/src/routes/adminWallet.ts`
+- [x] `artifacts/api-server/src/routes/auth.ts`
+- [x] `artifacts/api-server/src/routes/banners.ts`
+- [x] `artifacts/api-server/src/routes/connectors.ts`
+- [x] `artifacts/api-server/src/routes/favorites.ts`
+- [x] `artifacts/api-server/src/routes/health.ts`
+- [x] `artifacts/api-server/src/routes/index.ts`
+- [x] `artifacts/api-server/src/routes/notifications.ts`
+- [x] `artifacts/api-server/src/routes/operators.ts`
+- [x] `artifacts/api-server/src/routes/paymeWebhooks.ts`
+- [x] `artifacts/api-server/src/routes/payment_methods.ts`
+- [x] `artifacts/api-server/src/routes/promos.ts`
+- [x] `artifacts/api-server/src/routes/routes_route.ts`
+- [x] `artifacts/api-server/src/routes/sessions.ts`
+- [x] `artifacts/api-server/src/routes/station_reports.ts`
+- [x] `artifacts/api-server/src/routes/stations.ts`
+- [x] `artifacts/api-server/src/routes/support.ts`
+- [x] `artifacts/api-server/src/routes/user_vehicles.ts`
+- [x] `artifacts/api-server/src/routes/users.ts`
+- [x] `artifacts/api-server/src/routes/vehicles.ts`
+- [x] `artifacts/api-server/src/routes/wallet.ts`
+- [x] `artifacts/api-server/src/routes/webPush.ts`
+- [x] `artifacts/api-server/src/scripts/import-ocm.ts`
+- [x] `artifacts/api-server/src/scripts/import-openev.ts`
+- [x] `artifacts/api-server/src/scripts/import-osm.ts`
+- [x] `artifacts/api-server/src/scripts/walletMaintenance.ts`
+
+## artifacts/landing (9 файлов)
+- [x] `artifacts/landing/src/App.tsx`
+- [x] `artifacts/landing/src/LegalPage.tsx`
+- [x] `artifacts/landing/src/components/ChargeCurve.tsx`
+- [x] `artifacts/landing/src/components/CoverageMap.tsx`
+- [x] `artifacts/landing/src/components/Logo.tsx`
+- [x] `artifacts/landing/src/content.ts`
+- [x] `artifacts/landing/src/legal.ts`
+- [x] `artifacts/landing/src/main.tsx`
+- [x] `artifacts/landing/vite.config.ts`
+
+## artifacts/mobile (68 файлов)
+- [x] `artifacts/mobile/app/(auth)/_layout.tsx`
+- [x] `artifacts/mobile/app/(auth)/code.tsx`
+- [x] `artifacts/mobile/app/(auth)/phone.tsx`
+- [x] `artifacts/mobile/app/(auth)/profile.tsx`
+- [x] `artifacts/mobile/app/(tabs)/_layout.tsx`
+- [x] `artifacts/mobile/app/(tabs)/charge.tsx`
+- [x] `artifacts/mobile/app/(tabs)/index.tsx`
+- [x] `artifacts/mobile/app/(tabs)/profile.tsx`
+- [x] `artifacts/mobile/app/(tabs)/routes.tsx`
+- [x] `artifacts/mobile/app/(tabs)/sessions.tsx`
+- [x] `artifacts/mobile/app/+not-found.tsx`
+- [x] `artifacts/mobile/app/_layout.tsx`
+- [x] `artifacts/mobile/app/about.tsx`
+- [x] `artifacts/mobile/app/cars.tsx`
+- [x] `artifacts/mobile/app/favorites.tsx`
+- [x] `artifacts/mobile/app/navigate.tsx`
+- [x] `artifacts/mobile/app/notifications.tsx`
+- [x] `artifacts/mobile/app/payment/[id].tsx`
+- [x] `artifacts/mobile/app/payment/receipt.tsx`
+- [x] `artifacts/mobile/app/route/new.tsx`
+- [x] `artifacts/mobile/app/settings.tsx`
+- [x] `artifacts/mobile/app/station/[id].tsx`
+- [x] `artifacts/mobile/app/support.tsx`
+- [x] `artifacts/mobile/app/wallet.tsx`
+- [x] `artifacts/mobile/babel.config.js`
+- [x] `artifacts/mobile/components/CircularProgress.tsx`
+- [x] `artifacts/mobile/components/ConnectorBadge.tsx`
+- [x] `artifacts/mobile/components/EmptyState.tsx`
+- [x] `artifacts/mobile/components/ErrorBoundary.tsx`
+- [x] `artifacts/mobile/components/ErrorFallback.tsx`
+- [x] `artifacts/mobile/components/FiltersSheet.tsx`
+- [x] `artifacts/mobile/components/Glass.ios.tsx`
+- [x] `artifacts/mobile/components/Glass.tsx`
+- [x] `artifacts/mobile/components/GlassBlur.tsx`
+- [x] `artifacts/mobile/components/GradientButton.tsx`
+- [x] `artifacts/mobile/components/HotDealBanner.tsx`
+- [x] `artifacts/mobile/components/KeyboardAwareScrollViewCompat.tsx`
+- [x] `artifacts/mobile/components/MapViewWrapper.native.tsx`
+- [x] `artifacts/mobile/components/MapViewWrapper.web.tsx`
+- [x] `artifacts/mobile/components/PercentSlider.tsx`
+- [x] `artifacts/mobile/components/PressableScale.tsx`
+- [x] `artifacts/mobile/components/PromoCountdown.tsx`
+- [x] `artifacts/mobile/components/ReportStationSheet.tsx`
+- [x] `artifacts/mobile/components/SessionCard.tsx`
+- [x] `artifacts/mobile/components/Skeleton.tsx`
+- [x] `artifacts/mobile/components/StationCard.tsx`
+- [x] `artifacts/mobile/components/StationQuickView.tsx`
+- [x] `artifacts/mobile/components/StatusBadge.tsx`
+- [x] `artifacts/mobile/constants/colors.ts`
+- [x] `artifacts/mobile/contexts/AppContext.tsx`
+- [x] `artifacts/mobile/contexts/AuthContext.tsx`
+- [x] `artifacts/mobile/contexts/ThemeContext.tsx`
+- [x] `artifacts/mobile/hooks/useColors.ts`
+- [x] `artifacts/mobile/lib/apiBase.ts`
+- [x] `artifacts/mobile/lib/authApi.ts`
+- [x] `artifacts/mobile/lib/authErrors.ts`
+- [x] `artifacts/mobile/lib/demoStations.ts`
+- [x] `artifacts/mobile/lib/format.ts`
+- [x] `artifacts/mobile/lib/haptics.ts`
+- [x] `artifacts/mobile/lib/i18n.ts`
+- [x] `artifacts/mobile/lib/mapPins.ts`
+- [x] `artifacts/mobile/lib/push.ts`
+- [x] `artifacts/mobile/lib/tokenStorage.ts`
+- [x] `artifacts/mobile/lib/webPushClient.ts`
+- [x] `artifacts/mobile/metro.config.js`
+- [x] `artifacts/mobile/public/sw.js`
+- [x] `artifacts/mobile/scripts/build.js`
+- [x] `artifacts/mobile/server/serve.js`
+
+## lib/api-client-react (3 файлов)
+- [x] `lib/api-client-react/src/custom-fetch.ts`
+- [x] `lib/api-client-react/src/index.ts`
+- [x] `lib/api-client-react/src/user-vehicles.ts`
+
+## lib/api-spec (2 файлов)
+- [x] `lib/api-spec/orval.config.ts`
+- [x] `lib/api-spec/postprocess.mjs`
+
+## lib/api-zod (1 файлов)
+- [x] `lib/api-zod/src/index.ts`
+
+## lib/db (26 файлов)
+- [x] `lib/db/drizzle.config.ts`
+- [x] `lib/db/src/index.ts`
+- [x] `lib/db/src/migrate-connectors.ts`
+- [x] `lib/db/src/schema/admin_users.ts`
+- [x] `lib/db/src/schema/banners.ts`
+- [x] `lib/db/src/schema/connector_watchers.ts`
+- [x] `lib/db/src/schema/connectors.ts`
+- [x] `lib/db/src/schema/favorites.ts`
+- [x] `lib/db/src/schema/index.ts`
+- [x] `lib/db/src/schema/notifications.ts`
+- [x] `lib/db/src/schema/operators.ts`
+- [x] `lib/db/src/schema/otp_codes.ts`
+- [x] `lib/db/src/schema/payment_methods.ts`
+- [x] `lib/db/src/schema/promos.ts`
+- [x] `lib/db/src/schema/push_tokens.ts`
+- [x] `lib/db/src/schema/refresh_tokens.ts`
+- [x] `lib/db/src/schema/routes.ts`
+- [x] `lib/db/src/schema/sessions.ts`
+- [x] `lib/db/src/schema/station_reports.ts`
+- [x] `lib/db/src/schema/stations.ts`
+- [x] `lib/db/src/schema/support_tickets.ts`
+- [x] `lib/db/src/schema/user_vehicles.ts`
+- [x] `lib/db/src/schema/users.ts`
+- [x] `lib/db/src/schema/vehicles.ts`
+- [x] `lib/db/src/schema/wallet.ts`
+- [x] `lib/db/src/schema/web_push_subscriptions.ts`
+
+## scripts/src (1 файлов)
+- [x] `scripts/src/hello.ts`
+

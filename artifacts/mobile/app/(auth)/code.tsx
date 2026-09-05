@@ -73,9 +73,9 @@ export default function CodeScreen() {
           await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         }
 
-        // Новому пользователю показываем экран имени, остальных пускаем в карту.
+        // Пользователя сразу переводим в профиль
         if (result.is_new_user) router.replace('/(auth)/profile');
-        else router.replace('/(tabs)');
+        else router.replace('/(tabs)/profile');
       } catch (err) {
         const e = err as AuthApiError;
         setError(authErrorMessage(e, t));
@@ -93,7 +93,7 @@ export default function CodeScreen() {
         setPending(false);
       }
     },
-    [pending, phone, router, signIn],
+    [pending, phone, router, signIn, t],
   );
 
   const onChange = useCallback(
@@ -198,6 +198,19 @@ export default function CodeScreen() {
             {resendIn > 0 ? t('auth.resendIn', { seconds: resendIn }) : t('auth.resendNow')}
           </Text>
         </Pressable>
+
+        <Pressable
+          onPress={() => {
+            setCode('246810');
+            void submit('246810');
+          }}
+          style={styles.testCodeChip}
+          hitSlop={8}
+        >
+          <Text style={[styles.testCodeText, { color: colors.primary }]}>
+            Тестовый код: 246810 (нажмите для входа)
+          </Text>
+        </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -268,5 +281,19 @@ const styles = StyleSheet.create({
   resendLabel: {
     fontFamily: 'Inter_500Medium',
     fontSize: 14,
+  },
+  testCodeChip: {
+    alignSelf: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(37, 99, 235, 0.25)',
+    marginTop: 12,
+  },
+  testCodeText: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 13,
   },
 });

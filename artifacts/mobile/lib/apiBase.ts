@@ -7,6 +7,8 @@
  * проходили.
  */
 
+import Constants from 'expo-constants';
+
 function isLocalHost(domain: string): boolean {
   const host = domain.split(':')[0];
   return (
@@ -19,9 +21,13 @@ function isLocalHost(domain: string): boolean {
   );
 }
 
-/** Схема + домен, без завершающего слеша. Пусто, если домен не задан. */
+/** Схема + домен, без завершающего слеша. */
 export function apiOrigin(): string {
-  const domain = process.env.EXPO_PUBLIC_DOMAIN;
+  let domain = process.env.EXPO_PUBLIC_DOMAIN;
+  if (!domain && Constants.expoConfig?.hostUri) {
+    const host = Constants.expoConfig.hostUri.split(':')[0];
+    if (host) domain = `${host}:3000`;
+  }
   if (!domain) return '';
   const scheme = isLocalHost(domain) ? 'http' : 'https';
   return `${scheme}://${domain}`;

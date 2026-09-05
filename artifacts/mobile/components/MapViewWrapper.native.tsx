@@ -16,7 +16,7 @@ import React, { forwardRef, useImperativeHandle, useRef, useEffect, useState, us
 import { StyleSheet, View, Text } from 'react-native';
 import MapView, { Marker, Polyline, Callout, Region } from 'react-native-maps';
 import { pinColor, pinOpacity } from '@/lib/mapPins';
-import { Feather } from '@expo/vector-icons';
+import { Feather, Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 
 // ── Public API (forwarded via ref) ────────────────────────────────────────
@@ -73,9 +73,9 @@ const TASHKENT: Region = {
 const ZOOM_IN_FACTOR  = 0.5;   // multiply delta by this to zoom in
 const ZOOM_OUT_FACTOR = 2.0;   // multiply delta by this to zoom out
 
-// Аккуратные небольшие пины (в духе Яндекса), не «бандуры».
-const PIN_SIZE          = 18;
-const PIN_PROMOTED_SIZE = 24;
+// Аккуратные пины (в духе Яндекс Заправок / Electroverse)
+const PIN_SIZE          = 26;
+const PIN_PROMOTED_SIZE = 32;
 
 // Cap on simultaneously-rendered native markers. Each marker is an RN View +
 // icon; hundreds of them exhaust memory and OOM-crash the app on real devices
@@ -331,7 +331,7 @@ export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
                   promoted && styles.pinPromoted,
                 ]}
               >
-                <Feather name="zap" size={promoted ? 12 : 9} color="#fff" />
+                <Ionicons name="flash" size={promoted ? 16 : 13} color="#FFFFFF" />
               </View>
             </Marker>
           );

@@ -219,17 +219,17 @@ export const MapViewWrapper = forwardRef<MapApi, Props>(
         const color = pinColor(s.power_kw, s.status);
         const opacity = pinOpacity(s.status);
         const promoted = !!s.is_promoted;
-        // Аккуратные небольшие точки (в духе Яндекса), не «бандуры».
-        const size = promoted ? 24 : 18;
+        // Аккуратные пины (в духе Яндекс Заправок / Electroverse)
+        const size = promoted ? 32 : 26;
         const border = promoted ? '2px solid #FCD34D' : '1.5px solid #fff';
         const shadow = promoted
-          ? '0 1px 6px rgba(245,158,11,.4)'
-          : '0 1px 3px rgba(0,0,0,.25)';
-        const zap = promoted ? 12 : 9;
+          ? '0 2px 8px rgba(245,158,11,.45)'
+          : '0 2px 5px rgba(0,0,0,.3)';
+        const zap = promoted ? 16 : 13;
         const icon = L.divIcon({
           html: `<div style="position:relative;background:${color};opacity:${opacity};width:${size}px;height:${size}px;border-radius:50%;border:${border};box-shadow:${shadow};display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .15s">
-            <svg width="${zap}" height="${zap}" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+            <svg width="${zap}" height="${zap}" viewBox="0 0 24 24" fill="#FFFFFF">
+              <path d="M13 2L4 13.5h7L10 22l9.5-11.5h-7L14 2z"/>
             </svg>
           </div>`,
           className: '', iconSize: [size, size], iconAnchor: [size / 2, size / 2],

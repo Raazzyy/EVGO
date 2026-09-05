@@ -359,9 +359,9 @@ export default function MapScreen() {
   const mapRef = useRef<MapApi>(null);
 
   // ── Dynamic snap points ───────────────────────────────────────────────────
-  // Leave ~80px map strip visible at top when fully open
-  const SHEET_MAX = Math.round(SCREEN_HEIGHT - Math.max(insets.top, 20) - 80);
-  const SHEET_MID = Math.round(SCREEN_HEIGHT * 0.55);
+  // Оставляем запас сверху под статус-бар, логотип и ряд фильтров (~145px)
+  const SHEET_MAX = Math.round(SCREEN_HEIGHT - Math.max(insets.top, 20) - 145);
+  const SHEET_MID = Math.round(SCREEN_HEIGHT * 0.50);
   const snapsRef  = useRef<[number, number, number]>([SHEET_MIN, SHEET_MID, SHEET_MAX]);
   snapsRef.current = [SHEET_MIN, SHEET_MID, SHEET_MAX];
   const snapToRef = useRef<(level: 0 | 1 | 2) => void>(() => {});
@@ -393,13 +393,13 @@ export default function MapScreen() {
 
   const mapControlsStyle = useAnimatedStyle(() => {
     const h   = sheetHeight.value;
-    const mid = SCREEN_HEIGHT * 0.55;
+    const mid = SCREEN_HEIGHT * 0.50;
     const opacity = interpolate(h, [mid - 40, mid + 40], [1, 0], Extrapolation.CLAMP);
     return { bottom: h + 16, opacity };
   });
 
   // ── Snap helpers ──────────────────────────────────────────────────────────
-  function animateTo(target: number, dur = 350) {
+  function animateTo(target: number, dur = 320) {
     sheetHeight.value = withTiming(target, { duration: dur, easing: IOS_EASE });
   }
   function snapTo(level: 0 | 1 | 2) {
@@ -411,7 +411,7 @@ export default function MapScreen() {
   }
   snapToRef.current = snapTo;
 
-  // ── RNGH Gesture.Pan (replaces PanResponder) ─────────────────────────────
+  // ── RNGH Gesture.Pan ──────────────────────────────────────────────────────
   // Keep snap-point shared values in sync with computed values
   useEffect(() => {
     sv_snapMid.value = SHEET_MID;
@@ -447,35 +447,38 @@ export default function MapScreen() {
       const vy  = e.velocityY;
       let level: 0|1|2;
       let target: number;
-      if (vy < -500)      { level = 2; target = maxH; }
-      else if (vy > 500)  { level = 0; target = minH; }
-      else {
+
+      if (vy < -350) {
+        // Свайп вверх: плавно поднимаем на следующий уровень
+        if (h < midH - 20) {
+          level = 1;
+          target = midH;
+        } else {
+          level = 2;
+          target = maxH;
+        }
+      } else if (vy > 350) {
+        // Свайп вниз: плавно опускаем на уровень ниже
+        if (h > midH + 20) {
+          level = 1;
+          target = midH;
+        } else {
+          level = 0;
+          target = minH;
+        }
+      } else {
         const snaps = [minH, midH, maxH];
         const nearest = snaps.reduce((p, c) => Math.abs(c - h) < Math.abs(p - h) ? c : p);
         level  = snaps.indexOf(nearest) as 0|1|2;
         target = nearest;
       }
-      sheetHeight.value = withTiming(target, { duration: 350, easing: IOS_EASE });
+      sheetHeight.value = withTiming(target, { duration: 320, easing: IOS_EASE });
       snapLevelSV.value = level;
       runOnJS(doSnapJS)(level);
     })
   , [doSnapJS]);
 
-  const tapGesture = useMemo(() => Gesture.Tap()
-    .onEnd(() => {
-      'worklet';
-      const next   = ((snapLevelSV.value + 1) % 3) as 0|1|2;
-      const target = [sv_snapMin.value, sv_snapMid.value, sv_snapMax.value][next]!;
-      sheetHeight.value = withTiming(target, { duration: 350, easing: IOS_EASE });
-      snapLevelSV.value = next;
-      runOnJS(doSnapJS)(next);
-    })
-  , [doSnapJS]);
-
-  const handleGesture = useMemo(
-    () => Gesture.Simultaneous(panGesture, tapGesture),
-    [panGesture, tapGesture],
-  );
+  const handleGesture = panGesture;
 
   // ── Geolocation ───────────────────────────────────────────────────────────
   useEffect(() => {

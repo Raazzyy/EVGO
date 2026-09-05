@@ -16,11 +16,11 @@ export function pinTier(powerKw: number): PinTier {
 
 /** Цвет пина: офлайн — серый, иначе по скорости. */
 export function pinColor(powerKw: number, status?: string): string {
-  if (status === 'offline') return '#94A3B8';
+  if (status === 'offline') return '#64748B';
   switch (pinTier(powerKw)) {
-    case 'ultra': return '#8B5CF6'; // фиолетовый
-    case 'fast':  return '#3B82F6'; // синий
-    default:      return '#10B981'; // зелёный
+    case 'ultra': return '#4F46E5'; // ультрабыстрая — насыщенный индиго
+    case 'fast':  return '#2563EB'; // быстрая DC — фирменный яркий синий Яндекс
+    default:      return '#0284C7'; // AC — небесно-голубой
   }
 }
 
@@ -31,7 +31,7 @@ export function pinOpacity(status?: string): number {
 
 /** Подпись уровня — для легенды/подсказок. */
 export const PIN_LEGEND: Array<{ tier: PinTier; color: string; label: string }> = [
-  { tier: 'slow',  color: '#10B981', label: 'AC · до 43 кВт' },
-  { tier: 'fast',  color: '#3B82F6', label: 'Быстрая · 43–150 кВт' },
-  { tier: 'ultra', color: '#8B5CF6', label: 'Ультра · 150+ кВт' },
+  { tier: 'slow',  color: '#0284C7', label: 'AC · до 43 кВт' },
+  { tier: 'fast',  color: '#2563EB', label: 'Быстрая · 43–150 кВт' },
+  { tier: 'ultra', color: '#4F46E5', label: 'Ультра · 150+ кВт' },
 ];

@@ -28,7 +28,9 @@ export default function RoutesScreen() {
   const qc = useQueryClient();
   const mapRef = useRef<MapApi>(null);
 
-  const { data: routes = [], isLoading } = useGetRoutes();
+  const { data: routesData, isLoading } = useGetRoutes();
+  const routes = useMemo(() => (Array.isArray(routesData) ? routesData : []), [routesData]);
+
   const deleteRoute = useDeleteRoute({
     mutation: {
       onSuccess: () => qc.invalidateQueries({ queryKey: getGetRoutesQueryKey() }),
@@ -37,27 +39,28 @@ export default function RoutesScreen() {
 
   // Use only the first active route
   const activeRoute = useMemo(
-    () => (routes as any[]).find(r => r.status === 'active') ?? null,
+    () => routes.find((r: any) => r && r.status === 'active') ?? null,
     [routes]
   );
 
   // Build route points for map
   const routePoints = useMemo(() => {
-    if (!activeRoute) return undefined;
+    if (!activeRoute || activeRoute.origin_lat == null || activeRoute.origin_lng == null || activeRoute.dest_lat == null || activeRoute.dest_lng == null) return undefined;
     const stops: any[] = activeRoute.stops ?? [];
     return [
-      { lat: activeRoute.origin_lat, lng: activeRoute.origin_lng, label: activeRoute.origin.split(',')[0], type: 'origin' as const },
-      ...stops.filter((s: any) => s.lat && s.lng).map((s: any) => ({
-        lat: s.lat, lng: s.lng, label: s.station_name, type: 'stop' as const,
+      { lat: Number(activeRoute.origin_lat), lng: Number(activeRoute.origin_lng), label: (activeRoute.origin ?? '').split(',')[0], type: 'origin' as const },
+      ...stops.filter((s: any) => s.lat != null && s.lng != null).map((s: any) => ({
+        lat: Number(s.lat), lng: Number(s.lng), label: s.station_name, type: 'stop' as const,
       })),
-      { lat: activeRoute.dest_lat, lng: activeRoute.dest_lng, label: activeRoute.destination.split(',')[0], type: 'dest' as const },
+      { lat: Number(activeRoute.dest_lat), lng: Number(activeRoute.dest_lng), label: (activeRoute.destination ?? '').split(',')[0], type: 'dest' as const },
     ];
   }, [activeRoute]);
 
   // Real road polyline from Yandex Router (already fetched by API)
   const polylinePoints = useMemo(() => {
-    if (!activeRoute?.polyline?.length) return undefined;
-    return activeRoute.polyline as Array<[number, number]>;
+    const poly = (activeRoute as any)?.polyline;
+    if (!poly?.length) return undefined;
+    return poly as Array<[number, number]>;
   }, [activeRoute]);
 
   const topPad = Platform.OS === 'web' ? 0 : insets.top;

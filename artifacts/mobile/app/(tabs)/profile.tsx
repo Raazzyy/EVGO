@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -59,21 +59,45 @@ export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { userId, userMembership } = useApp();
-  const { user: authUser, isAuthenticated, signOut } = useAuth();
+  const { user: authUser, isAuthenticated, signOut, signIn } = useAuth();
   const router = useRouter();
 
   // @ts-ignore - keeping existing pattern
-  const { data: user, isLoading } = useGetUser(userId);
-  const { data: sessions = [] } = useGetSessions({ user_id: userId });
+  const { data: user, isLoading } = useGetUser(userId, {
+    query: { enabled: isAuthenticated && Boolean(userId) },
+  });
+  const { data: rawSessions } = useGetSessions(
+    { user_id: userId },
+    { query: { enabled: isAuthenticated && Boolean(userId) } }
+  );
 
-  const completedSessions = sessions.filter((s) => s.status === 'completed');
-  const totalEnergy = completedSessions.reduce((acc, s) => acc + (s.energy_kwh ?? 0), 0);
+  const sessions = useMemo(() => (Array.isArray(rawSessions) ? (rawSessions as any[]) : []), [rawSessions]);
+  const completedSessions = useMemo(() => sessions.filter((s: any) => s.status === 'completed'), [sessions]);
+  const totalEnergy = useMemo(() => completedSessions.reduce((acc: number, s: any) => acc + (s.energy_kwh ?? 0), 0), [completedSessions]);
   // cost_tiyin — тийины (1 сум = 100 тийин), приводим к сумам для отображения.
-  const totalCost = completedSessions.reduce((acc, s) => acc + (s.cost_tiyin ?? 0) / 100, 0);
+  const totalCost = useMemo(() => completedSessions.reduce((acc: number, s: any) => acc + (s.cost_tiyin ?? 0) / 100, 0), [completedSessions]);
   const co2Saved = totalEnergy * 0.4;
 
   const topPad = Platform.OS === 'web' ? 67 : insets.top;
   const bottomPad = Platform.OS === 'web' ? 34 : insets.bottom;
+
+  const handleDemoSignIn = useCallback(async () => {
+    try {
+      await signIn(
+        { accessToken: 'demo-token-active', refreshToken: 'demo-refresh-token' },
+        {
+          id: '1',
+          name: 'Азиз Рахимов',
+          phone: '+998 90 123 45 67',
+          email: 'demo@evgo.uz',
+          language: 'ru',
+          membership_tier: 'premium',
+        }
+      );
+    } catch (e) {
+      console.error(e);
+    }
+  }, [signIn]);
 
   const menuItems: MenuItem[] = [
     { icon: 'credit-card', label: 'Кошелёк',           desc: 'Баланс и пополнение',                        onPress: () => router.push('/wallet') },
@@ -85,7 +109,7 @@ export default function ProfileScreen() {
     { icon: 'info',        label: 'О приложении',      desc: `EVGO v${VERSION}`,                    onPress: () => router.push('/about') },
   ];
 
-  if (isLoading) {
+  if (isLoading && isAuthenticated && !authUser) {
     return (
       <View style={[styles.loading, { backgroundColor: colors.background }]}>
         <ActivityIndicator color={colors.primary} />
@@ -115,7 +139,7 @@ export default function ProfileScreen() {
           start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
           style={styles.guestCard}
         >
-          <Text style={styles.guestTitle}>Войдите, чтобы открыть больше</Text>
+          <Text style={styles.guestTitle}>Войдите, чтобы открыть профиль</Text>
           <View style={{ gap: 14, marginTop: 4 }}>
             {perks.map((p) => (
               <View key={p.title} style={styles.perkRow}>
@@ -129,9 +153,19 @@ export default function ProfileScreen() {
               </View>
             ))}
           </View>
-          <PressableScale haptic activeScale={0.97} onPress={() => router.push('/(auth)/phone')} style={styles.guestBtn}>
-            <Text style={styles.guestBtnText}>Войти</Text>
-          </PressableScale>
+          <View style={{ gap: 10, marginTop: 8 }}>
+            <PressableScale haptic activeScale={0.97} onPress={() => router.push('/(auth)/phone')} style={styles.guestBtn}>
+              <Text style={styles.guestBtnText}>Войти по номеру телефона</Text>
+            </PressableScale>
+            <PressableScale
+              haptic
+              activeScale={0.97}
+              onPress={handleDemoSignIn}
+              style={[styles.guestBtn, { backgroundColor: 'rgba(255,255,255,0.15)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' }]}
+            >
+              <Text style={[styles.guestBtnText, { color: '#fff' }]}>Быстрый демо-вход (1 клик)</Text>
+            </PressableScale>
+          </View>
         </LinearGradient>
 
         <View style={[styles.menuCard, { backgroundColor: colors.card }]}>

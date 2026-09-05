@@ -130,7 +130,7 @@ export default function Sessions() {
                         ) : (
                           <>
                             <div className="text-sm font-medium">{session.energy_kwh?.toFixed(2)} кВт·ч</div>
-                            <div className="text-xs text-muted-foreground mt-0.5">{formatUzs(session.cost ?? 0)}</div>
+                            <div className="text-xs text-muted-foreground mt-0.5">{formatUzs((session as any).cost ?? ((session.cost_tiyin ?? 0) / 100))}</div>
                           </>
                         )}
                       </TableCell>
