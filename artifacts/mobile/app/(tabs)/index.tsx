@@ -690,8 +690,19 @@ export default function MapScreen() {
 
   const topOffset  = Platform.OS === 'web' ? 0 : insets.top;
   const bottomPad  = Platform.OS === 'web' ? 34 + 84 : insets.bottom + 100;
-  const routeFor   = (s: any) =>
-    `/route/new?stationId=${s.id}&stationName=${encodeURIComponent(s.name)}&lat=${s.lat}&lng=${s.lng}` as any;
+  const routeFor   = useCallback((s: any) =>
+    `/route/new?stationId=${s.id}&stationName=${encodeURIComponent(s.name)}&lat=${s.lat}&lng=${s.lng}` as any, []);
+
+  // Stable renderItem so FlatList cells (memoized StationCard) don't re-render
+  // on every parent update (e.g. each keystroke in the search box).
+  const renderStationItem = useCallback(({ item: s, index: i }: { item: any; index: number }) => (
+    <Animated.View entering={FadeInDown.delay(Math.min(i, 8) * 35).duration(300).easing(IOS_EASE)}>
+      <StationCard station={s} onPress={() => router.push(`/station/${s.id}` as any)}
+        onRoute={() => router.push(routeFor(s))}
+        discount_pct={(s as any).discount_pct} is_promoted={(s as any).is_promoted}
+        amenities={(s as any).amenities} />
+    </Animated.View>
+  ), [router, routeFor]);
 
   // ── Horizontal section renderer ───────────────────────────────────────────
   // Card width = 78 % of screen; gap = 12; padding = 16 on each side.
@@ -865,14 +876,7 @@ export default function MapScreen() {
               </View>
             )
           }
-          renderItem={({ item: s, index: i }) => (
-            <Animated.View entering={FadeInDown.delay(Math.min(i, 8) * 35).duration(300).easing(IOS_EASE)}>
-              <StationCard station={s} onPress={() => router.push(`/station/${s.id}`)}
-                onRoute={() => router.push(routeFor(s))}
-                discount_pct={(s as any).discount_pct} is_promoted={(s as any).is_promoted}
-                amenities={(s as any).amenities} />
-            </Animated.View>
-          )}
+          renderItem={renderStationItem}
         />
         <FiltersSheet visible={filtersVisible} onClose={() => setFiltersVisible(false)} onApply={f => setActiveFilters(f)} />
       </View>
