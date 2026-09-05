@@ -7,7 +7,6 @@ import React, { useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
   StyleSheet,
   Dimensions,
   Platform,
@@ -15,7 +14,9 @@ import {
 import Animated, {
   useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS,
 } from 'react-native-reanimated';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+// TouchableOpacity из gesture-handler координируется с Pan-жестом карточки —
+// иначе микродвижение пальца по кнопке отменяло тап (баг MAP-03).
+import { Gesture, GestureDetector, TouchableOpacity } from 'react-native-gesture-handler';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useColors } from '@/hooks/useColors';
@@ -125,7 +126,7 @@ export function StationQuickView({
   // Swipe-down to close
   const handleClose = useCallback(onClose, [onClose]);
   const swipeGesture = useMemo(() => Gesture.Pan()
-    .activeOffsetY([0, 8])
+    .activeOffsetY([0, 14])
     .failOffsetX([-25, 25])
     .onUpdate((e) => {
       'worklet';

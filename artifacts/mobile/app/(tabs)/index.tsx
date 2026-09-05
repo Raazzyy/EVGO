@@ -676,7 +676,11 @@ export default function MapScreen() {
   }, []);
 
   useEffect(() => {
-    if (!selectedStation) { setMarkerPos(null); return; }
+    // Сбрасываем позицию сразу при смене станции — иначе карточка 1–2 кадра
+    // рисуется на координатах прошлого пина, пока projectPoint резолвится
+    // асинхронно (баг MAP-04: мигание/телепорт карточки).
+    setMarkerPos(null);
+    if (!selectedStation) return;
     computeMarkerPos(selectedStation.lat, selectedStation.lng);
   }, [selectedStation?.id]);
 
