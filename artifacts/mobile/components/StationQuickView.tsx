@@ -207,7 +207,7 @@ export function StationQuickView({
   // ── Render ────────────────────────────────────────────────────────────
   return (
     // Wrapper: fills the container, passes touches through in empty areas
-    <View style={[StyleSheet.absoluteFillObject, { pointerEvents: 'box-none' }]}>
+    <View style={[StyleSheet.absoluteFill, { pointerEvents: 'box-none' }]}>
       <GestureDetector gesture={swipeGesture}>
         <Animated.View
         onLayout={(e) => { cardHeightRef.current = e.nativeEvent.layout.height; }}

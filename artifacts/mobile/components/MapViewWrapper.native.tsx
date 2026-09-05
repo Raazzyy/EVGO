@@ -277,7 +277,7 @@ export const MapViewWrapper = forwardRef<MapApi, MapViewWrapperProps>(
     return (
       <MapView
         ref={mapRef}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
         initialRegion={TASHKENT}
         onRegionChange={(r: Region) => {
           regionRef.current = r;

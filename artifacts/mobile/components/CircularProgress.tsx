@@ -54,7 +54,7 @@ export function CircularProgress({
       <View style={{ width: size, height: size }}>
         {/* Track ring */}
         <View style={[
-          StyleSheet.absoluteFillObject,
+          StyleSheet.absoluteFill,
           { borderRadius: size / 2, borderWidth: stroke, borderColor: trackColor },
         ]} />
 
@@ -91,7 +91,7 @@ export function CircularProgress({
         )}
 
         {/* Centre content: optional icon + percentage */}
-        <View style={[StyleSheet.absoluteFillObject, styles.centre]}>
+        <View style={[StyleSheet.absoluteFill, styles.centre]}>
           {icon && <View style={{ marginBottom: 2 }}>{icon}</View>}
           <Text style={{ fontSize, fontFamily: 'Inter_700Bold', color }}>
             {Math.round(value)}%
