@@ -12,7 +12,7 @@ import {
   Platform,
 } from 'react-native';
 import Animated, {
-  useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS,
+  useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS, Easing,
 } from 'react-native-reanimated';
 // TouchableOpacity из gesture-handler координируется с Pan-жестом карточки —
 // иначе микродвижение пальца по кнопке отменяло тап (баг MAP-03).
@@ -102,28 +102,29 @@ export function StationQuickView({
   onCharge,
 }: StationQuickViewProps) {
   const colors = useColors();
-  const popScale      = useSharedValue(0.88);
+  const popScale      = useSharedValue(0.94);
   const popOpacity    = useSharedValue(0);
-  const panY          = useSharedValue(0);
+  const panY          = useSharedValue(12);
   const cardHeightRef = useRef(280);
 
-  // Pop-in when station or position appears
+  // Плавное появление (fade + subtle scale + float up)
   useEffect(() => {
     if (station && position) {
-      popScale.value   = 0.88;
+      popScale.value   = 0.94;
       popOpacity.value = 0;
-      panY.value       = 0;
-      popScale.value   = withSpring(1, { damping: 12, stiffness: 150 });
-      popOpacity.value = withTiming(1, { duration: 130 });
+      panY.value       = 12;
+      popScale.value   = withSpring(1, { damping: 22, stiffness: 200, mass: 0.8 });
+      popOpacity.value = withTiming(1, { duration: 220, easing: Easing.out(Easing.cubic) });
+      panY.value       = withSpring(0, { damping: 22, stiffness: 200, mass: 0.8 });
     }
-  }, [station?.id]);
+  }, [station?.id, position?.x, position?.y]);
 
   const cardAnimStyle = useAnimatedStyle(() => ({
     opacity:   popOpacity.value,
     transform: [{ scale: popScale.value }, { translateY: panY.value }],
   }));
 
-  // Swipe-down to close
+  // Свайп вниз для закрытия
   const handleClose = useCallback(onClose, [onClose]);
   const swipeGesture = useMemo(() => Gesture.Pan()
     .activeOffsetY([0, 14])
@@ -134,11 +135,12 @@ export function StationQuickView({
     })
     .onEnd((e) => {
       'worklet';
-      if (e.translationY > 60 || e.velocityY > 600) {
-        panY.value = withTiming(300, { duration: 180 });
+      if (e.translationY > 50 || e.velocityY > 500) {
+        panY.value = withTiming(250, { duration: 200, easing: Easing.in(Easing.cubic) });
+        popOpacity.value = withTiming(0, { duration: 160 });
         runOnJS(handleClose)();
       } else {
-        panY.value = withSpring(0, { damping: 15, stiffness: 120 });
+        panY.value = withSpring(0, { damping: 20, stiffness: 180 });
       }
     })
   , [handleClose]);

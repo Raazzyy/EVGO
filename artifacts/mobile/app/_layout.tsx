@@ -110,12 +110,12 @@ function RootLayoutNav() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen
         name="station/[id]"
-        // Экран станции открывается с карты/карточки — поднимаем его снизу
-        // с лёгким затуханием (iOS-подобный «материал всплывает»), а не
-        // стандартным горизонтальным пушем. Настоящий shared-element (пин →
-        // hero) требует Reanimated shared transitions и проверки на устройстве
-        // — вынесено отдельно.
-        options={{ headerShown: false, animation: 'fade_from_bottom' }}
+        options={{
+          headerShown: false,
+          animation: 'slide_from_bottom',
+          animationDuration: 280,
+          gestureEnabled: true,
+        }}
       />
       <Stack.Screen
         name="route/new"

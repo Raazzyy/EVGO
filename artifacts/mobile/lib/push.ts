@@ -18,14 +18,18 @@ import { apiUrl } from '@/lib/apiBase';
 
 
 /** Показывать уведомление, даже когда приложение открыто. */
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
+if (typeof Notifications?.setNotificationHandler === 'function') {
+  try {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+      }),
+    });
+  } catch {}
+}
 
 /** id проекта Expo — без него Expo не выдаёт токен в сборке. */
 function projectId(): string | undefined {
